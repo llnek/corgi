@@ -1,0 +1,179 @@
+;; Copyright ©  2013-2018, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+  (:require ["kirby" :refer :all]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set! cc.game.onStart boot-func)
+(.run cc.game)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- *ss1* "StartScreen")
+(def *xcfg* nil)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- handleMultiDevices* "" []
+  (with-local-vars [fsz (ccsx/screenSize)
+                    [dir n1 n2]
+                    (cond (or (>= fsz.width 2048)
+                              (>= fsz.height 2048))
+                          [:hdr 2048 1536]
+                          (or (>= fsz.width 1136)
+                              (>= fsz.height 1136))
+                          [:hds 1136 640]
+                          (or (>= fsz.width 1024)
+                              (>= fsz.height 1024))
+                          [:hds 1024 768]
+                          (or (>= fsz.width 960)
+                              (>= fsz.height 960))
+                          [:hds 960 640]
+                          :else
+                          [:sd 480 320])])
+  ;;device window size or canvas size.
+  (loggr/info "view.frameSize = [" fsz.width ", " fsz.height "]")
+  (update-in! *xcfg* [:resolution :resDir] #(dir))
+  (ccsx/setdr (get-in *xcfg* [:game :landscape?])
+              n1 n2
+              (get-in *xcfg* [:resolution :policy]))
+  (do-with [searchPaths (.getSearchPaths jsb.fileUtils)]
+           ;;need to prefix "assets" for andriod
+           (each #(.push searchPaths %)
+                 (concat (map #(str % dir)
+                              ["assets/res/" "res/"]) ["assets/src" "src"]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- handleMultiDevices
+  "Sort out what resolution to use for this device. @return search paths"
+  []
+  (with-local-vars [fh (.-handleDevices *xcfg*)])
+  ;;if handler provided, call it and go.
+  (if (fn? fh) (fh) (handleMultiDevices* )))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;let pvLoadSound = (sh, xcfg, k,v) => { return sh.sanitizeUrl( v + '.' + xcfg.game.sfx ); }
+;let pvLoadSprite = (sh, xcfg, k, v) => { return sh.sanitizeUrl(v[0]); }
+;let pvLoadImage = (sh, xcfg, k,v) => { return sh.sanitizeUrl(v); }
+;let pvLoadTile = (sh, xcfg, k,v) => { return sh.sanitizeUrl(v); }
+;let pvLoadAtlas = (sh, xcfg, k,v) => { return [sh.sanitizeUrl( v + '.plist'), sh.sanitizeUrl( v + '.png') ]; }
+;let pvLoadLevels = (sjs, sh, xcfg) => {
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- pvGatherPreloads "" [] nil)
+
+/**
+ * @class MyLoaderScene
+ */
+const MyLoaderScene = cc.Scene.extend(/** @lends MyLoaderScene# */{
+
+  init() { return true; },
+
+  _startLoading() {
+    const res = this.resources,
+    self=this;
+
+    self.unschedule(self._startLoading);
+    cc.loader.load(res,
+                   (result, count, loadedCount) => {},
+                   () => {
+                     if (sjs.isfunc(self.cb)) {
+                       self.cb();
+                     }
+                   });
+  },
+
+  initWithResources(resources, cb) {
+    this.resources = resources || [];
+    this.cb = cb;
+  },
+
+  onEnter() {
+    const self = this;
+    cc.Node.prototype.onEnter.call(self);
+    self.schedule(self._startLoading, 0.3);
+  },
+
+  onExit() {
+    cc.Node.prototype.onExit.call(this);
+  }
+
+});
+
+//////////////////////////////////////////////////////////////////////////////
+let preLaunchApp = (sjs, sh, xcfg, ldr,  ss1) => {
+  let fz= ccsx.screen(),
+  paths,
+  sz,
+  pfx,
+  rs, pcy;
+
+  if (cc.sys.isNative) {
+    paths= handleMultiDevices();
+    if (!!paths) {
+      jsb.fileUtils.setSearchPaths(paths);
+    }
+  } else {
+    sz= xcfg.game[xcfg.resolution.resDir];
+    pcy = xcfg.resolution.web;
+    cc.view.setDesignResolutionSize(sz.width, sz.height, pcy);
+  }
+
+  rs= cc.view.getDesignResolutionSize();
+  xcfg.handleResolution(rs);
+  sjs.loggr.info('DesignResolution, = [' +
+                 rs.width + ", " +
+                 rs.height + "]" +
+                 ", scale = " + xcfg.game.scale);
+
+  cc.director.setProjection(cc.Director.PROJECTION_2D);
+  if (cc.sys.isNative) {
+    pfx= "";
+  } else {
+    cc.view.resizeWithBrowserSize(true);
+    cc.view.adjustViewPort(true);
+    pfx = "/public/ig/res/";
+  }
+
+  //cc.director.setAnimationInterval(1 / sh.xcfg.game.frameRate);
+  if (xcfg.game.debug) {
+    cc.director.setDisplayStats(xcfg.game.showFPS);
+  }
+
+  rs= [ pfx + 'cocos2d/pics/preloader_bar.png',
+        pfx + 'cocos2d/pics/ZotohLab.png' ];
+  // hack to suppress the showing of cocos2d's logo
+  cc.loaderScene = new MyLoaderScene();
+  cc.loaderScene.init();
+  cc.loaderScene.initWithResources(rs, () => {
+    ldr.preload(pvGatherPreloads(sjs, sh, xcfg), () => {
+      xcfg.runOnce();
+      cc.director.runScene( sh.protos[ss1].reify() );
+    });
+  });
+  cc.director.runScene(cc.loaderScene);
+}
+
+sjs.loggr.info("About to create Cocos2D HTML5 Game");
+
+preLaunchApp(sjs, sh, xcfg, loader, ss1);
+sh.l10nInit(),
+sh.sfxInit();
+
+//sjs.merge(me.xcfg.game, global.document.ccConfig);
+sjs.loggr.debug(sjs.jsonfy(xcfg.game));
+sjs.loggr.info("Registered game start state - " + ss1);
+sjs.loggr.info("Loaded and running. OK");
+
+/*@@
+return xbox;
+@@*/
+
+//////////////////////////////////////////////////////////////////////////////
+//EOF
+
