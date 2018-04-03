@@ -8,11 +8,12 @@
 
 (ns ^{:doc ""
       :author "Kenneth Leung"}
-  (:require ["kirby" :refer :all]))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! cc.game.onStart boot-func)
-(.run cc.game)
+  czlab.elmo.x2d.boot
+
+  (:require ["kirby" :refer :all]
+            ["./config" :as cfg]
+            ["./ccsx" :as ccsx]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- *ss1* "StartScreen")
@@ -67,113 +68,73 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pvGatherPreloads "" [] nil)
 
-/**
- * @class MyLoaderScene
- */
-const MyLoaderScene = cc.Scene.extend(/** @lends MyLoaderScene# */{
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcc MyLoaderScene cc.Scene `{
+  init #(true)
+  _startLoading #(with-local-vars [self this
+                                   res @@resources]
+                  (.unschedule self self._startLoading)
+                  (.load cc/loader
+                         res
+                         (fn [result count loadedCount] nil)
+                         #(if (fn? self.cb) (.cb self))))
+  initWithResources (fn [resources cb]
+                      (set! @@resources (or resources []) @@cb cb))
+  onEnter (fn []
+            (.call cc.Node.prototype.onEnter this)
+            (.schedule this this._startLoading 0.3))
+  onExit #(.call cc.Node.prototype.onExit this) })
 
-  init() { return true; },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- preLaunchApp [ldr  ss1]
+  (with-local-vars [fz (ccsx/screenSize)
+                    sz ? pfx "" rs ? pcy ?])
+  (if-some [paths (if cc/sys.isNative (handleMultiDevices))]
+    (.setSearchPaths jsb.fileUtils paths)
+    (do (set! sz (get-in *xcfg* [:game
+                                 (get-in *xcfg* [:resolution :resDir])])
+              pcy (get-in *xcfg* [:resolution :web]))
+        (setDesignResolutionSize cc/view sz.width sz.height pcy)))
+  (set! rs (.getDesignResolutionSize cc/view))
+  (.handleResolution *xcfg* rs)
+  (loggr/info "DesignResolution, = ["
+              rs.width ", "
+              rs.height "]"
+              ", scale = " (get-in *xcfg* [:game :scale]))
+  (.setProjection cc/director cc/Director.PROJECTION_2D)
+  (when-not cc/sys.isNative
+    (.resizeWithBrowserSize cc/view #t)
+    (.adjustViewPort cc/view #t)
+    (set! pfx "/public/elmo/res/"))
+  ;;(.setAnimationInterval cc/director (/ 1 (get-in *xcfg* [:game :frameRate])))
+  (if (get-in *xcfg* [:game :debug?])
+    (.setDisplayStats cc/director (get-in *xcfg* [:game :showFPS])))
+  (set! rs [(str pfx "cocos2d/pics/preloader_bar.png")
+            (str pfx "cocos2d/pics/ZotohLab.png")])
+  ;;hack to suppress the showing of cocos2d's logo
+  (oset! cc "loaderScene" (new MyLoaderScene))
+  (.init cc/loaderScene)
+  (.initWithResources cc/loaderScene
+                      rs
+                      #(.preload ldr
+                                 (pvGatherPreloads)
+                                 (fn []
+                                   (.runOnce *xcfg*)
+                                   (.runScene cc/director (.reify ss1)))))
+  (.runScene cc/director cc.loaderScene))
 
-  _startLoading() {
-    const res = this.resources,
-    self=this;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- bootFunc "" []
+  (loggr/info "About to create Cocos2D HTML5 Game")
+  (preLaunchApp loader ss1)
+  (l10nInit)
+  (sfxInit)
+  (loggr/info "Loaded and running. OK"))
 
-    self.unschedule(self._startLoading);
-    cc.loader.load(res,
-                   (result, count, loadedCount) => {},
-                   () => {
-                     if (sjs.isfunc(self.cb)) {
-                       self.cb();
-                     }
-                   });
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(oset! cc.game :onStart bootFunc)
+(.run cc/game)
 
-  initWithResources(resources, cb) {
-    this.resources = resources || [];
-    this.cb = cb;
-  },
-
-  onEnter() {
-    const self = this;
-    cc.Node.prototype.onEnter.call(self);
-    self.schedule(self._startLoading, 0.3);
-  },
-
-  onExit() {
-    cc.Node.prototype.onExit.call(this);
-  }
-
-});
-
-//////////////////////////////////////////////////////////////////////////////
-let preLaunchApp = (sjs, sh, xcfg, ldr,  ss1) => {
-  let fz= ccsx.screen(),
-  paths,
-  sz,
-  pfx,
-  rs, pcy;
-
-  if (cc.sys.isNative) {
-    paths= handleMultiDevices();
-    if (!!paths) {
-      jsb.fileUtils.setSearchPaths(paths);
-    }
-  } else {
-    sz= xcfg.game[xcfg.resolution.resDir];
-    pcy = xcfg.resolution.web;
-    cc.view.setDesignResolutionSize(sz.width, sz.height, pcy);
-  }
-
-  rs= cc.view.getDesignResolutionSize();
-  xcfg.handleResolution(rs);
-  sjs.loggr.info('DesignResolution, = [' +
-                 rs.width + ", " +
-                 rs.height + "]" +
-                 ", scale = " + xcfg.game.scale);
-
-  cc.director.setProjection(cc.Director.PROJECTION_2D);
-  if (cc.sys.isNative) {
-    pfx= "";
-  } else {
-    cc.view.resizeWithBrowserSize(true);
-    cc.view.adjustViewPort(true);
-    pfx = "/public/ig/res/";
-  }
-
-  //cc.director.setAnimationInterval(1 / sh.xcfg.game.frameRate);
-  if (xcfg.game.debug) {
-    cc.director.setDisplayStats(xcfg.game.showFPS);
-  }
-
-  rs= [ pfx + 'cocos2d/pics/preloader_bar.png',
-        pfx + 'cocos2d/pics/ZotohLab.png' ];
-  // hack to suppress the showing of cocos2d's logo
-  cc.loaderScene = new MyLoaderScene();
-  cc.loaderScene.init();
-  cc.loaderScene.initWithResources(rs, () => {
-    ldr.preload(pvGatherPreloads(sjs, sh, xcfg), () => {
-      xcfg.runOnce();
-      cc.director.runScene( sh.protos[ss1].reify() );
-    });
-  });
-  cc.director.runScene(cc.loaderScene);
-}
-
-sjs.loggr.info("About to create Cocos2D HTML5 Game");
-
-preLaunchApp(sjs, sh, xcfg, loader, ss1);
-sh.l10nInit(),
-sh.sfxInit();
-
-//sjs.merge(me.xcfg.game, global.document.ccConfig);
-sjs.loggr.debug(sjs.jsonfy(xcfg.game));
-sjs.loggr.info("Registered game start state - " + ss1);
-sjs.loggr.info("Loaded and running. OK");
-
-/*@@
-return xbox;
-@@*/
-
-//////////////////////////////////////////////////////////////////////////////
-//EOF
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 

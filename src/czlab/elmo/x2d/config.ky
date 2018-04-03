@@ -1,0 +1,97 @@
+;; Copyright ©  2013-2018, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+  czlab.elmo.x2d.config)
+
+(def *xcfg* `{
+  :urlPrefix "/public/elmo/"
+  :appid ""
+  :color ""
+  :resolution `{ :web cc.ResolutionPolicy.SHOW_ALL :resDir :sd }
+  :levels `{}
+  :assets `{
+    :fonts ["TinyBoxBlackBitA8" "OogieBoogie" "JellyBelly" "AgentOrange" "Hiruko" "OCR"]
+    :images `{}
+    :sounds `{ :start  "PowerUp" } }
+  :game `{
+    :borderTiles "cbox-borders_x8.png"
+    :lang (or cc/sys.language "en")
+    :wsUri "/network/odin/websocket"
+    :preloadLevels #t
+    :start nil
+    :sfx :mp3
+    :scale 1
+    :landscape? #false
+    :gravity 0
+    :version ""
+    :trackingID "" }
+
+  :smac nil
+
+  :l10nTable `{
+    :en `{
+      "%mobileStart" "Press Anywhere To Start!"
+      "%webStart" "Press Spacebar To Start!"
+      "%passwd" "Password"
+      "%userid" "UserId"
+      "%player2" "Player 2"
+      "%player1" "Player 1"
+      "%computer" "Computer"
+      "%cpu" "CPU"
+      "%2players" "2 Players"
+      "%1player" "1 Player"
+      "%online" "Online"
+      "%gameover" "Game Over"
+      "%quit!" "Quit"
+      "%back" "Back"
+      "%ok" "OK"
+      "%mmenu" "Main Menu"
+      "%replay" "REPLAY"
+      "%play" "PLAY"
+      "%waitothers" "Waiting...\nfor other players."
+      "%waitother" "Waiting...\nfor another player."
+      "%signinplay" "Please sign in to play."
+      "%quit?" "Continue and quit game?" }}
+
+  :csts `{
+    :CV_O (.charCodeAt "O" 0)
+    :CV_X (.charCodeAt "X" 0)
+
+    :P2_COLOR "O"
+    :P1_COLOR "X"
+
+    :NETP   3
+    :HUMAN  1
+    :BOT    2
+
+    :GAME_MODE 1
+    :TILE 8
+    :S_OFF 4
+    :GAME_ID  "" }
+
+  :sound `{
+    :volume 0.5
+    :open? #f
+    :music `{
+      :volume 0.5
+      :track nil
+    }
+  }
+
+  :handleResolution (fn (rs) nil)
+
+  :runOnce #(nil)
+
+})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
+
