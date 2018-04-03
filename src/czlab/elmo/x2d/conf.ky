@@ -14,24 +14,24 @@
   :urlPrefix "/public/elmo/"
   :appid ""
   :color ""
-  :resolution `{ :web cc.ResolutionPolicy.SHOW_ALL :resDir :sd }
+  :resolution `{ :web cc/ResolutionPolicy.SHOW_ALL :resDir :sd }
   :levels `{}
   :assets `{
     :fonts ["TinyBoxBlackBitA8" "OogieBoogie" "JellyBelly" "AgentOrange" "Hiruko" "OCR"]
     :images `{}
     :sounds `{ :start  "PowerUp" } }
-  :game `{
-    :borderTiles "cbox-borders_x8.png"
-    :lang (or cc/sys.language "en")
-    :wsUri "/network/odin/websocket"
-    :preloadLevels #t
-    :start nil
-    :sfx :mp3
-    :scale 1
-    :landscape? #false
-    :gravity 0
-    :version ""
-    :trackingID "" }
+
+  :borderTiles "cbox-borders_x8.png"
+  :lang (or cc/sys.language "en")
+  :wsUri "/network/odin/websocket"
+  :preloadLevels #t
+  :start nil
+  :sfx :mp3
+  :scale 1
+  :landscape? #false
+  :gravity 0
+  :version ""
+  :trackingID ""
 
   :smac nil
 
