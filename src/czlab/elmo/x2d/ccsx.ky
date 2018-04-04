@@ -161,577 +161,298 @@
 (defn getLastLeft
   "Maybe get the previous left pos."
   [ent]
+  (if-some [p ent.lastPos]
+    (- p.x (* 0.5 (getWidth ent.sprite))) (getLeft ent)))
 
-    if ( sjs.echt(ent.lastPos)) {
-      return ent.lastPos.x - this.getWidth(ent.sprite) * 0.5;
-    } else {
-      return this.getLeft(ent);
-    }
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getLastRight
+  "Maybe get the previous right pos."
+  [ent]
+  (if-some [p ent.lastPos]
+    (+ p.x (* 0.5 (getWidth ent.sprite))) (getRight ent)))
 
-  /**
-   * Maybe get the previous right pos.
-   * @method
-   * @param {Object} ent
-   * @return {Number}
-   */
-  getLastRight(ent) {
-    if ( sjs.echt(ent.lastPos)) {
-      return ent.lastPos.x + this.getWidth(ent.sprite) * 0.5;
-    } else {
-      return this.getRight(ent);
-    }
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getLastTop
+  "Maybe get the previous top pos."
+  [ent]
+  (if-some [p ent.lastPos]
+    (+ p.y (* 0.5 (getHeight ent.sprite))) (getTop ent)))
 
-  /**
-   * Maybe get the previous top pos.
-   * @method
-   * @param {Object} ent
-   * @return {Number}
-   */
-  getLastTop(ent) {
-    if ( sjs.echt(ent.lastPos)) {
-      return ent.lastPos.y + this.getHeight(ent.sprite) * 0.5;
-    } else {
-      return this.getTop(ent);
-    }
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getLastBottom
+  "Maybe get the previous bottom pos."
+  (if-some [p ent.lastPos]
+    (- p.y (* 0.5 (getHeight ent.sprite))) (getBottom ent)))
 
-  /**
-   * Maybe get the previous bottom pos.
-   * @method
-   * @param {Object} ent
-   * @return {Number}
-   */
-  getLastBottom(ent) {
-    if ( sjs.echt(ent.lastPos)) {
-      return ent.lastPos.y - this.getHeight(ent.sprite) * 0.5;
-    } else {
-      return this.getBottom(ent);
-    }
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn centerX
+  "Get the x pos of the center of the visible screen." [] (.-x (center)))
 
-  /**
-   * Get the x pos of the center of the visible screen.
-   * @method
-   * @return {Number}
-   */
-  centerX() { return this.center().x; },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn centerY
+  "Get the y pos of the center of the visible screen." [] (.-y (center)))
 
-  /**
-   * Get the y pos of the center of the visible screen.
-   * @method
-   * @return {Number}
-   */
-  centerY() { return this.center().y; },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn center
+  "Get the center of the visible screen."
+  []
+  (with-local-vars [rc (vrect)])
+  (cc/p (+ rc.x (* 0.5 rc.width)) (+ rc.y (* 0.5 rc.height))))
 
-  /**
-   * Get the center of the visible screen.
-   * @method
-   * @return {cc.Point}
-   */
-  center() {
-    const rc = this.vrect();
-    return cc.p( rc.x + rc.width * 0.5, rc.y + rc.height * 0.5);
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn screenHeight
+  "Get the screen height." [] (.-height (screenSize)))
 
-  /**
-   * Get the screen height.
-   * @method
-   * @return {Number}
-   */
-  screenHeight() { return this.screen().height; },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn screenWidth
+  "Get the screen width." [] (.-width (screenSize)))
 
-  /**
-   * Get the screen width.
-   * @method
-   * @return {Number}
-   */
-  screenWidth() { return this.screen().width; },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vrect
+  "Get the visible screen rectangle."
+  []
+  (with-local-var [vo (.getVisibleOrigin cc/view)
+                   wz (.getVisibleSize cc/view)])
+  (cc/rect vo.x vo.y wz.width wz.height))
 
-  /**
-   * Get the visible screen rectangle.
-   * @method
-   * @return {Object} cc.rect
-   */
-  vrect() {
-    const vr= cc.view.getViewPortRect(),
-    vo = cc.view.getVisibleOrigin(),
-    wz= cc.view.getVisibleSize();
-    return cc.rect(vo.x, vo.y, wz.width, wz.height);
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vbox
+  "Get the visible screen box."
+  (with-local-vars [r (vrect)])
+  `{:bottom r.y
+    :left r.x
+    :right (+ r.x r.width)
+    :top (+ r.y r.height) })
 
-  /**
-   * Get the visible screen box.
-   * @method
-   * @return {Object} rectangle box.
-   */
-  vbox() {
-    const vr= cc.view.getViewPortRect(),
-    vo = cc.view.getVisibleOrigin(),
-    wz= cc.view.getVisibleSize();
-    return {
-      bottom: vo.y,
-      left: vo.x,
-      right: vo.x + wz.width,
-      top: vo.y + wz.height
-    };
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn screenSize
+  "Get the actual window/frame size."
+  [] (if cc/sys.isNative
+       (.getFrameSize cc/view) (.getWinSize cc/director)))
 
-  /**
-   * Get the actual window/frame size.
-   * @method
-   * @return {cc.Size}
-   */
-  screen() {
-    return cc.sys.isNative ? cc.view.getFrameSize()
-                           : cc.director.getWinSize();
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn screenCenter
+  "Get the actual screen center."
+  []
+  (with-local-vars [s (screenSize)])
+  (cc/p (* 0.5 s.width) (* 0.5 s.height)))
 
-  /**
-   * Get the actual screen center.
-   * @method
-   * @return {cc.Point}
-   */
-  scenter() {
-    const sz = this.screen();
-    return cc.p(sz.width * 0.5, sz.height * 0.5);
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vboxMID
+  "Get the center of this box."
+  [box]
+  (cc/p (+ box.left (* 0.5 (- box.right box.left)))
+        (+ box.bottom (* 0.5 (- box.top box.bottom)))))
 
-  /**
-   * Get the center of this box.
-   * @method
-   * @param {Object} box
-   * @return {cc.Point}
-   */
-  vboxMID(box) {
-    return cc.p(box.left + (box.right-box.left) * 0.5,
-                box.bottom + (box.top-box.bottom) * 0.5);
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn traceEnclosure
+  "Test if this box is hitting boundaries.
+  rect.x & y are center positioned.
+  If hit, the new position and velocities are returned."
+  [rect vel dt B]
+  (with-local-vars [vx vel.x vy vel.y hit? #t
+                    sh (* 0.5 rect.height)
+                    sw (* 0.5 rect.width)
+                    y (+ rect.y (* dt vel.y))
+                    x (+ rect.x (* dt vel.x))])
+  (cond (> (+ y sh) B.top)
+        (set! y (- B.top sh) vy -vy)
+        (< (- y sh) B.bottom)
+        (set! y (+ B.bottom sh) vy -vy) :else (false! hit?))
+  (cond (> (+ x sw) B.right)
+        (set! x (- B.right sw) vx -vx)
+        (< (- x sw) B.left)
+        (set! x (+ B.left sw) vx -vx) :else (false! hit?))
+  [hit? x y vx vy])
 
-  /**
-   * Test if this box is hitting boundaries.
-   * rect.x & y are center positioned.
-   *
-   * If hit, the new position and velocities
-   * are returned.
-   * @method
-   * @param {Number} dt  delta time
-   * @param {Object} bbox
-   * @param {Oject} rect
-   * @param {Object} vel velocity for [x,y]
-   * @return {Object}
-   */
-  traceEnclosure(dt,bbox,rect,vel) {
-    let sz= rect.height * 0.5,
-    sw= rect.width * 0.5,
-    vx= vel.x,
-    vy= vel.y,
-    y = rect.y + dt * vel.y,
-    x = rect.x + dt * vel.x,
-    hit=false;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getSpriteFromCache
+  "Get the sprite from the frame cache using its id (e.g. #ship)."
+  [frameid] (.getSpriteFrame cc/spriteFrameCache frameid))
 
-    if (y + sz > bbox.top) {
-      //hitting top wall
-      y = bbox.top - sz;
-      vy = - vy;
-      hit=true;
-    }
-    else
-    if (y - sz < bbox.bottom) {
-      //hitting bottom wall
-      y = bbox.bottom + sz;
-      vy = - vy;
-      hit=true;
-    }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hasKeyPad? "" []
+  (and (not cc/sys.isNative)
+       (some? (get cc/sys.capabilities :keyboard))))
 
-    if (x + sw > bbox.right) {
-      //hitting right wall
-      x = bbox.right - sw;
-      vx = - vx;
-      hit=true;
-    }
-    else
-    if (x - sw < bbox.left) {
-      //hitting left wall
-      x = bbox.left + sw;
-      vx = - vx;
-      hit=true;
-    }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn onKeyPolls "" [kb]
+  (when (hasKeyPad?)
+    (->> `{:onKeyPressed #(aset kb %1 #t)
+           :onKeyReleased #(aset kb %1 #f)
+           :event cc/EventListener.KEYBOARD } (.addListener cc/eventManager))))
 
-    return hit ? {
-        hit: true,
-        x: x,
-        y: y,
-        vx: vx,
-        vy: vy
-      } : {
-        hit: false,
-        x: x,
-        y: y
-      };
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn onKeys "" [bus]
+  (when (hasKeyPad?)
+    (->> `{:onKeyPressed #(.fire bus "key.down" %2)
+           :onKeyReleased #(.fire bus "key.up" %2)
+           :event cc/EventListener.KEYBOARD } (.addListener cc/eventManager))))
 
-  /**
-   * Get the sprite from the frame cache using
-   * its id (e.g. #ship).
-   * @method getSprite
-   * @param {String} frameid
-   * @return {cc.Sprite}
-   */
-  getSprite(frameid) {
-    return cc.spriteFrameCache.getSpriteFrame(frameid);
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hasMouse? "" []
+  (and (not cc/sys.isNative)
+       (some? (get cc/sys.capabilities :mouse))))
 
-  /**
-   * @method hasKeyPad
-   * @return {Boolean}
-   */
-  hasKeyPad() {
-    return !!cc.sys.capabilities['keyboard'] && !cc.sys.isNative;
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn onMouse "" [bus]
+  (when (hasMouse?)
+    (->> `{:onMouseMove #(if (= (.getButton %) cc/EventMouse.BUTTON_LEFT)
+                            (.fire bus "mouse.move" %))
+           :onMouseDown #(.fire bus "mouse.down" %)
+           :onMouseUp #(.fire bus "mouse.up" e)
+           :event cc/EventListener.MOUSE } (.addListener cc/eventManager))))
 
-  /**
-   * @method onKeyPolls
-   */
-  onKeyPolls(kb) {
-    if (!this.hasKeyPad()) {return;}
-    cc.eventManager.addListener({
-      onKeyPressed(key, e) {
-        kb[key]=true;
-      },
-      onKeyReleased(key, e) {
-        kb[key]=false;
-      },
-      event: cc.EventListener.KEYBOARD
-    }, sh.main);
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hasTouch? "" []
+  (and cc/sys.isNative
+       (some? (get cc/sys.capabilities :touches))))
 
-  /**
-   * @method onKeys
-   */
-  onKeys(bus) {
-    if (!this.hasKeyPad()) {return;}
-    cc.eventManager.addListener({
-      onKeyPressed(key, e) {
-        bus.fire('/key/down', {group: 'key', key: key, event: e});
-      },
-      onKeyReleased(key, e) {
-        bus.fire('/key/up', {group: 'key', key: key, event: e});
-      },
-      event: cc.EventListener.KEYBOARD
-    }, sh.main);
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn onTouchAll "" [bus]
+  (when (hasTouch?)
+    (->> `{:event cc/EventListener.TOUCH_ALL_AT_ONCE
+           :prevTouchId -1
+           :onTouchesBegan #(true)
+           :onTouchesEnded #(.fire bus
+                                   "touch.all.end"
+                                   `{:event e
+                                     :loc (.getLocation (_1 ts)) })
+           :onTouchesMoved #(let [t0 (_1 %1) id (.-id t0)]
+                              (if (not= this.prevTouchId id)
+                                (oset! this :prevTouchId id)
+                                (.fire bus
+                                       "touch.all.move"
+                                       `{:event %2
+                                         :delta (.getDelta t0)}))) }
+         (.addListener cc/eventManager))))
 
-  /**
-   * @method hasMouse
-   * @return {Boolean}
-   */
-  hasMouse() {
-    return !!cc.sys.capabilities['mouse'];
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn onTouchOne "" [bus]
+  (when (hasTouch?)
+    (->> `{:event cc/EventListener.TOUCH_ONE_BY_ONE
+           :swallowTouches true
+           :onTouchBegan #(true)
+           :onTouchMoved #(.fire bus
+                                 "touch.one.move"
+                                 `{:event %2
+                                   :delta (.getDelta %1)
+                                   :loc (.getLocation %1)})
+           :onTouchEnded #(.fire bus
+                                 "touch.one.end"
+                                 `{:event %2
+                                   :loc (.getLocation %1)}) }
+         (.addListener cc/eventManager))))
 
-  onMouse(bus) {
-    if (!this.hasMouse()) {return;}
-    cc.eventManager.addListener({
-      onMouseMove(e) {
-        if (e.getButton() === cc.EventMouse.BUTTON_LEFT) {
-          bus.fire('/mouse/move', {group:'mouse',
-                   loc: e.getLocation(),
-                   delta: e.getDelta(),
-                   event: e});
-        }
-      },
-      onMouseDown(e) {
-        bus.fire('/mouse/down', {group:'mouse',
-                 loc: e.getLocation(),
-                 event: e});
-      },
-      onMouseUp(e) {
-        bus.fire('/mouse/up', {group:'mouse',
-                 loc: e.getLocation(),
-                 event: e});
-      },
-      event: cc.EventListener.MOUSE
-    }, sh.main);
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const *anchors*
+       `{:Center (cc/p 0.5 0.5)
+         :Top (cc/p 0.5 1)
+         :TopRight (cc/p 1 1)
+         :Right (cc/p 1 0.5)
+         :BottomRight (cc/p 1 0)
+         :Bottom (cc/p 0.5 0)
+         :BottomLeft (cc/p 0 0)
+         :Left (cc/p 0 0.5)
+         :TopLeft (cc/p 0 1) })
 
-  /**
-   * @method hasTouch
-   * @return {Boolean}
-   */
-  hasTouch() {
-    return !!cc.sys.capabilities['touches'];
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn textMenu
+  "Create a text menu containing this set of items.
+  Each item has the form."
+  [items & [options]]
+  (with-local-vars [t 1 menu (new cc/Menu)])
+  (set! options (opt?? options `{}))
+  (doseq [obj items :let [mi ?]]
+    (set! mi (new cc/MenuItemLabel
+                  (new cc/LabelBMFont
+                       obj.text obj.font) obj.select obj.target))
+    (.setScale mi (or options.scale 1))
+    (.setTag mi t)
+    (++ t)
+    (.addChild menu mi)) menu)
 
-  onTouchAll(bus) {
-    if (!this.hasTouch()) {return;}
-    cc.eventManager.addListener({
-      event: cc.EventListener.TOUCH_ALL_AT_ONCE,
-      prevTouchId: -1,
-      onTouchesBegan(ts,e) { return true; },
-      onTouchesEnded(ts,e) {
-        bus.fire('/touch/all/end', {group:'touch',
-                   event: e,
-                   loc: ts[0].getLocation()});
-      },
-      onTouchesMoved(ts,e) {
-        const id = ts[0].id;
-        if (this.prevTouchId != id) {
-          this.prevTouchId = id;
-        } else {
-          bus.fire('/touch/all/move', {group:'touch',
-                   event: e,
-                   delta: ts[0].getDelta()});
-        }
-      }
-    }, sh.main);
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn textMenu1
+  "Make a text label menu containing one single button."
+  [item & [options]]
+  (with-local-vars [menu (textMenu [item] options)])
+  (set! options (opt?? options `{}))
+  (if options.anchor (.setAnchorPoint menu options.anchor))
+  (if options.pos (.setPosition menu options.pos))
+  (if (false? options.visible?) (.setVisible menu false))
+  (.alignItemsVertically menu)
+  menu)
 
-  onTouchOne(bus) {
-    if (!this.hasTouch()) {return;}
-    cc.eventManager.addListener({
-      event: cc.EventListener.TOUCH_ONE_BY_ONE,
-      swallowTouches: true,
-      onTouchBegan(t,e) { return true; },
-      onTouchMoved(t,e) {
-        bus.fire('/touch/one/move', {group:'touch',
-                 event: e,
-                 delta: t.getDelta(),
-                 loc: t.getLocation()});
-      },
-      onTouchEnded(t,e) {
-        bus.fire('/touch/one/end', {group:'touch',
-                 event: e,
-                 loc: t.getLocation()});
-      }
-    }, sh.main);
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vmenu
+  "Create a vertically aligned menu with graphic buttons."
+  [items & [options]]
+  (with-local-vars [menu (grfxMenu #t items options)])
+  (set! options (opt?? options `{}))
+  (if options.pos
+    (.setPosition menu options.pos)) menu)
 
-  /**
-   * @property {Object} acs Anchor Points
-   */
-  acs : {
-    Center: cc.p(0.5, 0.5),
-    Top: cc.p(0.5, 1),
-    TopRight: cc.p(1, 1),
-    Right: cc.p(1, 0.5),
-    BottomRight: cc.p(1, 0),
-    Bottom: cc.p(0.5, 0),
-    BottomLeft: cc.p(0, 0),
-    Left: cc.p(0, 0.5),
-    TopLeft: cc.p(0, 1)
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hmenu
+  "Create a horizontally aligned menu with graphic buttons."
+  [items & [options]]
+  (with-local-vars [menu (grfxMenu #f items options)])
+  (set! options (opt?? options `{}))
+  (if options.pos
+    (.setPosition menu options.pos)) menu)
 
-  /**
-   * not used for now.
-   * @private
-   */
-  resolveElastic(obj1,obj2) {
-    let pos2 = obj2.sprite.getPosition(),
-    pos1= obj1.sprite.getPosition(),
-    sz2= obj2.sprite.getContentSize(),
-    sz1= obj1.sprite.getContentSize(),
-    hh1= sz1.height * 0.5,
-    hw1= sz1.width * 0.5,
-    x = pos1.x,
-    y= pos1.y,
-    bx2 = this.bbox4(obj2.sprite),
-    bx1 = this.bbox4(obj1.sprite);
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn grfxMenu
+  "Create a menu with graphic buttons."
+  [vertical? items & [options]]
+  (with-local-vars [t 1 menu (new cc/Menu)])
+  (set! options (opt?? options `{}))
+  (doseq [obj items :let [mi ?]]
+    (set! mi
+          (new cc/MenuItemSprite
+               (new cc/Sprite obj.nnn)
+               (new cc/Sprite (or obj.sss obj.nnn))
+               (new cc/Sprite (or obj.ddd obj.nnn))
+               obj.select
+               obj.target))
+    (if obj.color (.setColor mi obj.color))
+    (if options.scale (.setScale mi scale))
+    (.setTag mi t)
+    (++ t)
+    (.addChild menu mi))
+  padding = padding || 10;
+  (if-not vertical?
+    (.alignItemsHorizontallyWithPadding menu
+                                        (opt?? options.padding 10))
+    (.alignItemsVerticallyWithPadding menu
+                                      (opt?? options.padding 10)))
+  menu)
 
-    // coming from right
-    if (bx1.left < bx2.right && bx2.right < bx1.right) {
-      obj1.vel.x = Math.abs(obj1.vel.x);
-      obj2.vel.x = - Math.abs(obj2.vel.x);
-      x= this.getRight(obj2.sprite) + hw1;
-    }
-    else
-    // coming from left
-    if (bx1.right > bx2.left && bx1.left < bx2.left) {
-      obj1.vel.x = - Math.abs(obj1.vel.x);
-      obj2.vel.x = Math.abs(obj2.vel.x);
-      x= this.getLeft(obj2.sprite) - hw1;
-    }
-    else
-    // coming from top
-    if (bx1.bottom < bx2.top && bx1.top > bx2.top) {
-      obj1.vel.y = Math.abs(obj1.vel.y);
-      obj2.vel.y = - Math.abs(obj2.vel.y);
-      y= this.getTop(obj2.sprite) + hh1;
-    }
-    else
-    // coming from bottom
-    if (bx1.top > bx2.bottom && bx2.bottom > bx1.bottom) {
-      obj1.vel.y = - Math.abs(obj1.vel.y);
-      obj2.vel.y = Math.abs(obj2.vel.y);
-      y= this.getBottom(obj2.sprite) - hh1;
-    }
-    else {
-      return;
-    }
-    obj1.updatePosition(x,y);
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn grfxMenu1
+  "Create a single button menu."
+  [item & [options]]
+  (with-local-vars [menu (grfxMenu [item] options)])
+  (set! options (opt?? options `{}))
+  (if options.anchor (.setAnchorPoint menu options.anchor))
+  (if options.pos (.setPosition menu options.pos))
+  (if (false? options.visible?) (.setVisible menu #f))
+  menu)
 
-  /**
-   * Create a text menu containing this set of items.
-   *
-   * Each item has the form {:text
-   * :fontPath
-   * :cb
-   * :target}
-   * @method
-   * @param {Array} items
-   * @param {Number} scale
-   * @return {cc.Menu}
-   */
-  tmenu(items,scale) {
-    let menu= new cc.Menu(),
-    mi,
-    t=0,
-    obj;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn bmfLabel
+  "Create a BMFont Label."
+  [text font & [options]]
+  (with-local-vars [f (new cc/LabelBMFont text font)])
+  (set! options (opt?? options `{}))
+  (if options.color (.setColor f options.color))
+  (if options.pos (.setPosition f options.pos))
+  (if options.anchor (.setAnchorPoint f options.anchor))
+  (if (false? options.visible?) (.setVisible f #f))
+  (.setScale f (or options.scale 1))
+  f)
 
-    for (let n=0; n < items.length; ++n) {
-      obj= items[n];
-      mi= new cc.MenuItemLabel(new cc.LabelBMFont(obj.text,
-                                                  obj.fontPath),
-                               obj.selector || obj.cb,
-                               obj.target);
-      mi.setOpacity(255 * 0.9);
-      mi.setScale(scale || 1);
-      mi.setTag(++t);
-    }
-    return menu;
-  },
-
-  /**
-   * Make a text label menu containing one single button.
-   * @method
-   * @param {Object} options
-   * @return {cc.Menu}
-   */
-  tmenu1(options) {
-    let menu = this.tmenu(options);
-    if (options.anchor) { menu.setAnchorPoint(options.anchor); }
-    if (options.pos) { menu.setPosition(options.pos); }
-    if (options.visible === false) { menu.setVisible(false); }
-    menu.alignItemsVertically();
-    return menu;
-  },
-
-  /**
-   * Create a vertically aligned menu with graphic buttons.
-   * @method
-   * @param {Array} items
-   * @param {Object} options
-   * @return {cc.Menu}
-   */
-  vmenu(items, options) {
-    const hint=options || {},
-    m= this.pmenu(true,
-                  items,
-                  hint.scale,
-                  hint.padding);
-    if (!!hint.pos) {
-      m.setPosition(hint.pos);
-    }
-    return m;
-  },
-
-  /**
-   * Create a horizontally aligned menu with graphic buttons.
-   * @method
-   * @param {Array} items
-   * @param {Object} options
-   * @return {cc.Menu}
-   */
-  hmenu(items, options) {
-    const hint= options || {},
-    m= this.pmenu(false,
-                  items,
-                  hint.scale,
-                  hint.padding);
-    if (!!hint.pos) {
-      m.setPosition(hint.pos);
-    }
-    return m;
-  },
-
-  /**
-   * Create a menu with graphic buttons.
-   * @method
-   * @param {Boolean} vertical
-   * @param {Array} items
-   * @param {Number} scale
-   * @param {Number} padding
-   * @return {cc.Menu}
-   */
-  pmenu(vertical, items, scale, padding) {
-    let menu = new cc.Menu(),
-    obj,
-    mi,
-    t=0;
-
-    for (let n=0; n < items.length; ++n) {
-      obj=items[n];
-      mi= new cc.MenuItemSprite(new cc.Sprite(obj.nnn),
-                                new cc.Sprite(obj.sss || obj.nnn),
-                                new cc.Sprite(obj.ddd || obj.nnn),
-                                obj.selector || obj.cb,
-                                obj.target);
-      if (!!obj.color) { mi.setColor(obj.color); }
-      if (!!scale) { mi.setScale(scale); }
-      mi.setTag(++t);
-      menu.addChild(mi);
-    }
-
-    padding = padding || 10;
-    if (!vertical) {
-      menu.alignItemsHorizontallyWithPadding(padding);
-    } else {
-      menu.alignItemsVerticallyWithPadding(padding);
-    }
-
-    return menu;
-  },
-
-  /**
-   * Create a single button menu.
-   * @method
-   * @param {Object} options
-   * @return {cc.Menu}
-   */
-  pmenu1(options) {
-    const menu = this.pmenu(true, [options]);
-    if (options.anchor) { menu.setAnchorPoint(options.anchor); }
-    if (options.pos) { menu.setPosition(options.pos); }
-    if (options.visible === false) { menu.setVisible(false); }
-    return menu;
-  },
-
-  /**
-   * Create a Label.
-   * @method
-   * @param {Object} options
-   * @return {cc.LabelBMFont}
-   */
-  bmfLabel(options) {
-    let f= new cc.LabelBMFont(options.text, options.fontPath);
-    if (options.color) { f.setColor(options.color); }
-    if (options.pos) { f.setPosition(options.pos); }
-    if (options.anchor) { f.setAnchorPoint(options.anchor); }
-    if (options.visible === false) { f.setVisible(false); }
-    f.setScale( options.scale || 1);
-    f.setOpacity(0.9*255);
-    return f;
-  }
-
-};
-
-sjs.merge(exports, xbox);
-/*@@
-return xbox;
-@@*/
-
-//////////////////////////////////////////////////////////////////////////////
-//EOF
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;EOF
 
