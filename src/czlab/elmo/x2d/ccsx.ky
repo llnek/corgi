@@ -454,5 +454,21 @@
   f)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sprite "" [key] (sprite* (getCfgImage key)))
+(defn sprite* "" [path] (new cc/Sprite path))
+(defn nilfunc "" [& xs])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn misprite "" [nnn & [sss ddd select target]]
+  (new cc/MenuItemSprite
+       (sprite nnn)
+       (sprite (or sss nnn))
+       (sprite (or ddd nnn)) (or select nilfunc) target))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mitoggle "" [on off cb]
+  (new cc/MenuItemToggle on off cb))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;EOF
 

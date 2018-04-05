@@ -23,174 +23,49 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- negamax*
   "" [board game maxDepth depth alpha beta]
-  let openMoves = board.getNextMoves(game),
-  bestValue = -PINF,
-  rc,
-  move,
-  bestMove = openMoves[0];
+  (with-local-vars [openMoves (.getNextMoves board game)
+                    bestValue -PINF
+                    rc ? move ?
+                    bestMove (_1 openMoves)])
+  (if (= depth maxDepth)
+    (oset! game :lastBestMove  bestMove))
+  (floop [move openMoves]
+    (.makeMove board game move)
+    (.switchPlayer board game)
+    (set! rc (- (negamax board
+                         game
+                         maxDepth (-1 depth) -beta -alpha)))
+    (.switchPlayer board game)
+    (.unmakeMove board game move)
+    (set! bestValue (Math/max bestValue  rc))
+    (when (< alpha rc)
+      (set! alpha rc bestMove move)
+      (if (= depth maxDepth)
+        (oset! game :lastBestMove move))
+      (if (>= alpha beta) (break-out-of-loop!))))
+  ;;return the best value
+  bestValue)
 
-  if (depth === maxDepth) {
-    game.lastBestMove = openMoves[0];
-  }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcc GameBoard cc/Class
+  `{isOver (fn [game] #f)
+    evalScore (fn [game] 0)
+    getNextMoves (fn [game] [])
+    makeMove (fn [game move] )
+    switchPlayer (fn [game] )
+    unmakeMove (fn [game move] )
+    takeSnapshot #(nil) })
 
-  for (let n=0; n < openMoves.length; ++n) {
-    move = openMoves[n];
-    board.makeMove(game, move);
-    board.switchPlayer(game);
-    rc = - negamax(board, game, maxDepth, depth-1, -beta, -alpha);
-    board.switchPlayer(game);
-    board.unmakeMove(game,move);
-    bestValue = Math.max( bestValue,  rc );
-    if (alpha < rc) {
-      alpha = rc;
-      bestMove = move;
-      if (depth === maxDepth) {
-        game.lastBestMove = move;
-      }
-      if (alpha >= beta) { break; }
-    }
-  };
-  return bestValue;
-};
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn evalNegaMax "" [board]
+  (with-local-vars [s (.takeSnapshot board)])
+  (negamax board s 10 10 -PINF PINF) (.-lastBestMove s))
 
-/**
- * @interface GameBoard
- * @class
- */
-class GameBoard extends sjs.ES6Claxx {
-  /**
-   * @memberof module:zotohlab/asx/negamax~GameBoard
-   * @method isOver
-   * @param {Object} game
-   * @return {Boolean}
-   */
-  isOver(game) { return false; }
-  /**
-   * @memberof module:zotohlab/asx/negamax~GameBoard
-   * @method evalScore
-   * @param {Object} game
-   * @return {Number} score
-   */
-  evalScore(game) { return 0; }
-  /**
-   * @memberof module:zotohlab/asx/negamax~GameBoard
-   * @method getNextMoves
-   * @param {Object} game
-   * @return {Array}
-   */
-  getNextMoves(game) { return []; }
-  /**
-   * @memberof module:zotohlab/asx/negamax~GameBoard
-   * @method makeMoves
-   * @param {Object} game
-   * @param {Number} move
-   */
-  makeMove(game,move) {}
-  /**
-   * @memberof module:zotohlab/asx/negamax~GameBoard
-   * @method switchPlayer
-   * @param {Object} game
-   */
-  switchPlayer(game) {}
-  /**
-   * @memberof module:zotohlab/asx/negamax~GameBoard
-   * @method unmakeMove
-   * @param {Object} game
-   * @param {Number} move
-   */
-  unmakeMove(game,move) {}
-  /**
-   * @memberof module:zotohlab/asx/negamax~GameBoard
-   * @method takeSnapshot
-   * @return {SnapShot}
-   */
-  takeSnapshot() { return null; }
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createSnapshot "" []
+  (atom `{:lastBestMove nil :other nil :cur nil :state nil}))
 
-/**
- * The negamax algorithm implementation.
- * @class NegaMax
- */
-class NegaMax extends sjs.ES6Claxx {
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
-  /**
-   * Get the game board.
-   * @memberof module:zotohlab/asx/negamax~NegaMax
-   * @method getGameBoard
-   * @return {GameBoard}
-   */
-  getGameBoard() { return this.board; }
-
-  /**
-   * Constructor.
-   *
-   * @memberof module:zotohlab/asx/negamax~NegaMax
-   * @method constructor
-   * @param {GameBoard} board
-   */
-  constructor(board) { super(); this.board= board; }
-
-  /**
-   * Run the algo for one iteration.
-   *
-   * @memberof module:zotohlab/asx/negamax~NegaMax
-   * @method eval
-   * @return {Number} last best move
-   */
-  eval() {
-    const snapshot= this.board.takeSnapshot();
-    negamax(this.board, snapshot, 10, 10, -PINF, PINF);
-    return snapshot.lastBestMove;
-  }
-
-}
-
-/**
- * Simple data structure keeping track of the state of the
- * game board.
- * @class Snapshot
- */
-class Snapshot extends sjs.ES6Claxx {
-
-  /**
-   * @method ctor
-   * @private
-   */
-  constructor() {
-    super();
-    this.lastBestMove= null;
-    this.other= null;
-    this.cur= null;
-    this.state= null;
-  }
-
-}
-
-/** @alias module:zotohlab/asx/negamax */
-const xbox = /** @lends xbox# */{
-  /**
-   * @property {SnapShot} Snapshot
-   */
-  Snapshot: Snapshot,
-  /**
-   * @property {Number} INF
-   */
-  INF: PINF,
-  /**
-   * @property {NegaMax} NegaMax
-   */
-  NegaMax: NegaMax,
-  /**
-   * @property {GameBoard} GameBoard
-   */
-  GameBoard: GameBoard
-};
-
-sjs.merge(exports, xbox);
-/*@@
-return xbox;
-@@*/
-
-//////////////////////////////////////////////////////////////////////////////
-//EOF
 
