@@ -9,7 +9,9 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.x2d.scenes)
+  czlab.elmo.x2d.scenes
+
+  (:require ["Cookies" :as cks]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- SEED 0)
@@ -195,162 +197,124 @@
 (defn getHUD "" [scene] (get (.getLayers scene) "HUD"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defcc XScene cc/Scene
-  `{getLayers #(.-layers this)
-    init #(if (._super this)
-            (do->true (.createLayers this)) #f)
-    createLayers (fn []
-    let a = this.lays || [],
-    glptr = undef,
-    rc,
-    obj;
-    //hold off init'ing game layer, leave that as last
-    rc = R.any((proto) => {
-      obj= new (proto)(this.options);
-      if ( obj instanceof XGameLayer ) {
-        glptr = obj;
-      }
-      else
-      if (obj instanceof XLayer) {
-        obj.init();
-      }
+(defcc XScene cc/Scene `{})
 
-      if (obj instanceof XLayer) {
-        obj.setParentScene(this);
-      }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn showMenu "" [menu] (.pushScene cc/director menu))
 
-      this.layers[ obj.rtti() ] = obj;
-      this.addChild(obj);
-      return false;
-    }, a);
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;ui.js
 
-    if (a.length > 0 && rc===false ) {
-      if (!!glptr) {
-        glptr.init();
-      }
-    }
-  },
+(defcc Circle cc/Class
+  `{draw (fn [ctx styleObj]
+           (.beginPath ctx)
+           (oset! ctx
+                  :strokeStyle styleObj.stroke.style
+                  :lineWidth styleObj.line.width)
+           (.arc ctx @@x @@y @@radius 0 (* 2 Math/PI) #)
+           (.stroke ctx))
+    ctor (fn [x y radius]
+           (._super this)
+           (oset! this :x x :y y :radius radius)) })
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XScene
-   * @method onmsg
-   * @chainable
-   * @param {String} topic
-   * @param {Function} cb
-   * @return {cc.Scene}
-   */
-  onmsg(topic, cb) {
-    this.ebus.on(topic, cb);
-    return this;
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcc Line cc/Class
+  `{draw (fn [ctx styleObj]
+           (.beginPath ctx)
+           (.moveTo ctx @@x1 @@y1)
+           (.lineTo ctx @@x2 @@y2)
+           (oset! ctx
+                  :strokeStyle styleObj.stroke.style
+                  :lineWidth styleObj.line.width)
+           (if (some? styleObj.line.cap)
+             (oset! ctx :lineCap styleObj.line.cap))
+           (.stroke ctx))
+    ctor (fn [x1 y1 x2 y2]
+           (._super this)
+           (oset! this :x1 x1 :y1 y1 :x2 x2 :y2 y2)) })
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XScene
-   * @method ctor
-   * @param {Array} ls - list of layers
-   * @param {Object} options
-   */
-  ctor(ls, options) {
-    this.options = options || {};
-    this._super();
-    this.lays= ls || [];
-    this.layers= {};
-    this.ebus= ebus.reify();
-  }
+(defcc Point cc/Class
+  `{ctor (fn [x y]
+           (._super this)
+           (oset! this :x x :y y)) })
 
-});
+(defcc Area cc/Class
+  `{ctor (fn [x y width height]
+           (._super this)
+           (oset! this :pos (cc/p x y) :height height :width width)) })
 
-//////////////////////////////////////////////////////////////////////////////
-/**
- * @class XSceneFactory
- */
-class XSceneFactory extends sjs.ES6Claxx {
+(defcc TextStyle cc/Class
+  `{ctor (fn []
+           (._super this)
+           (oset! this
+                  :font "14px 'Architects Daughter'"
+                  :fill "#dddddd" :align "left" :base "top")) })
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XSceneFactory
-   * @method reify
-   * @param {Object} options
-   * @return {cc.Scene}
-   */
-  reify(options) {
-    let itemKey= 'layers',
-    arr= this.layers,
-    cfg;
-    if (options && sjs.hasKey(options, itemKey ) &&
-        sjs.isarr(options.layers)) {
-      arr= options.layers;
-      cfg= R.omit(itemKey, options);
-    } else {
-      cfg= options || {};
-    }
-    const scene = new XScene(arr, cfg);
-    scene.init()
-    return scene;
-  }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createScore "" [name value]
+  `{:value (Number (.trim value)) :name (.trim name) })
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XSceneFactory
-   * @method constructor
-   * @param {Array} list of layers
-   */
-  constructor(ls) {
-    super();
-    this.layers= ls || [];
-  }
+(defcc HighScores cc/Class
+  `{read #(oset! this
+                 :scores
+                 (reduce (fn [acc z]
+                            (with-local-vars [a (.split (or z "") ":")])
+                            (if (= 2 (alen a))
+                              (conj! acc (score* (_1 a) (_2 a)))) acc)
+                          [] (.split (or (cks/get @@KEY) "") "|")))
+    reset #(oset! this :scores [])
+    write (fn []
+            (cks/set @@key
+                     (join "|" (map #(str (.-name %)
+                                          ":" (-.value %)) @@scores))
+                     @@duration))
+    hasSlots #(< (alen @@scores) @@size)
+    canAdd (fn [score]
+             (if (.hasSlots this)
+               #t (some #(< (.-value %) score) @@scores)))
+    insert (fn [name score]
+             (with-local-vars [s (score* name score)
+                               len (alen @@scores)]
+               (when-not (.hasSlots this)
+                 (rloop [v @@scores :index i]
+                   (when (< v score)
+                     (.splice @@scores i 1) (break-out-of-loop!))))
+               (when (.hasSlots this)
+                 (conj! @@scores s)
+                 (.sort this)
+                 (.write this))))
+    sort #(Array.prototype.sort @@scores
+                                #(cond (< (.-value %1) (.-value %2)) -1
+                                       (> (.-value %1) (.-value %2)) 1
+                                       :else 0))
+    ctor (fn [key size duration]
+           (._super this)
+           (oset! this
+                  :duration (opt?? duration (* 60 60 24 1000))
+                  :size (opt?? size 10)
+                  :scores []
+                  :key key)) })
 
-}
+(defcc Vector2 cc/Class
+  `{mult #(new Vector2 0 0 (* % @@x)(* % @@y))
+    rotate (fn [cx cy deg]
+             (with-local-vars [rad (cc/degreesToRadians deg)])
+             (oset! this
+                    :x (+ cx (- (* (Math/cos rad) (- @@x cx))
+                                (* (Math/sin rad) (- @@y y0))))
+                    :y (+ cy (+ (* (Math/sin rad) (- @@x cx))
+                                (* (Math/cos rad) (- @@y y0))))))
+    length #(Math/sqrt (+ (* @@x @@x) (* @@y @@y)))
+    toString #(str "[" @@x "," @@y "]")
+    plus #(new Vector2 0 0 (+ @@x (.-x %)) (+ @@y (.-y %)))
+    minus #(new Vector2 0 0 (- @@x (.-x %)) (- @@y (.-y %)))
+    ctor (fn [x1 y1 x2 y2]
+           (._super this)
+           (oset! this :x (- x2 x1) :y (- y2 y1))) })
 
-/** @alias module:zotohlab/asx/scenes */
-const xbox= /** @lends xbox# */{
-  /**
-   * @property {XMenuLayer} XMenuLayer
-   */
-  XMenuLayer: XMenuLayer,
-  /**
-   * @property {XGameHUDLayer} XGameHUDLayer
-   */
-  XGameHUDLayer: XGameHUDLayer,
-  /**
-   * @property {XGameLayer} XGameLayer
-   */
-  XGameLayer: XGameLayer,
-  /**
-   * @property {XLayer} XLayer
-   */
-  XLayer: XLayer,
-  /**
-   * @property {XLive} XLive
-   */
-  XLive: XLive,
-  /**
-   * @property {XHUDLives} XHUDLives
-   */
-  XHUDLives: XHUDLives,
+(defcc YesNoScene XScene `{})
+(defcc MBoxScene XScene `{})
+(defcc NetPlayScene XScene `{})
 
-  /**
-   * @property {XSceneFactory} XSceneFactory
-   */
-  XSceneFactory: XSceneFactory,
-  /**
-   * @property {XScene} XScene
-   */
-  XScene: XScene,
-  /**
-   * @method showMenu
-   */
-  showMenu() {
-    const dir= cc.director;
-    dir.pushScene(sh.protos[sh.ptypes.mmenu].reify({
-      onback() { dir.popScene(); }
-    }));
-  }
-};
 
-sjs.merge(exports, xbox);
-/*@@
-return xbox;
-@@*/
-
-//////////////////////////////////////////////////////////////////////////////
-//EOF
 
