@@ -86,7 +86,7 @@
   onExit #(.call cc.Node.prototype.onExit this) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- preLaunchApp [ldr  ss1]
+(defn- preLaunchApp [ldr]
   (with-local-vars [fz (ccsx/screenSize)
                     sz ? pfx "" rs ? pcy ?])
   (if-some [paths (if cc/sys.isNative (handleMultiDevices))]
@@ -120,13 +120,13 @@
                                  (pvGatherPreloads)
                                  (fn []
                                    (.runOnce *xcfg*)
-                                   (.runScene cc/director (.reify ss1)))))
+                                   (.runScene cc/director (.startScene *xcfg*)))))
   (.runScene cc/director cc.loaderScene))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- bootFunc "" []
   (loggr/info "About to create Cocos2D HTML5 Game")
-  (preLaunchApp loader ss1)
+  (preLaunchApp loader)
   (l10nInit)
   (sfxInit)
   (loggr/info "Loaded and running. OK"))
