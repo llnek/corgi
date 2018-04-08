@@ -67,10 +67,8 @@
 (defcc XLayer cc/Layer `{})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addSSheet "" [node sheetKey & [zOrder]]
-  (with-local-vars
-    [s (->> (getCfgImage sheetKey)
-            (new cc/SpriteBatchNode))]) (.addChild node s zOrder sheet) node)
+(defn sbatch "" [key] (new cc/SpriteBatchNode (gfcImage key)))
+(defn sbatch* "" [path] (new cc/SpriteBatchNode path))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addAudioIcon "" [node onKey offKey & [options]]

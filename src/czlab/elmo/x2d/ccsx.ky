@@ -430,7 +430,7 @@
   menu)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn grfxMenu1
+(defn gmenu1
   "Create a single button menu."
   [item & [options]]
   (with-local-vars [menu (grfxMenu [item] options)])
@@ -471,4 +471,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;EOF
+(defmacro child+ "" [node c & more] `(.addChild ~node ~c ~@more))
+(defmacro pos! "" [node & more] `(.setPosition ~node ~@more))
+(defmacro perc "" [v r] `(* ~v ~r))
 
