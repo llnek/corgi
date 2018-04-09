@@ -1,74 +1,47 @@
-// This library is distributed in  the hope that it will be useful but without
-// any  warranty; without  even  the  implied  warranty of  merchantability or
-// fitness for a particular purpose.
-// The use and distribution terms for this software are covered by the Eclipse
-// Public License 1.0  (http://opensource.org/licenses/eclipse-1.0.php)  which
-// can be found in the file epl-v10.html at the root of this distribution.
-// By using this software in any  fashion, you are agreeing to be bound by the
-// terms of this license. You  must not remove this notice, or any other, from
-// this software.
-// Copyright (c) 2013-2015, Ken Leung. All rights reserved.
 
-"use strict";/**
- * @requires zotohlab/asx/asterix
- * @requires zotohlab/asx/scenes
- * @requires zotohlab/asx/ccsx
- * @module p/hud
- */
+(defn posAsAnchors "" [node where]
+  (with-local-vars
+    [[hw hh] (ccsx/csize_2 node)
+     [cx cy] (ccsz/center)
+     B (ccsx/vbox)
+     [x y]
+     (condp = where
+       (.-Bottom *anchors*) [cx (+ B.bottom hh)]
+       (.-Center *anchors*) [cx cy]
+       (.-Top *anchors*) [cx (- B.top hh)]
+       (.-BottomRight *anchors*) [(- B.right hw) (+ B.bottom hh)]
+       (.-Right *anchors*) [(- B.right hw) cy]
+       (.-TopRight *anchors*) [(- B.right hw) (- B.top hh)]
+       (.-BottomLeft *anchors*) [(+ B.left hw) (+ B.bottom hh)]
+       (.-Left *anchors*) [(+ B.left hw) cy]
+       (.-TopLeft *anchors*) [(+ B.left hw) (- B.top hh)])])
+  (if (number? x)
+    (pos! node x y)))
 
-import scenes from 'zotohlab/asx/scenes';
-import sh from 'zotohlab/asx/asterix';
-import ccsx from 'zotohlab/asx/ccsx';
+(defn hudLayer "" [zOrder]
+  (with-local-vars [y (xlayer)
+                    wz= ccsx.vbox()])
+  (.attr y `{:color (cc/color "#5e3178")
+             :idTag :HUD
+             :p2Long  "" :p1Long "" :p2ID "" :p1ID ""})
+  (set! menu (ccsx/gmenu1
+               `{:nnn "#icon_menu.png"
+                 :cb #(signal "hud.showmenu")} ))
+  (posAsAnchors menu (.-BottomRight *anchors*))
+  (child+ y menu zOrder)
 
-//////////////////////////////////////////////////////////////////////////
-let sjs= sh.skarojs,
-xcfg = sh.xcfg,
-csts= xcfg.csts,
-undef,
-//////////////////////////////////////////////////////////////////////////
-/** * @class HUDLayer */
-HUDLayer = scenes.XGameHUDLayer.extend({
-  /**
-   * @method ctor
-   * @private
-   */
-  ctor(options) {
-    const color= cc.color("#5e3178"),
-    scale= 1;
+  (set! menu (ccsx/gmenu1
+               `{:nnn "#icon_replay.png"
+                 :cb #(signal "hud.replay")}))
+  (posAsAnchors menu (.-BottomLeft *anchors*))
+  (hide! menu)
+  (child+ y menu zOrder)
 
-    this._super(options);
-    this.p2Long= '';
-    this.p1Long= '';
-    this.p2ID= '';
-    this.p1ID= '';
 
-    this.options.i_menu= {
-      cb() { sh.fire('/hud/showmenu'); },
-      nnn: '#icon_menu.png',
-      where: ccsx.acs.Bottom,
-      color: color,
-      scale: scale
-    };
-    this.options.i_replay = {
-      cb() { sh.fire('/hud/replay'); },
-      where: ccsx.acs.Bottom,
-      nnn: '#icon_replay.png',
-      color: color,
-      scale : scale,
-      visible: false
-    };
-    this.color= color;
-    this.initScores();
-  },
-  /**
-   * @method initScores
-   * @protected
-   */
-  initScores() {
-    this.scores= {};
-    this.scores[csts.P2_COLOR] =  0;
-    this.scores[csts.P1_COLOR] =  0;
-  },
+  ;this.scores= {};
+  ;this.scores[csts.P2_COLOR] =  0;
+  ;this.scores[csts.P1_COLOR] =  0;
+
   /**
    * @method initLabels
    * @protected
@@ -309,18 +282,4 @@ HUDLayer = scenes.XGameHUDLayer.extend({
   }
 });
 
-/** @alias module:p/hud */
-const xbox = /** @lends xbox# */{
-  /**
-   * @property {HUDLayer} HUDLayer
-   */
-  HUDLayer: HUDLayer
-};
-
-sjs.merge(exports, xbox);
-/*@@
-return xbox;
-@@*/
-//////////////////////////////////////////////////////////////////////////////
-//EOF
 

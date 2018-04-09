@@ -96,14 +96,21 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn csize
   "Find size of this sprite."
-  [frame] (.getContentSize (createSpriteFromFrameName frame)))
+  [frame]
+  (if-some [x (cond
+                (string? frame)
+                (createSpriteFromFrameName frame)
+                (object? frame) frame)]
+    (.getContentSize x)
+    (cc/size 0 0)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn halfHW
-  "Calculate halves of width and height of this sprite."
-  [sprite]
+(defn csize_2
+  "Calculate halves of width and height of this object."
+  [obj]
   (with-local-vars
-    [z (.getContentSize sprite)]) [(* 0.5 z.width) (* 0.5 z.height)])
+    [z (csize obj)]) [(* 0.5 z.width) (* 0.5 z.height)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rect
@@ -355,6 +362,11 @@
          :BottomLeft (cc/p 0 0)
          :Left (cc/p 0 0.5)
          :TopLeft (cc/p 0 1) })
+(const *anchor-keys* (keys *anchors*))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hide! "" [node] (if node (.setVisible node false)))
+(defn show! "" [node] (if node (.setVisible node true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn textMenu
