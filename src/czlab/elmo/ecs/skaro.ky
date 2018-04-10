@@ -1,0 +1,122 @@
+
+(if (undef? HTMLElement) (oset! global :HTMLElement (fn [] )))
+(if (def? CryptoJS) (oset! global :CryptoJS CryptoJS))
+;if (_echt( global.CryptoJS))  { CjsBase64= global.CryptoJS.enc.Base64; CjsUtf8= global.CryptoJS.enc.Utf8; }
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn capitalize "" [s]
+  (if (and (string? s)
+           (not-empty s))
+    (str (-> s (.charAt 0)(.toUpperCase)) (.slice s 1)) s))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn randRange "" [from to]
+  (Math/floor (+ from (* (Math/random) (+1 (- to from))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn xmod
+  "Return the proper mathematical modulo of x mod N."
+  [x N]
+  (if (neg? x)
+    (- x (* -1 (+ N (* N (Math/floor (/ (- x) N)))))) (rem x N)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getWebSockProtocol "" [] (if (isSSL?) "wss://" "ws://"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn boolify "" [obj] (if obj true false))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isSSL? "" []
+  (and window
+       window.location
+       (contains? window.location.protocol "https")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn fmtUrl
+  "Format a URL based on the current web address host."
+  [scheme uri]
+  (if (and window window.location)
+      (str scheme window.location.host uri) ""))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn objectfy "" [s] (if (string? s) (JSON/parse s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn jsonfy "" [obj] (if obj (JSON/stringify obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isMobile?
+  "Test if the client is a mobile device."
+  [navigator]
+  (if navigator
+    (.test #/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i navigator.userAgent)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isSafari?
+  "Test if the client is Safari browser."
+  [navigator]
+  (if navigator
+    (and (.test #/Safari/ navigator.userAgent)
+         (.test #/Apple Computer/ navigator.vendor))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pde ""
+  "Prevent default propagation of this event." [e]
+  (if (fn? e.preventDefault)
+    (.preventDefault e)
+    (oset! e :returnValue false)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn randSign
+  "Randomly pick positive or negative."
+  [] (if (zero? (rem (rand 10) 2)) -1 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn randItem
+  "Randomly choose an item from this array." [arr]
+  (cond
+    (empty? arr) nil
+    (= 1 (alen arr)) (_1 arr)
+    :else (nth arr (Math/floor (* (Math/random) (alen arr))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn randPercent
+  "Randomly choose a percentage in step of 10." []
+  (randItem [0.1 0.9 0.3 0.7 0.6 0.5 0.4 0.8 0.2]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn rand
+  "Pick a random number."
+  [max] (Math/floor (* (Math/random) max)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn toBasicAuthHeader
+  "Format input into HTTP Basic Authentication."
+  [user pwd]
+  ["Authorization" (str "Basic "  (base64_encode (str "" user ":" pwd)))])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn toUtf8
+  "Convert string to utf-8 string."
+  [s] (CjsUtf8/stringify (CjsUtf8/parse s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn base64_encode
+  "Base64 encode the string."
+  [s] (CjsBase64/stringify (CjsUtf8/parse s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn base64_decode
+  "Base64 decode the string."
+  [s] (CjsUtf8/stringify (CjsBase64/parse s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn removeItem!
+  "Maybe remove this item from this array."
+  [arr item]
+  (loop [i (.indexOf arr item)]
+    (when-not (neg? i)
+      (.splice arr i 1)
+      (recur (.indexOf arr item)))) arr)
+

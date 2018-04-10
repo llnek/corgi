@@ -1,5 +1,5 @@
 
-(defn posToAnchors "" [node where]
+(defn posToAnchors! "" [node where]
   (with-local-vars
     [[hw hh] (ccsx/csize_2 node)
      [cx cy] (ccsz/center)
@@ -64,171 +64,92 @@
 (defn showTimer "" [node]
   ;;timer is already showing, go away
   (when-not node.countDownState?
-    if (! this.countDown) {
-      this.countDown= ccsx.bmfLabel({
-        fontPath: sh.getFont('font.AutoMission'),
-        text: '',
-        scale: xcfg.game.scale * 0.5,
-        color: ccsx.white,
-        pos: cc.p(cw.x,
-                  wb.top - 10*csts.TILE),
-        anchor: ccsx.acs.Center
-      });
-      this.addItem(this.countDown);
-    }
+    (when-not node.countDown
+      (set! obj (bmfLabel "" "font.AutoMission"))
+      (pos! obj cw.x wb.top - 10*csts.TILE)
+      (child+ node obj 0 :countDown)))
+    (oset! node :countDownValue  csts.PLAYER_THINK_TIME)
+    (showCountDown)
+    (.schedule node updateTimer 1.0)
+    (true! this.countDownState))
 
-    this.countDownValue= csts.PLAYER_THINK_TIME;
-    this.showCountDown();
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn updateTimer "" [dt]
+  (when-not node.countDownState?
+    (oset! node
+           :countDownValue (-1 node.countDownValue))
+    (if (neg? node.countDownValue)
+      (do (killTimer) (signal "player.timer.expired"))
+      (showCountDown))))
 
-    this.schedule(this.updateTimer, 1.0);
-    this.countDownState= true;
-  },
-  /**
-   * @method updateTimer
-   * @private
-   */
-  updateTimer(dt) {
-    if (!this.countDownState) { return; } else {
-      this.countDownValue -= 1;
-    }
-    if (this.countDownValue < 0) {
-      this.killTimer();
-      sh.fire('/player/timer/expired');
-    }
-    else {
-      this.showCountDown();
-    }
-  },
-  /**
-   * @method showCountDown
-   * @private
-   */
-  showCountDown(msg) {
-    if (!!this.countDown) {
-      this.countDown.setString(msg || '' + this.countDownValue);
-    }
-  },
-  /**
-   * @method killTimer
-   * @private
-   */
-  killTimer() {
-    if (this.countDownState) {
-      this.unschedule(this.updateTimer);
-      this.showCountDown(' ');
-    }
-    this.countDownState=false;
-    this.countDownValue=0;
-  },
-  /**
-   * @method updateScore
-   * @private
-   */
-  updateScore(pcolor, value) {
-    this.scores[pcolor] += value;
-    this.drawScores();
-  },
-  /**
-   * @method update
-   * @protected
-   */
-  update(running, pnum) {
-    if (running) {
-      this.drawStatus(pnum);
-    } else {
-      this.drawResult(pnum);
-    }
-  },
-  /**
-   * @method endGame
-   * @private
-   */
-  endGame(winner) {
-    this.killTimer();
-    this.replayBtn.setVisible(true);
-    this.result.setVisible(true);
-    this.status.setVisible(false);
-    this.drawResult(winner);
-  },
-  /**
-   * @method drawStatusText
-   * @private
-   */
-  drawStatusText(obj, msg) {
-    obj.setString(msg || '');
-  },
-  /**
-   * @method drawScores
-   * @private
-   */
-  drawScores() {
-    const s2 = this.scores[this.play2],
-    s1 = this.scores[this.play1],
-    n2 = ''+s2,
-    n1 = ''+s1;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn showCountDown "" [msg]
+  (if-some [node (.getChildByName node :countDown)])
+      (.setString node (or msg (numStr node.countDownValue))))
 
-    this.score1.setString(n1);
-    this.score2.setString(n2);
-  },
-  /**
-   * @method drawResult
-   * @private
-   */
-  drawResult(pnum) {
-    let msg = sh.l10n('%whodraw');
+(defn killTimer "" []
+  (when node.countDownState?
+    (.unschedule node updateTimer) (showCountDown ""))
+  (oset! node :countDownState #f :countDownValue 0))
 
-    if (sjs.isnum(pnum)) {
-      switch (pnum) {
-        case 2: msg= sh.l10n('%whowin', { who: this.p2Long}); break;
-        case 1: msg= sh.l10n('%whowin', { who: this.p1Long}); break;
-      }
-    }
+(defn updateScore "" [pcolor value]
+  (oset! node.scores pcolor (+ (oget node.scores pcolor) value))
+  (drawScores))
 
-    this.drawStatusText(this.result, msg);
-  },
-  /**
-   * @method drawStatus
-   * @private
-   */
-  drawStatus(pnum) {
-    if (sjs.isnum(pnum)) {
-      const pfx = pnum === 1 ? this.p1Long : this.p2Long;
-      this.drawStatusText(this.status,
-                          sh.l10n('%whosturn', {
-        who: pfx
-      }));
-    }
-  },
-  /**
-   * @method regoPlayers
-   * @private
-   */
-  regoPlayers(color1,p1ids,color2,p2ids) {
-    this.play2= color2;
-    this.play1= color1;
-    this.p2Long= p2ids[1];
-    this.p1Long= p1ids[1];
-    this.p2ID= p2ids[0];
-    this.p1ID= p1ids[0];
-    this.title.setString(this.p1ID + " / " + this.p2ID);
-  },
-  /**
-   * @method resetAsNew
-   * @protected
-   */
-  resetAsNew() {
-    this.initScores();
-    this.reset();
-  },
-  /**
-   * @method reset
-   * @protected
-   */
-  reset() {
-    this.replayBtn.setVisible(false);
-    this.result.setVisible(false);
-    this.status.setVisible(true);
-  }
-});
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn update "" [running? pnum]
+  (if running? (drawStatus pnum) (drawResult pnum)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn endGame "" [node winner]
+  (killTimer)
+  (show! (.getChildByName node :replay))
+  (show! (.getChildByName node :result))
+  (hide! (.getChildByName node :status))
+  (drawResult winner))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn drawStatusText "" [obj msg] (.setString obj (or msg "")))
+
+(defn drawScores "" [node]
+  (with-local-vars [s2  (oget node.scores node.play2)
+                    s1 (oget node.scores node.play1)])
+  (.setString (.getChildByName node :score2 (numStr s2)))
+  (.setString (.getChildByName node :score1 (numStr s1))))
+
+
+(defn drawResult "" [pnum]
+ (->> (condp = pnum
+        2  (l10n "%whowin" `{:who node.p2Long})
+        1  (l10n "%whowin" `{:who node.p1Long})
+        (l10n "%whodraw"))
+      (drawStatusText (.getChildByName node :result))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn drawStatus "" [pnum]
+  (if (number? pnum)
+    (->> `{:who (if (= 1 pnum) node.p1Long node.p2Long)}
+         (l10n "%whosturn")
+         (drawStatusText (.getChildByName node :status)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn regoPlayers "" [color1 p1ids color2 p2ids]
+  (.attr node
+         `{:play2 color2
+           :play1 color1
+           :p2Long (_2 p2ids)
+           :p1Long (_2 p1ids)
+           :p2ID (_1 p2ids)
+           :p1ID (_1 p1ids)})
+  (.setString (.getChildByName node :title )
+              (str node.p1ID " / " node.p2ID)))
+
+(defn resetAsNew "" [] (initScores) (reset))
+
+
+(defn reset "" []
+    (hide! (.getChildByName node :replay))
+    (hide! (.getChildByName node :result))
+    (show! (.getChildByName node :status)))
 
 
