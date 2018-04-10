@@ -39,269 +39,102 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mkEvent "" [eventType code payload]
-  return {
-    timeStamp: sjs.now(),
-    type: eventType,
-    code: code,
-    source: payload
-  };
-}
+  `{:timeStamp  (Date/now)
+    :type eventType
+    :code code
+    :source payload })
 
-//////////////////////////////////////////////////////////////////////////////
-let mkPlayRequest = (game,user,pwd) => {
-  return mkEvent(evts.PLAYGAME_REQ, -1, [game, user, pwd]);
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mkPlayRequest "" [game user pwd]
+  (mkEvent (.-PLAYGAME_REQ *Events*) -1 [game user pwd]))
 
-//////////////////////////////////////////////////////////////////////////////
-let mkJoinRequest = (room,user,pwd) => {
-  return mkEvent(evts.JOINGAME_REQ, -1, [room, user, pwd]);
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mkJoinRequest "" [room user pwd]
+  (mkEvent (.-JOINGAME_REQ *Events*) -1 [room user pwd]))
 
-//////////////////////////////////////////////////////////////////////////////
-let json_decode = e => {
-  let evt = {},
-  src;
+(defn- getPlayRequest "" [options]
+  (jsonfy (mkPlayRequest options.game
+                         options.user options.passwd)))
 
-  try {
-    evt= sjs.objectfy(e.data);
-  } catch (e) {
-  }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn json_decode "" [e]
+  (with-local-vars [evt (try (objectfy e.data) (catch _e `{})) src ?])
+  (if-not (contains? evt :type) (oset! evt :type -1))
+  (if-not (contains? evt :code) (oset! evt :code -1))
+  (if (and (contains? evt :source)
+           (string? evt.source))
+    (oset! evt :source (objectfy evt.source)))
+  evt)
 
-  if (! sjs.hasKey(evt, 'type')) {
-    evt.type= -1;
-  }
-  if (! sjs.hasKey(evt, 'code')) {
-    evt.code= -1;
-  }
+(defcc Session cc/Class
+  `{connection #(.wsock this %)
+    ctor (fn [config]
+           (._super this)
+           (oset! this
+                  :handlers []
+                  :ws nil
+                  :options (or config `{})
+                  :ebus (ebus/reifyRvBus)
+                  :state (.-S_NOT_CONNECTED *Events*)))
+    send (fn [evt]
+           (if (and (= @@state  (.-S_CONNECTED *Events*))
+                    (some? @@ws))
+             (.send @@ws (jsonfy evt))))
+    listen (fn [msgType evt cb ctx]
+             (with-local-vars
+               [h (.on @@ebus (str msgType "." evt) cb ctx)])
+             (if (not-empty h)
+               ;;store the handle ids for clean up
+               (conj! @@handlers (_1 h)))
+             (_1 h))
+    listenAll (fn [cb ctx]
+                [(listen (.-MSG_NETWORK *Events*) "*" cb ctx)
+                 (listen (.-MSG_SESSION *Events*) "*" cb ctx)])
+    cancelAll (fn []
+                (.removeAll @@ebus)
+                (oset! this :handlers []))
+    cancel (fn [subid]
+             (removeItem! @@handlers subid)
+             (.off @@ebus subid))
+    reset (fn []
+            (oset! this
+                   :onmessage *nulfunc*
+                   :onerror *nulfunc*
+                   :onclose *nulfunc*
+                   :handlers [])
+            (.removeAll @@ebus))
+    close (fn []
+            (oset! this :state (.-S_NOT_CONNECTED *Events*))
+            (.reset this)
+            (if @@ws (trye! (.close @@ws)))
+            (oset! this :ws nil))
+    disconnect #(.close this)
+    onNetworkMsg (fn [evt])
+    onSessionMsg (fn [evt])
+    wsock (fn [url]
+            (with-local-vars [me this
+                              ws (new WebSocket url)])
+            ;;connection success, send the play game request
+            (oset! this :ws ws)
+            (oset! ws
+                   :open (fn []
+                           (oset! me :state (.-S_CONNECTED *Events*))
+                           (.send ws (getPlayRequest me.options)))
+                   :onmessage (fn [e]
+                                (with-local-vars [evt (json_decode e)])
+                                (condp = e.type
+                                  (.-MSG_NETWORK *Events*) (.onevent me e)
+                                  (.-MSG_SESSION *Events*) (.onevent me e)
+                                  (loggr/warn
+                                    "unhandled server event: "
+                                    e.type ", code = " e.code)))
+                   :onclose (fn [e]
+                              (loggr/debug "closing websocket."))
+                   :onerror (fn [e]
+                              (loggr/debug "websocket error.\n" e)))
+            ws)
+    onevent (fn [evt]
+              (.fire @@ebus
+                     (str evt.type "." evt.code) evt)) })
 
-  if (sjs.hasKey(evt, 'source') &&
-      sjs.isstr(evt.source)) {
-    evt.source = sjs.objectfy(evt.source);
-  }
-
-  return evt;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-/**
- * @class Session
- */
-class Session extends sjs.ES6Claxx {
-
-  /**
-   * Connect to this url and request a websocket upgrade.
-   * @memberof module:zotohlab/asx/odin~Session
-   * @method connect
-   * @param {String} url
-   */
-  connect(url) {
-    this.wsock(url);
-  }
-
-  /**
-   * @memberof module:zotohlab/asx/odin~Session
-   * @method constructor
-   * @param {Object} config
-   */
-  constructor(config) {
-    super();
-    this.state= evts.S_NOT_CONNECTED;
-    this.options=config || {};
-    this.ebus= ebus.reifyRvBus();
-    this.handlers= [];
-    this.ws = null;
-  }
-
-  /**
-   * Send this event through the socket.
-   * @memberof module:zotohlab/asx/odin~Session
-   * @method send
-   * @param {Object} evt
-   */
-  send(evt) {
-    if (this.state === evts.S_CONNECTED &&
-        sjs.echt(this.ws)) {
-      this.ws.send( sjs.jsonfy(evt));
-    }
-  }
-
-  /**
-   * Listen to this message-type and event.
-   * @memberof module:zotohlab/asx/odin~Session
-   * @method listen
-   * @param {Number} messageType
-   * @param {Number} event
-   * @param {Function} callback
-   * @param {Object} target
-   * @return {String} handler id
-   */
-  listen(messageType, event, callback, target) {
-    const h= this.ebus.on(["/", messageType, "/", event].join(''),
-                          callback, target);
-    if (sjs.isarr(h) && h.length > 0) {
-      // store the handle ids for clean up
-      //this.handlers=this.handlers.concat(h);
-      this.handlers.push(h[0]);
-      return h[0];
-    } else {
-      return null;
-    }
-  }
-
-  /**
-   * Listen to all message events.
-   * @memberof module:zotohlab/asx/odin~Session
-   * @method listenAll
-   * @param {Function} callback
-   * @param {Object} target
-   * @return {Array} [id1, id2]
-   */
-  listenAll(callback,target) {
-    return [ this.listen(evts.MSG_NETWORK, '*', callback, target),
-             this.listen(evts.MSG_SESSION, '*', callback, target) ];
-  }
-
-  /**
-   * Cancel and remove all subscribers.
-   * @memberof module:zotohlab/asx/odin~Session
-   * @method cancelAll
-   */
-  cancelAll() {
-    this.ebus.removeAll();
-    this.handlers= [];
-  }
-
-  /**
-   * Cancel this subscriber.
-   * @memberof module:zotohlab/asx/odin~Session
-   * @method cancel
-   * @param {String} subid
-   */
-  cancel(subid) {
-    sjs.removeFromArray(this.handlers, subid);
-    this.ebus.off(subid);
-  }
-
-  /**
-   * Reset and clear everything.
-   * @memberof module:zotohlab/asx/odin~Session
-   * @method reset
-   */
-  reset() {
-    this.onmessage= sjs.NILFUNC;
-    this.onerror= sjs.NILFUNC;
-    this.onclose= sjs.NILFUNC;
-    this.handlers= [];
-    this.ebus.removeAll();
-  }
-
-  /**
-   * Close the connection to the socket.
-   * @memberof module:zotohlab/asx/odin~Session
-   * @method close
-   */
-  close() {
-    this.state= evts.S_NOT_CONNECTED;
-    this.reset();
-    if (!!this.ws) {
-      try {
-        this.ws.close();
-      } catch (e)
-      {}
-    }
-    this.ws= null;
-  }
-
-  /**
-   * Disconnect from the socket.
-   * @memberof module:zotohlab/asx/odin~Session
-   * @method disconnect
-   */
-  disconnect() {
-    this.close();
-  }
-
-  /**
-   * @private
-   */
-  onNetworkMsg(evt) {
-  }
-
-  /**
-   * @private
-   */
-  onSessionMsg(evt) {
-  }
-
-  /**
-   * @private
-   */
-  wsock(url) {
-    const ws= new WebSocket(url),
-    me=this;
-
-    // connection success
-    // send the play game request
-    ws.onopen= () => {
-      me.state= evts.S_CONNECTED;
-      ws.send(me.getPlayRequest());
-    }
-
-    ws.onmessage= (e) => {
-      const evt= json_decode(e);
-      switch (evt.type) {
-        case evts.MSG_NETWORK:
-        case evts.MSG_SESSION:
-          me.onevent(evt);
-        break;
-        default:
-          sjs.loggr.warn("unhandled server event: " +
-                         evt.type +
-                         ", code = " +
-                         evt.code);
-      }
-    }
-
-    ws.onclose= (e) => {
-      sjs.loggr.debug("closing websocket.");
-    }
-
-    ws.onerror= (e) => {
-      sjs.loggr.debug("websocket error.\n" + e);
-    }
-
-    return this.ws=ws;
-  }
-
-  /**
-   * @private
-   */
-  getPlayRequest() {
-    return sjs.jsonfy( mkPlayRequest(this.options.game,
-                                     this.options.user,
-                                     this.options.passwd));
-  }
-
-  /**
-   * @private
-   */
-  onevent(evt) {
-    this.ebus.fire(["/",evt.type,"/",evt.code].join(''), evt);
-  }
-
-}
-
-/**
- * @method reifySession
- * @param {Object} cfg
- * @return {Session}
- */
-xbox.reifySession= (cfg) => { return new Session(cfg); }
-sjs.merge(exports, xbox);
-/*@@
-return xbox;
-@@*/
-
-//////////////////////////////////////////////////////////////////////////////
-//EOF
 
