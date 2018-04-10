@@ -1,5 +1,5 @@
 
-(defn posAsAnchors "" [node where]
+(defn posToAnchors "" [node where]
   (with-local-vars
     [[hw hh] (ccsx/csize_2 node)
      [cx cy] (ccsz/center)
@@ -27,94 +27,43 @@
   (set! menu (ccsx/gmenu1
                `{:nnn "#icon_menu.png"
                  :cb #(signal "hud.showmenu")} ))
-  (posAsAnchors menu (.-BottomRight *anchors*))
+  (posToAnchors menu (.-BottomRight *anchors*))
   (child+ y menu zOrder)
 
   (set! menu (ccsx/gmenu1
                `{:nnn "#icon_replay.png"
                  :cb #(signal "hud.replay")}))
-  (posAsAnchors menu (.-BottomLeft *anchors*))
+  (posToAnchors menu (.-BottomLeft *anchors*))
   (hide! menu)
   (child+ y menu zOrder)
-
-
   ;this.scores= {};
   ;this.scores[csts.P2_COLOR] =  0;
   ;this.scores[csts.P1_COLOR] =  0;
+  (set! title (sprite "#title.png"))
+  (posToAnchor title  (.-Top *anchors*))
+  (child+ y title)
 
-  /**
-   * @method initLabels
-   * @protected
-   */
-  initLabels() {
-    const cw= ccsx.center(),
-    c= this.color,
-    wb= ccsx.vbox();
+  (set! score1 (bmfLabel "0" "font.SmallTypeWriting"))
+  (posToAnchor! score1 (.-TopLeft *anchors*))
+  (child+ y score1 0)
 
-    this.title = ccsx.bmfLabel({
-      fontPath: sh.getFont('font.JellyBelly'),
-      text: '',
-      color: c,
-      anchor: ccsx.acs.Top,
-      scale: xcfg.game.scale * 0.6,
-      pos: cc.p(cw.x, wb.top - 2*csts.TILE)
-    });
-    this.addItem(this.title);
+  (set! score2 (bmfLabel "0" "font.SmallTypeWriting"))
+  (posToAnchor! score2 (.-TopRight *anchors*))
+  (child+ y score2 0)
 
-    this.score1= ccsx.bmfLabel({
-      fontPath: sh.getFont('font.SmallTypeWriting'),
-      text: '0',
-      scale: xcfg.game.scale,
-      color: ccsx.white,
-      pos: cc.p(csts.TILE + csts.S_OFF + 2,
-                wb.top - csts.TILE - csts.S_OFF),
-      anchor: ccsx.acs.TopLeft
-    });
-    this.addItem(this.score1);
+  (set! status (bmfLabel "" "font.CoffeeBuzzed"))
+  (posToAnchors! status (.-Bottom *anchors*))
+  (child+ y status)
 
-    this.score2= ccsx.bmfLabel({
-      fontPath: sh.getFont('font.SmallTypeWriting'),
-      text: '0',
-      scale: xcfg.game.scale,
-      color: ccsx.white,
-      pos: cc.p(wb.right - csts.TILE - csts.S_OFF,
-                wb.top - csts.TILE - csts.S_OFF),
-      anchor: ccsx.acs.TopRight
-    });
-    this.addItem(this.score2);
+  (set! result (bmfLabel "" "font.CoffeeBuzzed"))
+  (posToAnchors! result (.-Bottom *anchors*))
+  (hide! result)
+  (child+ y result))
 
-    this.status= ccsx.bmfLabel({
-      fontPath: sh.getFont('font.CoffeeBuzzed'),
-      text: '',
-      color: ccsx.white,
-      scale: xcfg.game.scale * 0.3,// 0.06,
-      pos: cc.p(cw.x, wb.bottom + csts.TILE * 10)
-    });
-    this.addItem(this.status);
-
-    this.result= ccsx.bmfLabel({
-      fontPath: sh.getFont('font.CoffeeBuzzed'),
-      color: ccsx.white,
-      text: '',
-      scale: xcfg.game.scale * 0.3,// 0.06,
-      pos: cc.p(cw.x, wb.bottom + csts.TILE * 10),
-      visible: false
-    });
-    this.addItem(this.result);
-  },
-  /**
-   * @method showTimer
-   * @private
-   */
-  showTimer() {
-    const cw= ccsx.center(),
-    wb= ccsx.vbox();
-
-    // timer is already showing, go away
-    if (this.countDownState) {
-      return;
-    }
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn showTimer "" [node]
+  ;;timer is already showing, go away
+  (when-not node.countDownState?
     if (! this.countDown) {
       this.countDown= ccsx.bmfLabel({
         fontPath: sh.getFont('font.AutoMission'),
