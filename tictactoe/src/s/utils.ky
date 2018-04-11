@@ -34,53 +34,21 @@
         (set! x1 (+ x2 gw)))
      (set! y1 (- y2 gh) x1 x0)) gridMap)
 
-  /**
-   * @method pkFlip
-   * @private
-   */
-  pkFlip(img,flip) {
-    if (flip) {
-      return img + ".i.png";
-    } else {
-      return img + ".png";
-    }
-  },
-  /**
-   * @method xrefImg
-   * @private
-   */
-  xrefImg(value) {
-    switch (value) {
-      case csts.CV_X: return 'x';
-      case csts.CV_O: return 'o';
-      case csts.CV_Z: return 'z';
-    }
-  },
-  //pass in gridview
-  /**
-   * @method drawSymbol
-   * @param {Ash.Node} view
-   * @param {Number} x
-   * @param {Number} y
-   * @param {Number} value
-   * @param {Boolean} flip
-   * @return {cc.Sprite}
-   */
-  drawSymbol(view, x,y,value,flip) {
-    const frame = this.pkFlip(this.xrefImg(value),flip),
-    s1= ccsx.createSprite(frame);
-    s1.setAnchorPoint(ccsx.acs.Center);
-    s1.setPosition(x,y);
-    view.layer.addAtlasItem('game-pics', s1);
-    return s1;
-  }
-};
+(defn pkFlip "" [img flip?]
+  (str img (if flip? ".i.png" ".png")))
 
-sjs.merge(exports, xbox);
-/*@@
-return xbox;
-@@*/
-//////////////////////////////////////////////////////////////////////////////
-//EOF
+(defn xrefImg "" [value]
+  (condp = value
+      csts.CV_X "x"
+      csts.CV_O "o"
+      csts.CV_Z "z"))
+
+(defn drawSymbol "" [view x y value flip?]
+  (locals frame (pkFlip (xrefImg value) flip?)
+          s1 (sprite* frame))
+  (.setAnchorPoint s1 (.-Center *Anchors*))
+  (pos! s1 x y)
+  (child+ (.getChildByName view.layer "game-pics") s1) s1)
+
 
 
