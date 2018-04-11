@@ -1,0 +1,17 @@
+
+(const BoardNode
+       `{:selection UISelection
+         :board Board
+         :robot SmartAlgo
+         :grid Grid
+         :view GridView })
+
+(const GUINode
+       `{:selection UISelection
+         :view GridView })
+
+(const NetPlayNode
+       `{:playcmd NetPlay
+         :grid Grid })
+
+

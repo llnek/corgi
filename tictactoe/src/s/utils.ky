@@ -1,0 +1,86 @@
+
+(defn mapGridPos
+   "Calculate position of each individual cells in the grid,
+   so that we can detect when a user clicks on the cell."
+   [& [gsz scale]]
+   (set! gsz (opt?? gsz csts.GRID_SIZE)
+         scale (opt?? scale 1))
+   ;;memorize the co-ordinates of each cell on the board, so
+   ;;we know which cell the user has clicked on.
+   (locals sp (sprite* "z.png")
+           z (csize sp)
+           csz (cc/size (* scale z.width)
+                        (* scale z.height))
+           cells (* gsz gsz)
+           ro (* scale (/ 8 72))
+           gh (* ro csz.height)
+           gw (* ro csz.width)
+           zh (+ (* gsz csz.height) (* gh (-1 gsz)))
+           zw (+ (* gsz csz.width) (* gw (-1 gsz)))
+           cw (ccsx/center)
+           gridMap []
+           x2 ? y2 ?
+           x0 (- cw.x (* 0.5 zw))
+           y0 (+ cw.y (* 0.5 zh))
+           x1 x0
+           y1 y0)
+   (dotimes [n cells] (conj! gridMap nil))
+   (dotimes [r gsz]
+     (dotimes [c gsz]
+       (set! y2 (- y1 csz.height)
+             x2 (+ x1 csz.width))
+       (aset gridMap
+             (+ (* r gsz) c) `{:left x1 :top y1 :right x2 :bottom y2})
+        (set! x1 (+ x2 gw)))
+     (set! y1 (- y2 gh) x1 x0)) gridMap)
+
+  /**
+   * @method pkFlip
+   * @private
+   */
+  pkFlip(img,flip) {
+    if (flip) {
+      return img + ".i.png";
+    } else {
+      return img + ".png";
+    }
+  },
+  /**
+   * @method xrefImg
+   * @private
+   */
+  xrefImg(value) {
+    switch (value) {
+      case csts.CV_X: return 'x';
+      case csts.CV_O: return 'o';
+      case csts.CV_Z: return 'z';
+    }
+  },
+  //pass in gridview
+  /**
+   * @method drawSymbol
+   * @param {Ash.Node} view
+   * @param {Number} x
+   * @param {Number} y
+   * @param {Number} value
+   * @param {Boolean} flip
+   * @return {cc.Sprite}
+   */
+  drawSymbol(view, x,y,value,flip) {
+    const frame = this.pkFlip(this.xrefImg(value),flip),
+    s1= ccsx.createSprite(frame);
+    s1.setAnchorPoint(ccsx.acs.Center);
+    s1.setPosition(x,y);
+    view.layer.addAtlasItem('game-pics', s1);
+    return s1;
+  }
+};
+
+sjs.merge(exports, xbox);
+/*@@
+return xbox;
+@@*/
+//////////////////////////////////////////////////////////////////////////////
+//EOF
+
+

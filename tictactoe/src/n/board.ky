@@ -1,0 +1,55 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;A Tic Tac Toe board.
+(defn GameBoard "" [size nilValue p1v p2v goals]
+  `{:isNil #(= % nilValue)
+    :actors [nilValue, p1v, p2v]
+    :grid []
+    :size size
+    :GOALSPACE goals
+    :getFirstMove #(if-not (find #(not= % nilValue) @@grid) (rand (alen @@grid)))
+    :syncState (fn [seed actor]
+                 (aset this.actors 0 actor)
+                 (oset! this :grid (.slice seed 0)))
+    :getNextMoves (fn [snap]
+                    (vars rc [])
+                    (doseq [v snap.state :index n]
+                      (if (.isNil this v) (conj! rc n))) rc)
+    :unmakeMove (fn [snap move] (aset snap.state move nilValue))
+    :makeMove (fn [snap move]
+                (if (.isNil this (aget snap.state move))
+                  (aset snap.state move snap.cur)
+                  (raise! "Fatal Error: cell [" move "] is not free.")))
+    :switchPlayer (fn [snap]
+                    (vars t snap.cur)
+                    (oset! snap :cur snap.other)
+                    (oset! snap :other t))
+    :getOtherPlayer (fn [pv]
+                      (cond
+                        (= pv (aget @@actors 1))
+                        (aget @@actors 2)
+                        (= pv (aget @@actors 2))
+                        (aget @@actors 1)
+                        :else nilValue))
+    :takeSnapshot #(object :other
+                           (.getOtherPlayer this (_1 @@actors))
+                           :cur (_1 @@actors)
+                           :state (.slice @@grid 0)
+                           :lastBestMove -1)
+    :evalScore (fn [snap]
+                 ;;if we lose, return a nega value
+                 (if (number? (_1 (.isWinner this snap.other snap.state))) -100 0))
+    :isOver (fn [snap]
+              (or (number? (_1 (.isWinner this snap.cur snap.state)))
+                  (number? (_1 (.isWinner this snap.other snap.state)))
+                  (.isStalemate this snap.state)))
+    :isStalemate (fn [game]
+                   (not (some #(= nilValue %) (or game @@grid))))
+    :isWinner (fn [actor gameVals]
+                (vars game (or gameVals @@grid)
+                      combo ?
+                      rc (some (fn [r]
+                                 (set! combo r)
+                                 (every #(= % actor)
+                                        (map #(aget game %) r))) goals))
+                (if rc [actor combo] [nil nil])) })
+

@@ -93,12 +93,12 @@
       (returnToPool obj.____pool obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createEntity "" [ecs componentId & moreIds]
+(defn createEntity "" [ecs componentDecl & moreDecls]
   (dosync
     (with-local-vars [entity (genUid ecs)])
     (apply addToEntity
            this
-           (concat [ecs entity] componentId moreIds))
+           (concat [ecs entity] componentDecl moreDecls))
     (swap! ecs
            (fn [{:keys [entities] :as root}]
              (conj! entities entity) root)) entity))
@@ -134,18 +134,19 @@
                    (dissoc! data c)) (concat [id] more)) root)) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addToEntity "" [ecs entity componentId & moreIds]
+(defn addToEntity "" [ecs entity componentDecl & moreDecls]
+  (locals me this)
   (swap! ecs
          (fn [{:keys [data registry] :as root}]
            (with-local-vars [ctor nil co nil])
-           (each (fn [cid]
+           (each (fn [[cid & xs]]
                    (set! ctor (get registry cid))
                    (if-not ctor (raise! "Unknown component " cid))
                    (if-not (.has data cid) (assoc! data cid {}))
-                   (set! co (ctor))
+                   (set! co (apply ctor me xs))
                    (oset! co :____entity entity)
                    (assoc! (get data cid) entity co))
-                 (concat [componentId] moreIds)) root)) entity)
+                 (concat [componentDecl] moreDecls)) root)) entity)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeFromEntity "" [ecs entity & componentIds]
@@ -245,14 +246,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createTemplateEntity "" [ecs id]
-  (with-local-vars [entity nil])
+  (with-local-vars [me this entity nil])
   (swap! ecs
          (fn [{:keys [templates] :as root}]
            (with-local-vars [t (get templates id)])
            (set! entity
                  (apply createEntity
-                        this
-                        (concat [ecs] (seq t.components))))
+                        me
+                        (concat [ecs] t.components)))
            (if (fn? t.initor)
              (t.initor ecs entity)) root)) entity)
 

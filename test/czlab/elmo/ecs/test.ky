@@ -29,10 +29,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- tmpA
-  `{:components #{:c1 :c3} :initor (fn []) })
+  `{:components [[:c1] [:c3]] :initor (fn []) })
 
 (const- tmpB
-  `{:components #{:c2 :c3} :initor (fn []) })
+  `{:components [[:c2] [:c3]] :initor (fn []) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- *ecs* (ecs/createECS))
@@ -88,7 +88,7 @@
   (ensure (= 2 (do (ecs/addTemplate *ecs* :t1 tmpA :t2 tmpB)
                    (count (ecs/getTemplateKeys *ecs*)))) "addTemplate,*")
 
-  (ensure (let [x (ecs/createEntity *ecs* :c1 :c2 :c3)]
+  (ensure (let [x (ecs/createEntity *ecs* [:c1] [:c2] [:c3])]
             (and (ecs/componentInEntity? *ecs* x :c1 :c2 :c3)
                  (ecs/getEntityData *ecs* x :c1)
                  (ecs/getEntityData *ecs* x :c2)
@@ -113,7 +113,7 @@
             (and (some? y)
                  (nichts? z))) "removeEntity")
 
-  (ensure (let [x (ecs/createEntity *ecs* :c4)
+  (ensure (let [x (ecs/createEntity *ecs* [:c4])
                 ok (and (ecs/componentInEntity? *ecs* x :c4)
                         (ecs/getEntityData *ecs* x :c4))]
             (ecs/removeEntity *ecs* x)

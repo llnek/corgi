@@ -1,0 +1,37 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn SmartAlgo "" [board]
+  (oset! this :board board))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Board "" [size goals]
+  (oset! this :goalspace goals :size size))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Grid "" [size seed]
+  (oset! this :size size :values (fillArray (* size size) csts.CV_Z)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn GridView "" [size layer]
+  (with-local-vars [sp (sprite* "z.png") sz (csize sp)])
+  (oset! this
+         :layer layer
+         :size sz
+         :url ""
+         :gridMap (mapGridPos)
+         :cells (fillArray (* size size) nil)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn NetPlay "" [] (oset! this :event nil))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Player "" [category value id color]
+  (oset! this
+         :color color
+         :pnum id
+         :value value
+         :category category
+         :offset (if (= 1 id) 0 1)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn UISelection "" [] (oset! this :cell -1 :px -1 :py -1))
+
