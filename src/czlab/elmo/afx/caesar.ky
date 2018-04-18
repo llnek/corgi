@@ -1,0 +1,99 @@
+;; Copyright (c) 2013-2018, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+  czlab.basal.core.Caesar
+  (:require ["kirby" :as K :refer [conj! modulo]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- VISCHS
+        (str " @N/\\Ri2}aP`(xeT4F3mt;8~%r0v:L5$+Z{'V)\"CKIc>z.*"
+             "fJEwSU7juYg<klO&1?[h9=n,yoQGsW]BMHpXb6A|D#q^_d!-"))
+(const- VISCHS-LEN  (alen VISCHS))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- identifyChar "" [pos] (ch@ VISCHS pos))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- locateChar "" [ch]
+  (do-with [ret -1]
+    (for [n 0 :while (< n VISCHS-LEN) :recur (+1 n)]
+      (when (= ch (ch@ VISCHS n))
+        (set! ret n)
+        (break-out-of-loop!)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- slideForward [delta cpos]
+  (var ptr (+ cpos delta))
+  (-> (if (>= ptr VISCHS-LEN)
+        (- ptr VISCHS-LEN) ptr)
+      (identifyChar )))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- slideBack [delta cpos]
+  (var ptr (- cpos delta))
+  (-> (if (< ptr 0)
+        (+ VISCHS-LEN ptr)
+        ptr)
+      (identifyChar )))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- shiftEnc [shiftpos delta cpos]
+  (if (< shiftpos 0)
+    (slideForward delta cpos)
+    (slideBack delta cpos)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- shiftDec [shiftpos delta cpos]
+  (if (< shiftpos 0)
+    (slideBack delta cpos)
+    (slideForward delta cpos)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn encrypt [src shiftpos]
+  (var out [])
+  (when (and (string? src)
+             (not-empty src)
+             (not= 0 shiftpos))
+    (var delta (-> (Math/abs shiftpos)
+                   (modulo VISCHS-LEN))
+         len (alen src))
+    (var~ p ch)
+    (for [n 0 :while (< n len) :recur (+1 n)]
+      (set! ch (ch@ src n)
+            p (locateChar ch))
+      (if-not (< p 0)
+        (set! ch (shiftEnc shiftpos delta p)))
+      (conj! out ch)))
+  (join "" out))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn decrypt "" [cipher shiftpos]
+  (var out [])
+  (when (and (string? cipher)
+             (not-empty cipher)
+             (not= 0 shiftpos))
+    (var delta (-> (Math/abs shiftpos)
+                   (modulo VISCHS-LEN))
+         len (alen cipher))
+    (var~ p ch)
+    (for [n 0  :while (< n len) :recur (+1 n)]
+      (set! ch (ch@ cipher n)
+            p (locateChar ch))
+      (if-not (< p 0)
+        (set! ch (shiftDec shiftpos delta p)))
+      (conj! out ch)))
+  (join "" out))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
+
+
