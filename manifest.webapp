@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "name": "www",
-  "description": "www",
+  "name": "ttt",
+  "description": "ttt",
   "launch_path": "/index.html",
   "icons": {
     "128": "/res/icon.png"
