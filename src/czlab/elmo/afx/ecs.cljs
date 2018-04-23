@@ -12,59 +12,71 @@
   (:require ["kirby" :refer :all]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createPool ""
-  ^Atom [ctor init batch]
-  {:pre [(fn? ctor)(fn? init)]}
-  (atom `{:size 0 :next 0 :slots []
-          :ctor ctor :init init :batch batch}))
+(defn createPool "" [ctor rinse batch]
+  {:pre [(fn? ctor)(fn? rinse)]}
+  (let [a (atom {:batch batch :size 0
+                 :next 0 :slots #js[]
+                 :ctor ctor :rinse rinse})
+        g #(dotimes [_ batch]
+             (.push % (oset! (ctor)
+                             "____pool" a)))]
+    (swap! a #(merge % {:grow g}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getPoolSize "" [pool] (get @pool :size))
+(defn getPoolSize "" [pool] (:size @pool))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getPoolUsed "" [pool] (get @pool :next))
+(defn getPoolUsed "" [pool] (:next @pool))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn takeFromPool "" ^Object [pool]
-  (with-local-vars [co ? ret nil])
-  (swap! pool
-         (fn [{:keys [size next slots batch ctor] :as root}]
-           ;no free slot? make more
-           (when (>= next size)
-             (dotimes [x batch]
-               (set! co (ctor))
-               (conj! slots co)
-               (oset! co :____pool pool))
-             (oset! root :size (+ batch size)))
-           ;take a free object, set it's slot,
-           ;up the pool's free ptr
-           (set! ret (nth slots next))
-           (oset! ret :____status #t :____slot next)
-           (oset! root :next (+1 next)) root)) ret)
+(defn takeFromPool! "" [pool]
+  (let [out #js[]]
+    (->>
+      (fn [{:keys [grow size next slots] :as root}]
+        (let [next1 (inc next)
+              [sz _]
+              (if (>= next size)
+                [(+ size (:batch root)) (grow slots)]
+                [size slots])]
+          ;take a free object, set it's slot,
+          ;up the pool's free ptr
+          (.push out (nth slots next))
+          (doto (aget out 0)
+            (oset! "____slot" next)
+            (oset! "____status" true))
+          (merge root
+                 (if (= sz size)
+                   {:next next1}
+                   {:next next1 :size sz}))))
+      (swap! pool))
+    (aget out 0)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn returnToPool "" [pool obj]
-  (if-not (or (nichts? obj)
-              (not= obj.____pool pool))
-    (swap! pool
-           (fn [{:keys [init next slots] :as root}]
-             ;jiggle the free slot to reuse the one just dropped
-             (when (get obj :____status)
-               (oset! root :next (-1 next))
-               ;rinse clean the object
-               (init obj)
-               (with-local-vars [tail (nth slots root.next)
-                                 slot' (get tail :____slot)
-                                 epos' (get obj :____slot)])
-               ;set the free ptr to the dropped
-               ;move the tail to old slot
-               (aset slots root.next obj epos' tail)
-               ;swap the 2 slots
-               (oset! tail :____slot epos')
-               (oset! obj :____slot slot' :____status #f)) root))) pool)
+(defn returnToPool! "" [pool obj]
+  (if (and (some? obj)
+           (oget obj "____status")
+           (identical? obj.____pool pool))
+    ;jiggle the free slot to reuse the one just dropped
+    (->>
+      (fn [{:keys [rinse next slots] :as root}]
+        (let [next1 (dec next)
+              _ (rinse obj)
+              tail (aget slots next1)
+              slot' (oget tail "____slot")
+              epos' (oget obj "____slot")]
+          ;set the free ptr to the dropped
+          ;move the tail to old slot
+          (aset slots next1 obj)
+          (aset slots epos' tail)
+          ;swap the 2 slots
+          (oset! tail "____slot" epos')
+          (oset! obj "____slot" slot')
+          (oset! obj "____status" false)
+          (merge root {:next next1})))
+      (swap! pool))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createECS "" ^Atom []
+(defn createECS "" []
   (atom {:entities #{}
          :templates {}
          :registry {}
