@@ -84,12 +84,13 @@
          :systems [] :uid 1}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- genUid "" ^String [ecs]
-  (with-local-vars [ret 0])
-  (swap! ecs
-         (fn [{:keys [uid] :as root}]
-           (set! ret uid)
-           (assoc! root :uid (+1 uid)))) (str "e@" ret))
+(defn- genUid "" [ecs]
+  (let [out #js[]]
+    (swap! ecs
+           (fn [{:keys [uid] :as root}]
+             (.push out uid)
+             (assoc root :uid (inc uid))))
+    (str "e@" (aget out 0))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- retUsed "" [obj]
@@ -106,155 +107,239 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createEntity "" [ecs componentDecl & moreDecls]
-  (dosync
-    (with-local-vars [entity (genUid ecs)])
+  (let [entity (genUid ecs)]
     (apply addToEntity
-           this
-           (concat [ecs entity] componentDecl moreDecls))
+           (concat [ecs entity componentDecl] moreDecls))
     (swap! ecs
-           (fn [{:keys [entities] :as root}]
-             (conj! entities entity) root)) entity))
+           #(update-in %
+                       [:entities]
+                       (fn [c] (conj c entity)))) entity))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- remEnt "" [root ents]
+  (let
+    [[dt? dt]
+     (loop [dtreeChgCnt 0
+            dtree (:data root)
+            [k & xs] (keys (:registry root))]
+       (if-not (some? k)
+        [(pos? dtreeChgCnt) dtree]
+        (let
+          [[ct? ct]
+           (loop [ctreeCngCnt 0
+                  ctree (get dtree k)
+                  [e & xs] ents]
+             (if-not (some? e)
+               [(pos? ctreeCngCnt) ctree]
+               (let
+                 [c (get ctree e)]
+                 (if (some? c) (retUsed c))
+                 (recur
+                   (if (some? c)
+                     (inc ctreeChgCnt) ctreeChgCnt)
+                   (if (some? c)
+                     (dissoc ctree e) ctree) xs))))]
+          (recur
+            (if ct?
+              (inc dtreeCngCnt) dtreeCngCnt)
+            (if ct?
+              (assoc dtree k ctree) dtree) xs))))
+     r0 (if dt?
+          (assoc root :data dt) root)]
+    (assoc r0
+           :entities
+           (apply disj (:entities r0) ents))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeEntity "" [ecs entity & more]
-  (with-local-vars [c ? ents (concat [entity] more)])
   (swap! ecs
-         (fn [{:keys [entities
-                      data registry] :as root}]
-           (each
-             #(if-some [co (get data %)]
-                (each (fn [e]
-                        (retUsed (get co e))
-                        (dissoc! co e)) ents)) (keys registry))
-           (each #(disj! entities %) ents) root)) ecs)
+         #(remEnt %1
+                  (concat [entity] more))) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addComponent "" [ecs id component & more]
-  (swap! ecs
-         (fn [{:keys [registry] :as root}]
-           (each (fn [[a b]]
-                   (assoc! registry a b))
-                 (partition 2 (concat [id component] more))) root)) ecs)
+  (swap!
+    ecs
+    (fn [root]
+      (assoc root
+             :registry
+             (loop [rego (:registry root)
+                    [kv & xs]
+                    (partition 2
+                               (concat [id component] more))]
+               (if-not (some? kv)
+                 rego
+                 (recur (assoc rego
+                               (first kv)
+                               (last kv)) xs))))))
+  ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeComponent "" [ecs id & more]
-  (swap! ecs
-         (fn [{:keys [data registry] :as root}]
-           (each (fn [c]
-                   (dissoc! registry c)
-                   (retUsed (get data c))
-                   (dissoc! data c)) (concat [id] more)) root)) ecs)
+  (swap!
+    ecs
+    (fn [{:keys [data registry] :as root}]
+      (let [cids (concat [id] more)]
+        (doseq [c cids
+                :let [v (get data c)]
+                :when (some? v)] (retUsed v))
+        (-> root
+            (assoc :data (apply dissoc data cids))
+            (assoc :registry (apply dissoc registry cids))))))
+  ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addToEntity "" [ecs entity componentDecl & moreDecls]
-  (locals me this)
-  (swap! ecs
-         (fn [{:keys [data registry] :as root}]
-           (with-local-vars [ctor nil co nil])
-           (each (fn [[cid & xs]]
-                   (set! ctor (get registry cid))
-                   (if-not ctor (raise! "Unknown component " cid))
-                   (if-not (.has data cid) (assoc! data cid {}))
-                   (set! co (apply ctor me xs))
-                   (oset! co :____entity entity)
-                   (assoc! (get data cid) entity co))
-                 (concat [componentDecl] moreDecls)) root)) entity)
+  (swap!
+    ecs
+    (fn [{:keys [registry] :as root}]
+      (assoc root
+             :data
+             (loop [dtree (:data root)
+                    [dc & xs]
+                    (concat [componentDecl] moreDecls)]
+               (if-not (some? dc)
+                 dtree
+                 (let
+                   [[cid & args] dc
+                    ctor (get registry cid)
+                    _ (if-not (fn? ctor)
+                        (raise! "Unknown component " cid))
+                    co (apply ctor args)
+                    _ (oset! co "____entity" entity)]
+                   (recur
+                     (update-in dtree
+                                [cid]
+                                #(assoc % entity co)) xs)))))))
+  ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeFromEntity "" [ecs entity & componentIds]
-  (swap! ecs
-         (fn [{:keys [data] :as root}]
-           (each #(when-some [co (get data %)]
-                    (retUsed (get co entity))
-                    (dissoc! co entity)) componentIds) root)) entity)
+  (swap!
+    ecs
+    (fn [{:keys [data] :as root}]
+      (let
+        [[dt? dt]
+         (loop [touchedCnt 0
+                dtree (:data root)
+                [cid & xs] componentIds]
+           (if-not (some? cid)
+             [(pos? touched) dtree]
+             (let [co (get dtree cid)
+                   v (if (some? co) (get co entity))]
+               (if (some? v) (retUsed v))
+               (recur
+                 (if (some? v)
+                   (inc touchedCnt) touchedCnt)
+                 (if (some? v)
+                   (update-in dtree
+                              [cid]
+                              #(dissoc % entity))
+                   dtree)
+                 xs))))]
+        (if dt?
+          (assoc root :data dt) root))))
+  ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getEntityData "" [ecs entity componentId]
-  (with-local-vars [d (get @ecs :data)
-                    c (get d componentId)])
-  (if c (get c entity) undefined))
+  (if-some
+    [ct (-> (:data @ecs)
+            (get componentId))] (get ct entity)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateEntity "" [ecs entity componentId func]
-  (swap! ecs
-         (fn [{:keys [data] :as root}]
-           (if-some [c (getEntityData
-                         ecs entity componentId)] (func c)) root)) entity)
+  (let [c (getEntityData
+            ecs entity componentId)]
+    (if (some? c) (func c)) c))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getComponentsData "" [ecs componentId]
-  (with-local-vars [d (get @ecs :data)])
-  (if-some [c (get d componentId)] (vals c) []))
+  (if-some [c (-> (:data @ecs)
+                  (get componentId))] (vals c) []))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getComponentKeys "" [ecs] (keys (get @ecs :registry)))
+(defn getComponentKeys "" [ecs] (keys (:registry @ecs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn findComponent
-  "" [ecs componentId] (get (get @ecs :registry) componentId))
+  "" [ecs componentId] (get (:registry @ecs) componentId))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn componentInEntity? "" [ecs entity componentId & moreIds]
-  (with-local-vars [d (get @ecs :data)])
-  (not (some #(if-some [co (get d %)]
-                (not (.has co entity)) #t)
-             (concat [componentId] moreIds))))
+(defn componentInEntity?
+  "" [ecs entity componentId & moreIds]
+  (let [d (:data @ecs)]
+    (not (some #(if-some [co (get d %)]
+                  (not (contains? co entity)) true)
+               (concat [componentId] moreIds)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn findEntities "" [ecs componentId & moreIds]
-  (with-local-vars [pmks ? ccsz ? eid ?
-                    cnt ? c ? sum ?
-                    {:keys [data entities]} (deref ecs)
-                    pmin MAX-INT
-                    missed? #f pm nil ccs [] ret []
-                    cids (concat [componentId] moreIds)])
-  ;;find shortest cache, doing an intersection
-  (floop [cid cids]
-    (set! c (get data cid)
-          cnt (count c))
-    (if (nichts? c)
-      (do->break! (true! missed?))
-      (do (when (< cnt pmin)
-            (set! pmin cnt pm c))
-          (conj! ccs c))))
-  ;;use the shortest cache as the baseline
-  (set! ccsz (n# ccs))
-  (when (and (> ccsz 0)
-             (not missed?))
-    (set! pmks (keys pm))
-    (doseq [eid pmks
-            :let [sum 0]]
-      ;; look for intersection
-      (doseq [c ccs]
-        (if (= c pm)
-          (++ sum)
-          (if (.has c eid) (++ sum))))
-      ;; if found in all caches...
-      (if (= sum ccsz) ;; all matched
-        (conj! ret e)))) ret)
+  (let [data (:data @ecs)
+        ret (atom [])
+        cids (concat [componentId] moreIds)]
+    (when (every? #(contains? data %) cids)
+      (let
+        [ccs (sort #(cond
+                      (< (first %1) (first %2)) -1
+                      (> (first %1) (first %2)) 1
+                      :else 0)
+                   (map #(let [v (get data %)]
+                           [(count v) v]) cids))
+         ccsz (count ccs)
+         [_ c0] (if (pos? ccsz) (first ccs))]
+        ;;use the shortest cache as the baseline
+        (if (some? c0)
+          (doseq [eid (keys c0)
+                  :let [sum (atom 0)]]
+            ;; look for intersection
+            (doseq [c ccs]
+              (if (or (identical? c c0)
+                      (contains? c eid))
+                (swap! sum inc)))
+            ;; if found in all caches...
+            (if (= @sum ccsz)
+              (swap! ret conj eid))))))
+    @ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addTemplate "" [ecs id template & more]
-  (swap! ecs
-         (fn [{:keys [templates] :as root}]
-           (each (fn [[a b]]
-                   (assoc! templates a b))
-                 (partition 2
-                            (concat [id template] more))) root)) ecs)
+  (swap!
+    ecs
+    (fn [root]
+      (assoc root
+             :templates
+             (loop [tree (:templates root)
+                    [p & xs]
+                    (partition
+                      2
+                      (concat [id template] more))]
+               (if-not (some? p)
+                 tree
+                 (recur
+                   (assoc tree
+                          (first p)
+                          (last p)) xs))))))
+  ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getTemplateKeys "" [ecs] (keys (get @ecs :templates)))
+(defn getTemplateKeys "" [ecs] (keys (:templates @ecs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn findTemplate
-  "" [ecs templateId] (get (get @ecs :templates) templateId))
+  "" [ecs templateId] (get (:templates @ecs) templateId))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeTemplate "" [ecs id & moreIds]
-  (swap! ecs
-         (fn [{:keys [templates] :as root}]
-           (each #(dissoc! templates %)
-                 (concat [id] moreIds)) root)) ecs)
+  (swap!
+    ecs
+    (fn [{:keys [templates] :as root}]
+      (assoc root
+             :templates
+             (apply dissoc
+                    templates
+                    (concat [id] moreIds)))))
+  ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createTemplateEntity "" [ecs id]
@@ -288,7 +373,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateECS "" [ecs dt]
-  (each #(% ecs dt) (get @ecs :systems)) ecs)
+  (doseq [s (:systems @ecs)] (s ecs dt)) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
