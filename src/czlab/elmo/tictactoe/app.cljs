@@ -1,5 +1,5 @@
 (ns czlab.elmo.tictactoe.app
-  (:require [czlab.elmo.tictactoe.resource :refer [res]]))
+  (:require [czlab.elmo.tictactoe.resource :refer [g_resources res]]))
 
 (js/console.log "ttt.app loaded")
 

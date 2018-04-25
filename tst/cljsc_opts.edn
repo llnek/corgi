@@ -1,0 +1,1 @@
+{:output-to "tst/test.js", :output-dir "tst", :verbose true}
