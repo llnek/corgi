@@ -13,7 +13,9 @@
 
   (:require [clojure.string :as cs]
             [czlab.elmo.afx.core
-             :as ec :refer [deftest ensure??]]))
+             :as ec :refer [deftest if-some+ when-some+
+                            ensureThrown _1 _2 _3
+                            runtest ensure?? raise!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def TMPVAR (atom nil))
@@ -34,7 +36,7 @@
       [v' {:value v' :log log'}])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftest test-stdlib
+(deftest test-core
 
   (ensure?? (= 1 (_1 [1 2])) "1st")
   (ensure?? (= 2 (_2 [1 2])) "2nd")
@@ -55,10 +57,9 @@
   (ensure?? (= nil (ec/do->nil (+ 1 2) 911)) "do->nil")
 
   (ensure?? (= "hello!"
-               (if-some+ [s (identity "hello")]
-                         (str s "!"))) "if-some+")
+               (if-some+ [s (identity "hello")] (str s "!"))) "if-some+")
   (ensure?? (= "ab"
-               (if-some+ [s (identity "hello")]
+               (if-some+ [s (identity "")]
                          (str s "!")
                          (str "ab"))) "if-some+->else")
   (ensure?? (= "$hello"
@@ -69,88 +70,88 @@
   (ensure?? (= 6 (do (reset! TMPVAR 0)
                      (ec/each #(swap! TMPVAR +) [1 2 3]) TMPVAR)) "each")
 
-  (ensure (and (ec/nichts? nil)
-               (ec/nichts? undefined)) "nichts?")
+  (ensure?? (and (ec/nichts? nil)
+                 (ec/nichts? js/undefined)) "nichts?")
 
-  (ensure (= "&lt;&gt;&amp;&quot;&apos;"
-             (ec/escXml "<>&\"'")) "escXml")
+  (ensure?? (= "abc&lt;&gt;&amp;&quot;&apos;xyz"
+               (ec/escXml "abc<>&\"'xyz")) "escXml")
 
-  (ensure (let [[x y]
-                (ec/split-seq [1 2 3 4 5] 3)]
-            (and (= [1 2 3] x)
-                 (= [4 5] y))) "split-seq")
+  (ensure?? (let [[x y]
+                  (ec/split-seq [1 2 3 4 5] 3)]
+              (and (= [1 2 3] x)
+                   (= [4 5] y))) "split-seq")
 
-  (ensure (= 50 (s/percent 20 40)) "percent")
-  (ensure (= "3.333" (s/toFixed (/ 10 3) 3)) "toFixed")
+  (ensure?? (= 50 (ec/percent 20 40)) "percent")
+  (ensure?? (= "3.333" (ec/toFixed (/ 10 3) 3)) "toFixed")
 
-  (ensure (s/eq? ["123" "456" "78"]
-                 (s/split-str 3 "12345678")) "split-str")
+  (ensure?? (= ["123" "456" "78"]
+               (ec/split-str 3 "12345678")) "split-str")
 
-  (ensure (= 698 (ec/maxBy identity [78 7 698 4 5 2 -1])) "maxBy")
-  (ensure (= -1 (ec/minBy identity [78 7 6 4 5 2 -1])) "minBy")
+  (ensure?? (= 698 (ec/maxBy identity [78 7 698 4 5 2 -1])) "maxBy")
+  (ensure?? (= -1 (ec/minBy identity [78 7 6 4 5 2 -1])) "minBy")
 
-  (ensure (= 3 (ec/domonad ec/m-identity
-                           [a 1 b (inc a)] (+ a b))) "identity monad")
+  (ensure?? (= 3 (ec/domonad ec/m-identity
+                             [a 1 b (inc a)] (+ a b))) "identity monad")
   (ensureThrown "any"
-                (domonad ec/m-identity
-                         [a nil
-                          b a
-                          c (ec/toStr b)] (+ a b c)) "identity monad->boom")
+                (ec/domonad ec/m-identity
+                            [a nil
+                             b a
+                             c (ec/toStr b)] (+ a b c)) "identity monad->boom")
 
-  (ensure (= 3 (domonad ec/m-maybe
-                        [a 1 b (inc a)] (+ a b))) "maybe monad")
+  (ensure?? (= 3 (ec/domonad ec/m-maybe
+                             [a 1 b (inc a)] (+ a b))) "maybe monad")
 
-  (ensure (nil? (domonad ec/m-maybe
-                         [a 1
-                          b (inc a)
-                          c nil] (+ a b c))) "maybe monad->nil")
+  (ensure?? (nil? (ec/domonad ec/m-maybe
+                              [a 1
+                               b (inc a)
+                               c nil] (+ a b c))) "maybe monad->nil")
 
-  (ensure (= [5, {:value 5 :log ["mult3(1)" "add2(3)"]}]
-             ((domonad ec/m-state
-                       [c1 (exlog mult3 "mult3")
-                        c2 (exlog add2 "add2")]
-                       c2) {:value 1 :log []})) "state monad")
+  (ensure?? (= [5, {:value 5 :log ["mult3(1)" "add2(3)"]}]
+               ((ec/domonad ec/m-state
+                            [c1 (exlog mult3 "mult3")
+                             c2 (exlog add2 "add2")]
+                            c2) {:value 1 :log []})) "state monad")
 
-  (ensure (= 3 (ec/run-cont
-                 (domonad ec/m-continuation
-                          [x ((fn [v] (fn [c] (c v))) 1)
-                           y ((fn [v] (fn [c] (c v))) 2)]
-                          (+ x y)))) "continuation monad")
+  (ensure?? (= 3 (ec/run-cont
+                   (ec/domonad ec/m-continuation
+                               [x ((fn [v] (fn [c] (c v))) 1)
+                                y ((fn [v] (fn [c] (c v))) 2)]
+                               (+ x y)))) "continuation monad")
 
-  (ensure (let [f (fn [v] (fn [s] [v s]))
-                lhs (ec/m-state.bind (ec/m-state.unit 911) f)
-                rhs (f 911)
-                lf (lhs "hello")
-                rt (rhs "hello")]
-            (and (= (_1 lf)(_1 rt))
-                 (= (last lf)(last rt))))
-          "monad rule 1: bind(unit(x), f) ≡ f(x)")
+  (ensure?? (let [f (fn [v] (fn [s] [v s]))
+                  lhs ((:bind ec/m-state) ((:unit ec/m-state) 911) f)
+                  rhs (f 911)
+                  lf (lhs "hello")
+                  rt (rhs "hello")]
+              (and (= (_1 lf)(_1 rt))
+                   (= (last lf)(last rt))))
+            "monad rule 1: bind(unit(x), f) ≡ f(x)")
 
-  (ensure (let [mv (fn [s] [3 s])
-                lhs (ec/m-state.bind mv ec/m-state.unit)
-                lf (lhs "hello")
-                rt (mv "hello")]
-            (and (= (_1 lf)(_1 rt))
-                 (= (last lf)(last rt))))
-          "monad rule 2: bind(m, unit) ≡ m")
+  (ensure?? (let [mv (fn [s] [3 s])
+                  lhs ((:bind ec/m-state) mv (:unit ec/m-state))
+                  lf (lhs "hello")
+                  rt (mv "hello")]
+              (and (= (_1 lf)(_1 rt))
+                   (= (last lf)(last rt))))
+            "monad rule 2: bind(m, unit) ≡ m")
 
-  (ensure (let [f (fn [v] (fn [s] [3 s]))
-                g (fn [v] (fn [s] [5 s]))
-                bb ec/m-state.bind
-                mv (fn [s] [7 s])
-                lhs (bb (bb mv f) g)
-                rhs (bb mv (fn [v] (bb (f v) g)))
-                lf (lhs "hello")
-                rt (rhs "hello")]
-            (and (= (_1 lf)(_1 rt))
-                 (= (last lf)(last rt))))
-          (str "monad rule 3:"
-               " bind(bind(m, f), g)"
-               " ≡ bind(m, v ⇒ bind(f(v), g))"))
+  (ensure?? (let [f (fn [v] (fn [s] [3 s]))
+                  g (fn [v] (fn [s] [5 s]))
+                  bb (:bind ec/m-state)
+                  mv (fn [s] [7 s])
+                  lhs (bb (bb mv f) g)
+                  rhs (bb mv (fn [v] (bb (f v) g)))
+                  lf (lhs "hello")
+                  rt (rhs "hello")]
+              (and (= (_1 lf)(_1 rt))
+                   (= (last lf)(last rt))))
+            (str "monad rule 3:"
+                 " bind(bind(m, f), g)"
+                 " ≡ bind(m, v ⇒ bind(f(v), g))"))
 
   (ensureThrown js/Error (raise! "hello" "world") "raise!"))
 
-(println (runtest test-stdlib "elmo test-suite"))
+(js/console.log (runtest test-core "elmo test-suite"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

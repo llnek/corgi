@@ -99,7 +99,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro each
   "Executes a provided function once for each array element."
-  [func coll] `(doseq [x ~coll] (~func x)))
+  [func coll]
+  (let [x (gensym)]
+    `(doseq [~x ~coll] (~func ~x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;monads
@@ -112,9 +114,11 @@
 
   [docstring operations]
 
-  `(let [bind nil unit nil zero nil plus nil]
-     (let [~@operations]
-       (object :bind bind :unit unit :zero zero :plus plus))))
+  `(merge {:bind nil
+           :unit nil
+           :zero nil
+           :plus nil}
+          (into {} (partition 2 ~operations))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro defmonad
@@ -152,11 +156,14 @@
    specified by body."
 
   [monad steps body]
-  `((fn [{:keys [bind unit zero] :as mo}]
-      (let
-        [ret #(if (and (not (some? %))
-                       (not (undefined? zero))) zero (unit %))])
-      (dobind bind ~steps (ret ~body))) ~monad))
+  (let [ret (gensym)]
+    `((fn [~'mo]
+        (let
+          [~ret #(if (and (not (some? %))
+                          (not (nil?  (:zero ~'mo))))
+                   (:zero ~'mo)
+                   ((:unit ~'mo) %))]
+          (dobind (:bind ~'mo) ~steps (~ret ~body)))) ~monad)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;testing stuff
@@ -173,8 +180,8 @@
   "" [expected form msg]
   `(try ~form
         (czlab.elmo.afx.core/ensureTestThrown ~expected nil ~msg)
-        (catch js/Error e
-          (czlab.elmo.afx.core/ensureTestThrown ~expected e ~msg))))
+        (catch js/Error ~'e
+          (czlab.elmo.afx.core/ensureTestThrown ~expected ~'e ~msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
