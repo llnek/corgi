@@ -20,10 +20,11 @@ frameworks
 *.zip
 *.gz
 
-/.lein-*
-/.nrepl*
+.cljs_node_repl
+.lein-*
+.nrepl*
 .hgignore
-.hg/
+.hg
 
 ._.DS_Store
 .DS_Store

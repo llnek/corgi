@@ -11,34 +11,35 @@
 
   czlab.elmo.afx.core
 
+  (:require-macros czlab.elmo.afx.core)
   (:require [clojure.string :as cs]
+            [goog.string :as gs]
             [oops.core :refer [oget oset! ocall oapply
                                ocall! oapply! oget+
                                oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;testing stuff
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro deftest
-  "" [name & body] `(def ~name (fn [] [~@body])))
+(defn raise! "" [& args] (throw (js/Error. (apply str args ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro ensure
-  "" [form msg] `(ensureTest ~form ~msg))
+(defn repeat-string "" [n x] (gs/repeat x n))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro ensureThrown
-  "" [expected form msg]
-  `(try ~form
-        (ensureTestThrown ~expected nil ~msg)
-        (catch js/Error e
-          (ensureTestThrown ~expected e ~msg))))
+(defn toFloat "A string into float." [x] (gs/toNumber x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn ensureTest "" [cnd & [msg]]
-  (let [msg' (or msg "test")]
-    (try (str (if cnd "passed:" "FAILED:") " " msg')
-         (catch js/Error e (str "FAILED: " msg')))))
+(defn toInt "A string into int." [x] (gs/toNumber x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn nichts?
+  "True if object is
+  either null of undefined"
+  [obj] (or (undefined? obj) (nil? obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn ensureTest "" [cnd msg]
+  (try (str (if cnd "passed:" "FAILED:") " " msg)
+       (catch js/Error e (str "FAILED: " msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn ensureTestThrown "" [expected error msg]
@@ -57,16 +58,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn runtest "" [test & [title]]
-  (let [title' (or title "test")
-        now (system-time)
-        results (test)
-        sum (count results)
-        ok (count (filter #(cs/starts-with? % "p") results))]
-    (->> [(cs/join "" (repeat 78 "+"))
+  (let
+    [title' (or title "test")
+     now (system-time)
+     results (test)
+     sum (count results)
+     ok (count (filter #(cs/starts-with? % "p") results))]
+    (->> [(repeat-string 78 "+")
           title now
-          (cs/join "" (repeat 78 "+"))
+          (repeat-string 78 "+")
           (cs/join "\n" results)
-          (cs/join "" (repeat 78 "="))
+          (cs/join "" (repeat-string 78 "="))
           (str "Passed: " ok "/" sum " [" (int (* 100 (/ ok sum))) "%]")
           (str "Failed: " (- sum ok))
           (str "CPU Time: " (- (system-time) now) "ms")]

@@ -11,13 +11,10 @@
 
   czlab.elmo.afx.ecs
 
-  (:require [oops.core :refer [oget oset! ocall oapply
+  (:require [czlab.elmo.afx.core :as ec :refer [raise!]]
+            [oops.core :refer [oget oset! ocall oapply
                                ocall! oapply! oget+
                                oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- raise! "" [& args]
-  (throw (js/Error. (apply str args ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createPool "" [ctor rinse & [batch]]
