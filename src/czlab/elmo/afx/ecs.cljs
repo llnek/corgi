@@ -25,7 +25,7 @@
                  :slots #js[] :ctor ctor :rinse rinse})
         g (fn [b]
             (dotimes [_ (:batch @a)]
-               (.push b (oset! (ctor) "____pool" a)))
+               (.push b (oset! (ctor) "!____pool" a)))
              [(+ (:size @a) (:batch @a)) b])]
     (swap! a #(merge % {:grow g})) a))
 
@@ -48,8 +48,8 @@
                ;take a free obj, set it's slot, up the pool's free ptr
                (reset! out (aget buf next))
                (doto @out
-                 (oset! "____slot" next)
-                 (oset! "____status" true))
+                 (oset! "!____slot" next)
+                 (oset! "!____status" true))
                (merge root
                       (if (= sz size)
                         {:next next1}
@@ -58,23 +58,23 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn returnToPool! "" [pool obj]
   (if (and (some? obj)
-           (oget obj "____status")
-           (identical? (oget obj "____pool") pool))
+           (oget obj "?____status")
+           (identical? (oget obj "?____pool") pool))
     ;jiggle the free slot to reuse the one just dropped
     (swap! pool
            (fn [{:keys [rinse next slots] :as root}]
              (let [next1 (dec next)
                    _ (rinse obj)
                    tail (aget slots next1)
-                   slot' (oget tail "____slot")
-                   epos' (oget obj "____slot")]
+                   slot' (oget tail "?____slot")
+                   epos' (oget obj "?____slot")]
                ;set the free ptr to the dropped, move the tail to old slot
                (aset slots next1 obj)
                (aset slots epos' tail)
                ;swap the 2 slots
-               (oset! tail "____slot" epos')
-               (oset! obj "____slot" slot')
-               (oset! obj "____status" false)
+               (oset! tail "!____slot" epos')
+               (oset! obj "!____slot" slot')
+               (oset! obj "!____status" false)
                (merge root {:next next1}))))) pool)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -99,7 +99,7 @@
     (vector? obj) (doseq [c obj] (retUsed c))
     (map? obj) (retUsed (vals obj))
     (object? obj) (if-some
-                    [p (oget obj "____pool")] (returnToPool! p obj))))
+                    [p (oget obj "?____pool")] (returnToPool! p obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- remEnt "" [{:keys [data registry] :as root} ents]
@@ -127,6 +127,8 @@
   (swap! ecs
          #(->> (concat [id component] more)
                (partition 2)
+               (map (fn [a] (vec a)))
+               (vec)
                (into {})
                (merge (:registry %))
                (assoc % :registry))) ecs)
@@ -158,7 +160,7 @@
                           _ (if-not (fn? ctor)
                               (raise! "Unknown component " cid))
                           co (-> (apply ctor args)
-                                 (oset! "____entity" entity))]
+                                 (oset! "!____entity" entity))]
                       (recur (update-in dtree
                                         [cid] #(assoc % entity co)) xs))))
                 (assoc root :data)))) ecs)
@@ -253,6 +255,8 @@
   (swap! ecs
          #(->> (concat [id template] more)
                (partition 2)
+               (map (fn [a] (vec a)))
+               (vec)
                (into {})
                (merge (:templates %))
                (assoc % :templates))) ecs)

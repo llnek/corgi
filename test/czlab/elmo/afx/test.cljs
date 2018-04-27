@@ -11,8 +11,8 @@
 
   czlab.elmo.afx.test
 
-  (:require [clojure.string :as cs]
-            [czlab.elmo.afx.ecs :as ecs]
+  (:require [czlab.elmo.afx.ecs :as ecs :refer [createECS]]
+            [clojure.string :as cs]
             [czlab.elmo.afx.core
              :as ec :refer [deftest if-some+ when-some+
                             ensureThrown _1 _2 _3
