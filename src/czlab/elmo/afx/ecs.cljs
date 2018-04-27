@@ -11,6 +11,7 @@
 
   czlab.elmo.afx.ecs
 
+  (:require-macros [czlab.elmo.afx.core :as ec])
   (:require [czlab.elmo.afx.core :as ec :refer [raise!]]
             [oops.core :refer [oget oset! ocall oapply
                                ocall! oapply! oget+
