@@ -118,7 +118,7 @@
            :unit nil
            :zero nil
            :plus nil}
-          (into {} (partition 2 ~operations))))
+          (into {} (vec (map #(vec %) (partition 2 ~operations))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro defmonad
@@ -160,10 +160,10 @@
     `((fn [~'mo]
         (let
           [~ret #(if (and (not (some? %))
-                          (not (nil?  (:zero ~'mo))))
-                   (:zero ~'mo)
-                   ((:unit ~'mo) %))]
-          (dobind (:bind ~'mo) ~steps (~ret ~body)))) ~monad)))
+                          (not (nil?  (get ~'mo :zero))))
+                   (get ~'mo :zero)
+                   ((get ~'mo :unit) %))]
+          (dobind (get ~'mo :bind) ~steps (~ret ~body)))) ~monad)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;testing stuff

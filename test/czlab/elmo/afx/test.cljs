@@ -32,7 +32,7 @@
     (let [v (:value s)
           v' (expr v)
           msg (str log "(" v ")")
-          log' (concat (:log s) msg)]
+          log' (conj (:log s) msg)]
       [v' {:value v' :log log'}])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -68,7 +68,7 @@
                            (str "$" s))) "when-some+")
 
   (ensure?? (= 6 (do (reset! TMPVAR 0)
-                     (ec/each #(swap! TMPVAR +) [1 2 3]) TMPVAR)) "each")
+                     (ec/each #(swap! TMPVAR + %) [1 2 3]) (deref TMPVAR))) "each")
 
   (ensure?? (and (ec/nichts? nil)
                  (ec/nichts? js/undefined)) "nichts?")
