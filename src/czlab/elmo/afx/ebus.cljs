@@ -11,10 +11,10 @@
 
   czlab.elmo.afx.ebus
 
-  (:require-macros [czlab.elmo.afx.core
-                    :as ec :refer [if-some+]])
+  (:require-macros
+    [czlab.elmo.afx.core :as ec :refer [if-some+]])
   (:require [clojure.string :as cs]
-            [czlab.elmo.afx.core :as ec :refer []]))
+            [czlab.elmo.afx.core :as ec :refer [raise!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def _SEED (atom 0))
@@ -22,9 +22,10 @@
   "" [] (swap! _SEED inc))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def re-subj #"^[0-9a-zA-Z_\-]+(\.(\*|[0-9a-zA-Z_\-]+))*(\.>)?$")
 (def re-space #"\s+")
 (def re-dot #"\.")
-(def re-slash #"\/")
+(def re-slash #"/")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- split*
@@ -33,150 +34,115 @@
                     (filter #(not-empty %))) []))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- mkSubSCR
-  "" [topic listener repeat?]
-  {:pre [(fn? listener)]}
-
-  {:id (str "s#" (nextSEQ))
-   :action listener
-   :async? false
-   :repeat? repeat?
-   :topic topic :status (atom 1)})
+(defn- mksub
+  "" [topic lnr r?]
+  {:pre [(fn? lnr)]}
+  (if (nil? (re-matches re-subj topic))
+    (raise! "Syntax error in topic: " topic))
+  {::id (str "s#" (nextSEQ))
+   ::async? false
+   ::action lnr ::repeat? r? ::topic topic ::status (atom 1)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; nodes - children
 ;; subscribers
-(defn- mkLevelNode "" [] {:levels {} :subcs {}})
-(defn- mkTreeNode "" [] {:topics {} :subcs {}})
+(defn- mkLevelNode "" [] {::levels {} ::subcs {}})
+(defn- mkTreeNode "" [] {::topics {} ::subcs {}})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- addOneSub
-  "" [node sub]
-  (update-in node [:subcs] assoc (:id sub) sub))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- remOneSub
-  "" [node sub]
-  (update-in node [:subcs] dissoc (:id sub)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- interleavePath
-  "" [paths] (mapcat (fn [p] [:levels p]) paths))
+(defn- plevels
+  "Create a vector like [:levels a :levels b :levels c]
+  for functions like get-in or update-in"
+  [topic]
+  (-> #(vector ::levels %)
+      (mapcat (split* topic)) (vec) (conj ::subcs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- run "" [subcs topic msg]
+(defn- run "" [subcs msgTopic msg]
   (doseq [[_ z] subcs
-          :let [{:keys [repeat? action status]} z]
+          :let [{:keys [::repeat? ::topic
+                        ::action ::status]} z]
           :when (pos? @status)]
-    (action (:topic z) topic msg)
+    (action topic msgTopic msg)
+    ;for one time only subsc, flag it dead
     (if-not repeat? (reset! status -1))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- walk "" [branch pathTokens topic msg tst]
-  (let [{:keys [levels subcs]} branch
-        [p & more] pathTokens
+(defn- walk "" [branch path topic msg tst]
+  (let [{:keys [::levels ::subcs]} branch
+        [p & more] path
         cur (get levels p)
         s1 (get levels "*")
-        s1c (:levels s1)
-        s2 (get levels "**")]
+        s1c (::levels s1)
+        s2 (get levels ">")]
+    ;(js/console.log (str "walking " (pr-str branch)))
     (when s2
-      (if tst
+      (if (some? tst)
         (swap! tst inc)
-        (run (:subcs s2) topic msg)))
+        (run (::subcs s2) topic msg)))
     (if s1
-      (cond
-        (and (empty? more)
-             (empty? s1c))
-        (if tst
-          (swap! tst inc)
-          (run (:subcs s1) topic msg))
-        (and (not-empty s1c)
-             (not-empty more))
-        (walk s1 more topic msg tst)))
-    (when cur
+      (cond (and (empty? more)
+                 (empty? s1c))
+            (if (some? tst)
+              (swap! tst inc)
+              (run (::subcs s1) topic msg))
+            (and (not-empty s1c)
+                 (not-empty more))
+            (walk s1 more topic msg tst)))
+    (when (some? cur)
       (if (not-empty more)
         (walk cur more topic msg tst)
-        (if tst
+        (if (some? tst)
           (swap! tst inc)
-          (run (:subcs cur) topic msg))))))
+          (run (::subcs cur) topic msg))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- resume* "" [root hd]
-  (let [sub (get-in root [:subcs hd])
-        st (if sub (:status sub))]
-    (if (and (some? st)
-             (zero? @st)) (reset! st 1))))
+(defn- resume* "Flag subscriber on" [bus hd]
+  (if-some [sub (get-in @bus [::subcs hd])]
+    (let [{:keys [::status]} sub]
+      (if (zero? @status) (reset! status 1)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- pause* "" [root hd]
-  (let [sub (get-in root [:subcs hd])
-        st (if sub (:status sub))]
-    (if (and (some? st)
-             (pos? @st)) (reset! st 0))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- addOneTopic "" [root qos {:keys [topic id] :as sub}]
-  (let [{:keys [state]} root]
-    (assoc root
-           :state
-           (if (= :rv qos)
-             (let [path (interleavePath (split* topic))]
-               (-> (update-in state path addOneSub sub)
-                   (update-in [:subcs] assoc id sub)))
-             (-> (update-in state [:topics topic] assoc id sub)
-                 (update-in [:subcs] assoc id sub))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- addTopic "" [bus qos sub]
-  (swap! bus addOneTopic qos sub) (:id sub))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- delTopic "" [state qos {:keys [topic id] :as sub}]
-  (if (= :rv qos)
-    (let [path (interleavePath (split* topic))]
-      (-> (update-in state path remOneSub sub)
-          (update-in [:subcs] dissoc id)))
-    (-> (update-in state [:topics topic] dissoc id)
-        (update-in [:subcs] dissoc id))))
+(defn- pause* "Flag subscriber off" [bus hd]
+  (if-some [sub (get-in @bus [::subcs hd])]
+    (let [{:keys [::status]} sub]
+      (if (pos? @status) (reset! status 0)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- listen
   "Subscribe to a topic."
-  [bus qos topic listener repeat?]
-  (addTopic bus qos (mkSubSCR topic listener repeat?)))
+  [bus topic lsnr r?]
+  (let [sub (mksub topic lsnr r?)
+        {:keys [::id]} sub {:keys [::qos]} @bus]
+    (swap! bus
+           #(-> (update-in %
+                           (if (= ::rv qos)
+                             (plevels topic)
+                             [::topics topic]) assoc id sub)
+                (update-in [::subcs] assoc id sub)))
+    id))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn RvBus
-  "Event bus - subject based." [options]
-  (atom {:state (mkLevelNode) :qos :rv :options (or options {})}))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn EvBus
-  "Event bus." [options]
-  (atom {:state (mkTreeNode) :qos :ev :options (or options {})}))
-
+;;bus api
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sub*
   "One time only subscription"
-  [bus topic listener]
-  (listen bus topic listener false))
+  [bus topic listener] (listen bus topic listener false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sub+
   "Standard subscription"
-  [bus topic listener]
-  (listen bus topic listener true))
+  [bus topic listener] (listen bus topic listener true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pub
   "Send a message" [bus topic msg]
-  (let [{:keys [qos state] @bus}]
-    (if (= :rv qos)
-      (if-some+
-        [tokens (split* topic)] (walk state tokens topic msg nil))
-      (if-some [sub
-                (get-in state
-                        [:topics topic])] (run sub topic msg)))))
+  (if (= ::rv (::qos @bus))
+    (if-some+
+      [path (split* topic)] (walk @bus path topic msg nil))
+    (if-some [sub
+              (get-in @bus
+                      [::topics topic])] (run sub topic msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn resume
@@ -190,35 +156,49 @@
 (defn unsub
   "Remove this subscriber"
   [bus handle]
-  (swap! bus
-         (fn [{:keys [state] :as root}]
-           (if-some [x (get-in state [:subcs handle])]
-             (assoc root
-                    :state
-                    (delTopic state qos x)) root))) bus)
+  (when-some [sub (get-in @bus
+                          [::subcs handle])]
+    (swap! bus
+           #(let [{:keys [::qos]} %
+                  {:keys [::topic ::id]} sub]
+              (-> (update-in %
+                             (if (= ::rv qos)
+                               (plevels topic)
+                               [::topics topic]) dissoc id)
+                  (update-in [::subcs] dissoc id)))))
+  bus)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn match?
   "Internal: test only" [bus topic]
-  (let [{:keys [qos state]} @bus]
-    (if (= :rv qos)
-      (let [tokens (split* topic)
-            z (atom 0)]
-        (if (not-empty tokens)
-          (walk state tokens topic nil z))
-        (pos? @z))
-      (contains? (:topics state) topic))))
+  (if (= ::rv (::qos @bus))
+    (let [path (split* topic)
+          z (atom 0)]
+      (if (not-empty path)
+        (walk @bus path topic nil z)) (pos? @z))
+    (contains? (::topics @bus) topic)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dbg "Internal: test only" [bus] (pr-str @bus))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn finz "Remove all" [bus]
-  (swap! bus
-         (fn [{:keys [qos] :as root}]
-           (assoc root
-                  :state (if (= :rv qos)
-                           (mkLevelNode) (mkTreeNode))))) bus)
+  (let [{:keys [::qos]} @bus]
+    (swap! bus
+           #(merge %
+                   (if (= ::rv qos)
+                     (mkLevelNode)
+                     (mkTreeNode)))) bus))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createRvBus
+  "Event bus - subject based." [& [options]]
+  (atom (merge (mkLevelNode) {::qos ::rv} options)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createEvBus
+  "Event bus." [& [options]]
+  (atom (merge (mkTreeNode) {::qos ::ev} options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

@@ -11,7 +11,8 @@
 
   czlab.elmo.afx.test
 
-  (:require [czlab.elmo.afx.ecs :as ecs :refer [createECS]]
+  (:require [czlab.elmo.afx.ebus :as bus]
+            [czlab.elmo.afx.ecs :as ecs]
             [clojure.string :as cs]
             [czlab.elmo.afx.core
              :as ec :refer [deftest if-some+ when-some+
@@ -270,6 +271,97 @@
                    @TEMP-VAR)) "engine,addSystem"))
 
 (js/console.log (runtest ecs-test "elmo test-ecs"))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- cbbus [x y z] (swap! TMPVAR inc))
+(deftest ebus-test
+
+  (ensure?? (let [_ (reset! TMPVAR 0)
+                  b (bus/createEvBus)]
+              (bus/sub* b "a.b.c" cbbus)
+              (bus/pub b "a.b.c" "yo!")
+              (bus/pub b "a.b.c" "yo!")
+              (= 1 @TMPVAR)) "evbus, sub*")
+
+  (ensure?? (let [_ (reset! TMPVAR 0)
+                  b (bus/createEvBus)]
+              (bus/sub+ b "a.b.c" cbbus)
+              (bus/pub b "a.b.c" "yo!")
+              (bus/pub b "a.b.c" "yo!")
+              (= 2 @TMPVAR)) "evbus, sub+")
+
+  (ensure?? (let [_ (reset! TMPVAR 0)
+                  b (bus/createEvBus)
+                  s (bus/sub+ b "a.b.c" cbbus)]
+              (bus/pub b "a.b.c" "yo!")
+              (bus/pause b s)
+              (bus/pub b "a.b.c" "yo!")
+              (bus/pub b "a.b.c" "yo!")
+              (bus/resume b s)
+              (bus/pub b "a.b.c" "yo!")
+              (= 2 @TMPVAR)) "evbus, pause, resume")
+
+  (ensure?? (let [_ (reset! TMPVAR 0)
+                  b (bus/createEvBus)
+                  s (bus/sub+ b "a.b.c" cbbus)]
+              (bus/pub b "a.b.c" "yo!")
+              (bus/unsub b s)
+              (bus/pub b "a.b.c" "yo!")
+              (= 1 @TMPVAR)) "evbus, unsub")
+
+  (ensure?? (let [_ (reset! TMPVAR 0)
+                  b (bus/createRvBus)]
+              (bus/sub* b "a.b.c" cbbus)
+              (bus/pub b "a.b.c" "yo!")
+              (bus/pub b "a.b.c" "yo!")
+              (= 1 @TMPVAR)) "rvbus, sub*")
+
+  (ensure?? (let [_ (reset! TMPVAR 0)
+                  b (bus/createRvBus)]
+              (bus/sub+ b "a.b.c" cbbus)
+              (bus/pub b "a.b.c" "yo!")
+              (bus/pub b "a.b.c" "yo!")
+              (= 2 @TMPVAR)) "rvbus, sub+")
+
+  (ensure?? (let [_ (reset! TMPVAR 0)
+                  b (bus/createRvBus)
+                  s (bus/sub+ b "a.b.c" cbbus)]
+              (bus/pub b "a.b.c" "yo!")
+              (bus/pause b s)
+              (bus/pub b "a.b.c" "yo!")
+              (bus/pub b "a.b.c" "yo!")
+              (bus/resume b s)
+              (bus/pub b "a.b.c" "yo!")
+              (= 2 @TMPVAR)) "rvbus, pause, resume")
+
+  (ensure?? (let [_ (reset! TMPVAR 0)
+                  b (bus/createRvBus)
+                  s (bus/sub+ b "a.b.c" cbbus)]
+              (bus/pub b "a.b.c" "yo!")
+              (bus/unsub b s)
+              (bus/pub b "a.b.c" "yo!")
+              (= 1 @TMPVAR)) "rvbus, unsub")
+
+  (ensure?? (let [_ (reset! TMPVAR 0)
+                  b (bus/createRvBus)]
+              (bus/sub+ b "a.*.>" cbbus)
+              (bus/sub+ b "a.*.c" cbbus)
+              (bus/sub+ b "a.b.c" cbbus)
+              (bus/pub b "a.b.c" "yo!")
+              (= 3 @TMPVAR)) "rvbus, sub a.*.b")
+
+  (ensure?? (let [b (bus/createRvBus) m (deref b)]
+              (bus/sub+ b "a.*.>" cbbus)
+              (bus/sub+ b "a.*.c" cbbus)
+              (bus/sub+ b "a.b.c" cbbus)
+              (bus/finz b)
+              (= m @b)) "rvbus, finz")
+
+  (ensure?? (= 3 (count (deref (bus/createEvBus)))) "createEvBus")
+  (ensure?? (= 3 (count (deref (bus/createRvBus)))) "createRvBus"))
+
+(js/console.log (runtest ebus-test "elmo test-ebus"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
