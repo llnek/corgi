@@ -14,6 +14,7 @@
   (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 car defmonad]])
   (:require [clojure.string :as cs]
             [goog.string :as gs]
+            [goog.crypt.base64 :as b64]
             [oops.core :refer [oget oset! ocall oapply
                                ocall! oapply! oget+
                                oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
@@ -23,6 +24,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn repeat-string "" [n x] (gs/repeat x n))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn xmod "Propert modulo." [x N]
+  (if (< x 0)
+    (- x (* -1 (+ N (* (js/Math.floor (/ (- x) N)) N)))) (rem x N)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn toFloat "A string into float." [x] (gs/toNumber x))
@@ -83,6 +89,82 @@
     (reduce (fn [a b] (if (< (func a) (func b)) b a))
             (car coll) (rest coll))
     js/undefined))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn randRange "" [from to]
+  (js/Math.floor (+ from (* (js/Math.random) (inc (- to from))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isSSL? "" []
+  (and js/window
+       js/window.location
+       (contains? js/window.location.protocol "https")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getWebSockProtocol "" [] (if (isSSL?) "wss://" "ws://"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn fmtUrl
+  "Format a URL based on the current web address host."
+  [scheme uri]
+  (if (and js/window js/window.location)
+      (str scheme js/window.location.host uri) ""))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn objectize "" [s] (if (string? s) (js/JSON.parse s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn jsonize "" [obj] (if (some? obj) (js/JSON.stringify obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isMobile?
+  "Test if the client is a mobile device."
+  [navigator]
+  (if (some? navigator)
+    (re-matches #"(?i)Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini"
+                (oget navigator "?userAgent"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isSafari?
+  "Test if the client is Safari browser."
+  [navigator]
+  (if (some? navigator)
+    (and (re-matches #"Safari"
+                     (oget navigator "?userAgent"))
+         (re-matches #"Apple Computer"
+                     (oget navigator "?vendor")))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pde
+  "Prevent default propagation of this event." [e]
+  (if (fn? (oget e "?preventDefault"))
+    (ocall e "preventDefault")
+    (oset! e "returnValue" false)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn randSign
+  "Randomly pick positive or negative."
+  [] (if (zero? (rem (rand 10) 2)) -1 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn randItem
+  "Randomly choose an item from this array." [coll]
+  (cond
+    (empty? coll) nil
+    (= 1 (count coll)) (_1 coll)
+    :else (nth coll (js/Math.floor (* (js/Math.random) (count coll))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn randPercent
+  "Randomly choose a percentage in step of 10." []
+  (randItem [0.1 0.9 0.3 0.7 0.6 0.5 0.4 0.8 0.2]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn toBasicAuthHeader
+  "Format input into HTTP Basic Authentication."
+  [user pwd]
+  ["Authorization" (str "Basic "
+                        (b64/encodeString (str "" user ":" pwd) true))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;testing

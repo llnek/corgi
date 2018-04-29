@@ -11,7 +11,8 @@
 
   czlab.elmo.afx.test
 
-  (:require [czlab.elmo.afx.ebus :as bus]
+  (:require [czlab.elmo.afx.caesar :as cas]
+            [czlab.elmo.afx.ebus :as bus]
             [czlab.elmo.afx.ecs :as ecs]
             [clojure.string :as cs]
             [czlab.elmo.afx.core
@@ -362,6 +363,22 @@
   (ensure?? (= 3 (count (deref (bus/createRvBus)))) "createRvBus"))
 
 (js/console.log (runtest ebus-test "elmo test-ebus"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def CAESAR-DATA "hello, bonjour, blah!")
+(def CAESAR-DLEN (count CAESAR-DATA))
+
+(deftest caesar-test
+
+  (ensure?? (let [s (cas/encrypt CAESAR-DATA 178)]
+              (and (= CAESAR-DLEN (count s)) (not= s CAESAR-DATA))) "caesar, encrypt")
+
+  (ensure?? (let [s (cas/encrypt CAESAR-DATA 178)
+                  s' (cas/decrypt s 178)] (= s' CAESAR-DATA)) "caesar, decrypt")
+  (ensure?? (let [s (cas/encrypt CAESAR-DATA 178)
+                  s' (cas/decrypt s 18)] (not= s' CAESAR-DATA)) "caesar, bad decrypt"))
+
+(js/console.log (runtest caesar-test "elmo test-caesar"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
