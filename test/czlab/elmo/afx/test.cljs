@@ -154,8 +154,6 @@
 
   (ensureThrown js/Error (raise! "hello" "world") "raise!"))
 
-(js/console.log (runtest test-core "elmo test-core"))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;test ecs
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -271,9 +269,6 @@
                    (ecs/updateECS *ecs* 10)
                    @TEMP-VAR)) "engine,addSystem"))
 
-(js/console.log (runtest ecs-test "elmo test-ecs"))
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- cbbus [x y z] (swap! TMPVAR inc))
 (deftest ebus-test
@@ -362,8 +357,6 @@
   (ensure?? (= 3 (count (deref (bus/createEvBus)))) "createEvBus")
   (ensure?? (= 3 (count (deref (bus/createRvBus)))) "createRvBus"))
 
-(js/console.log (runtest ebus-test "elmo test-ebus"))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def CAESAR-DATA "hello, bonjour, blah!")
 (def CAESAR-DLEN (count CAESAR-DATA))
@@ -378,8 +371,14 @@
   (ensure?? (let [s (cas/encrypt CAESAR-DATA 178)
                   s' (cas/decrypt s 18)] (not= s' CAESAR-DATA)) "caesar, bad decrypt"))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(js/console.log (runtest test-core "elmo test-core"))
+(js/console.log (runtest ecs-test "elmo test-ecs"))
+(js/console.log (runtest ebus-test "elmo test-ebus"))
 (js/console.log (runtest caesar-test "elmo test-caesar"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+
 
