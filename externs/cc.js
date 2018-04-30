@@ -30,6 +30,12 @@ var cc = {
   LoaderScene : { preload:function(){} }
 };
 
+cc.MenuItemSprite=function() {};
+cc.MenuItemLabel=function() {};
+cc.LabelBMFont=function(){};
+cc.Menu=function(){};
+
+
 cc.EventListener= function(){};
 cc.EventListener.KEYBOARD={};
 cc.EventListener.MOUSE={};

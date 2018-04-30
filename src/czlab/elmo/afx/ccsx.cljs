@@ -375,128 +375,45 @@
    :Left (js/cc.p 0 0.5)
    :TopLeft (js/cc.p 0 1)})
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn tmenu
+  "Create a text menu containing this set of items."
+  [items & [options]]
 
-  /**
-   * Create a text menu containing this set of items.
-   *
-   * Each item has the form {:text
-   * :fontPath
-   * :cb
-   * :target}
-   * @method
-   * @param {Array} items
-   * @param {Number} scale
-   * @return {cc.Menu}
-   */
-  tmenu(items,scale) {
-    let menu= new cc.Menu(),
-    mi,
-    t=0,
-    obj;
+  (let [menu (new js/cc.Menu)
+        {:keys [flat? scale anchor pos visible?]} options]
+    (doseq [n items
+            :let [mi (new js/cc.MenuItemLabel
+                          (new js/cc.LabelBMFont (:text n) (:font n)) (:cb n) (:ctx n))]]
+      (ocall mi "setScale" (or scale 1)))
+    (if (some? anchor) (ocall menu "setAnchorPoint" anchor))
+    (if (some? pos) (ocall menu "setPosition" pos))
+    (if (false? visible?) (ocall menu "setVisible" false))
+    (if flat?
+      (ocall menu "alignItemsHorizontally")
+      (ocall menu "alignItemsVertically"))
+    menu))
 
-    for (let n=0; n < items.length; ++n) {
-      obj= items[n];
-      mi= new cc.MenuItemLabel(new cc.LabelBMFont(obj.text,
-                                                  obj.fontPath),
-                               obj.selector || obj.cb,
-                               obj.target);
-      mi.setOpacity(255 * 0.9);
-      mi.setScale(scale || 1);
-      mi.setTag(++t);
-    }
-    return menu;
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn gmenu
+  "Create a menu with graphic buttons."
+  [items & [options]]
 
-  /**
-   * Make a text label menu containing one single button.
-   * @method
-   * @param {Object} options
-   * @return {cc.Menu}
-   */
-  tmenu1(options) {
-    let menu = this.tmenu(options);
-    if (options.anchor) { menu.setAnchorPoint(options.anchor); }
-    if (options.pos) { menu.setPosition(options.pos); }
-    if (options.visible === false) { menu.setVisible(false); }
-    menu.alignItemsVertically();
-    return menu;
-  },
-
-  /**
-   * Create a vertically aligned menu with graphic buttons.
-   * @method
-   * @param {Array} items
-   * @param {Object} options
-   * @return {cc.Menu}
-   */
-  vmenu(items, options) {
-    const hint=options || {},
-    m= this.pmenu(true,
-                  items,
-                  hint.scale,
-                  hint.padding);
-    if (!!hint.pos) {
-      m.setPosition(hint.pos);
-    }
-    return m;
-  },
-
-  /**
-   * Create a horizontally aligned menu with graphic buttons.
-   * @method
-   * @param {Array} items
-   * @param {Object} options
-   * @return {cc.Menu}
-   */
-  hmenu(items, options) {
-    const hint= options || {},
-    m= this.pmenu(false,
-                  items,
-                  hint.scale,
-                  hint.padding);
-    if (!!hint.pos) {
-      m.setPosition(hint.pos);
-    }
-    return m;
-  },
-
-  /**
-   * Create a menu with graphic buttons.
-   * @method
-   * @param {Boolean} vertical
-   * @param {Array} items
-   * @param {Number} scale
-   * @param {Number} padding
-   * @return {cc.Menu}
-   */
-  pmenu(vertical, items, scale, padding) {
-    let menu = new cc.Menu(),
-    obj,
-    mi,
-    t=0;
-
-    for (let n=0; n < items.length; ++n) {
-      obj=items[n];
-      mi= new cc.MenuItemSprite(new cc.Sprite(obj.nnn),
-                                new cc.Sprite(obj.sss || obj.nnn),
-                                new cc.Sprite(obj.ddd || obj.nnn),
-                                obj.selector || obj.cb,
-                                obj.target);
-      if (!!obj.color) { mi.setColor(obj.color); }
-      if (!!scale) { mi.setScale(scale); }
-      mi.setTag(++t);
-      menu.addChild(mi);
-    }
-
-    padding = padding || 10;
-    if (!vertical) {
-      menu.alignItemsHorizontallyWithPadding(padding);
-    } else {
-      menu.alignItemsVerticallyWithPadding(padding);
-    }
-
-    return menu;
-  },
+  (let [menu (new js/cc.Menu)
+        {:keys [pad flat? pos scale anchor]} options]
+    (doseq [n items
+            :let [{:keys [nnn sss ddd cb ctx]} n
+                  mi (new js/cc.MenuItemSprite
+                          (sprite* nnn)
+                          (sprite* (or sss nnn))
+                          (sprite* (or ddd nnn))
+                          cb ctx)]]
+      (if (number? scale) (ocall mi "setScale" scale))
+      (ocall menu "addChild" mi))
+    (if flat?
+      (ocall menu "alignItemsHorizontallyWithPadding" (or pad 10))
+      (ocall menu "alignItemsVerticallyWithPadding" (or pad 10)))
+    menu))
 
   /**
    * Create a single button menu.
