@@ -12,8 +12,9 @@
   czlab.elmo.afx.test
 
   (:require [czlab.elmo.afx.caesar :as cas]
-            [czlab.elmo.afx.ebus :as bus]
+            [czlab.elmo.afx.ccsx :as cx]
             [czlab.elmo.afx.ecs :as ecs]
+            [czlab.elmo.afx.ebus :as bus]
             [clojure.string :as cs]
             [czlab.elmo.afx.core
              :as ec :refer [deftest if-some+ when-some+

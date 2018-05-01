@@ -30,10 +30,23 @@ var cc = {
   LoaderScene : { preload:function(){} }
 };
 
+cc.Node.prototype.setAnchorPoint=function(){};
+cc.Node.prototype.setColor=function(){};
+cc.Node.prototype.setPosition=function(){};
+cc.Node.prototype.setVisible=function(){};
+cc.Node.prototype.setScale=function(){};
+cc.Node.prototype.addChild=function(){};
+
+
 cc.MenuItemSprite=function() {};
 cc.MenuItemLabel=function() {};
 cc.LabelBMFont=function(){};
+
 cc.Menu=function(){};
+cc.Menu.prototype.alignItemsHorizontally=function(){};
+cc.Menu.prototype.alignItemsVertically=function(){};
+cc.Menu.prototype.alignItemsHorizontallyWithPadding=function(){};
+cc.Menu.prototype.alignItemsVerticallyWithPadding=function(){};
 
 
 cc.EventListener= function(){};

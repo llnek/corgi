@@ -1,12 +1,16 @@
 (ns czlab.elmo.tictactoe.app
-  (:require [czlab.elmo.tictactoe.resource :refer [g_resources res]]))
+  (:require [czlab.elmo.afx.ccsx :as cx]
+            [czlab.elmo.tictactoe.resource :refer [g_resources res]]))
 
 (js/console.log "ttt.app loaded")
+
+(def XXX (cx/tmenu [] {}))
 
 (def HelloWorldLayer
   (js/cc.Layer.extend
     #js {
       :sprite nil
+      :shit XXX
       :ctor
       #(this-as this
                  (let [_ (._super this)
