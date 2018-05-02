@@ -13,7 +13,7 @@
 
   (:refer-clojure :exclude [contains?])
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [do-with numStr]]
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 _2 do-with numStr]]
                    [czlab.elmo.afx.ccsx
                     :as cx :refer [oget-x oget-y oget-piccy
                                    oget-bottom oget-right
@@ -25,10 +25,91 @@
                                    snode? bbox? bbox4? sprite?]])
   (:require [czlab.elmo.afx.core :as ec :refer [xmod raise!]]
             [czlab.elmo.afx.ebus :as ebus]
+            [clojure.string :as cs]
             [goog.object :as go]
             [oops.core :refer [oget oset! ocall oapply
                                ocall! oapply! oget+
                                oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- cfgStyleObj "" [ctx styleObj]
+  (oset! ctx "strokeStyle" (oget styleObj "?stroke?style"))
+  (oset! ctx "lineWidth" (oget styleObj "?line?width")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn circle "" [x y radius] {:x x :y y :radius radius})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn drawCircle "" [circle ctx styleObj]
+  (ocall ctx "beginPath")
+  (cfgStyleObj ctx styleObj)
+  (ocall ctx
+         "arc" (:x circle) (:y circle)
+         (:radius circle) 0, (* 2 js/Math.PI) true)
+  (ocall ctx "stroke"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn line "" [x1 y1 x2 y2] {:x1 x1 :y1 y1 :x2 x2 :y2 y2})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn drawLine "" [line ctx styleObj]
+  (ocall ctx "beginPath")
+  (ocall ctx "moveTo" (:x1 line) (:y1 line))
+  (ocall ctx "lineTo" (:x2 line) (:y2 line))
+  (cfgStyleObj ctx styleObj)
+  (if (some? (oget styleObj "?line?cap"))
+      (oset! ctx "lineCap" (oget styleObj "?line?cap")))
+  (ocall ctx "stroke"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn point2d "" [x y] {:x x :y y})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn area2d "" [x y width height] {:x x :y y :width width :height height})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn textStyle "" []
+  {:font "14px 'Arial'" :fill "#dddddd" :align "left" :base "top" })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn radToDeg "" [rad] (* 180 (/ rad js/Math.PI)))
+(defn degToRad "" [deg] (* deg (/ js/Math.PI 180)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vector2 "" [x1 y1 x2 y2] {:x (- x2 x1) :y (- y2 y1)})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn multVector2
+  "Scalar multiplication."
+  [this n]
+  (vector2 0 0 (* n (:x this)) (* n (:y this))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn rotateVector2
+  "Transpose and rotate." [this cx cy deg]
+  (let [rad (degToRad deg)]
+    (vector2 0 0
+             (+ cx (- (* (js/Math.cos rad) (- (:x this) cx))
+                      (* (js/Math.sin rad) (- (:y this) cy))))
+             (+ cy (+ (* (js/Math.sin rad) (- (:x this) cx))
+                      (* (js/Math.cos rad) (- (:y this) cy)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn lengthVector2
+  "Calculate the length of this vector." [this]
+    (js/Math.sqrt (* (:x this)(:x this))
+                  (* (:y this)(:y this))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn plusVector2
+  "Add 2 vectors together." [this v2]
+  (vector2 0 0
+           (+ (:x this)(:x v2)) (+ (:y this) (:y v2))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn minusVector2
+  "Subtract another vector." [this v2]
+  (vector2 0 0
+           (- (:x this)(:x v2)) (- (:y this) (:y v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (declare bbox bbox4)
@@ -499,13 +580,12 @@
          :plists { }
          :tiles { }
          :sounds {:start_game "res/cocos2d/sfx/PowerUp" }
-         :fonts {
-      :TinyBoxBB [ 'res/cocos2d/fon/{{lang}}', 'TinyBoxBlackBitA8.png', 'TinyBoxBlackBitA8.fnt' ]
-      :OogieBoogie [ 'res/cocos2d/fon/{{lang}}', 'OogieBoogie.png', 'OogieBoogie.fnt' ]
-      :JellyBelly [ 'res/cocos2d/fon/{{lang}}', 'JellyBelly.png', 'JellyBelly.fnt' ]
-      :AgentOrange [ 'res/cocos2d/fon/{{lang}}', 'AgentOrange.png', 'AgentOrange.fnt' ]
-      :Hiruko [ 'res/cocos2d/fon/{{lang}}', 'Hiruko.png', 'Hiruko.fnt' ]
-      :OCR [ 'res/cocos2d/fon/{{lang}}', 'OCR.png', 'OCR.fnt' ] }
+         :fonts {:TinyBoxBB "TinyBoxBlackBitA8"
+                 :OogieBoogie "OogieBoogie"
+                 :JellyBelly "JellyBelly"
+                 :AgentOrange "AgentOrange"
+                 :Hiruko "Hiruko"
+                 :OCR "OCR"}
          :game {:borderTiles "cbox-borders_x8.png"
                 :start nil
                 :preloadLevels true
@@ -591,10 +671,6 @@
   (if-some [g (deref *main-game*)]
     (if-some [bus (oget g "?ebus")]
       (apply ebus/pub bus (concat [topic] args)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn radToDeg "" [rad] (* 180 (/ rad js/Math.PI)))
-(defn degToRad "" [deg] (* deg (/ js/Math.PI 180)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn calcXY
@@ -815,5 +891,81 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+;import Cookies from 'Cookies';
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- mkScore [n v] {:value (js/Number (cs/trim v)) :name (cs/trim n) })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn readHighScores "" [hs]
+  (let [{:keys [KEY]} @hs
+        s (cs/trim (or (js/Cookies.get KEY) ""))]
+    (swap! hs
+           #(assoc %
+                   :scores
+                   (reduce
+                     (fn [acc z]
+                       (let [a (cs/split (or z "") ":")]
+                         (if (= 2 (count a))
+                           (conj acc (mkScore (_1 a) (_2 a))) acc)))
+                     []
+                     (cs/split s "|")))) hs))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn resetHighScores "" [hg]
+  (swap! hg #(assoc % :scores [])) hg)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn writeHighScores "" [hg]
+  (let [{:keys [KEY scores duration]} @hg]
+    (js/Cookies.set KEY
+                    (->> (map #(str (:name %)
+                                    ":"
+                                    (:value %)) scores)
+                         (cs/join "|"))
+                    duration)
+    hg))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- hasSlotsHighScores
+   "Test if there is more room to store a new high score." [hg]
+   (let [{:keys [scores size]} @hg] (< (count scores) size)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn canAddHighScores
+  "Test if we can add this score to the list of highscores."
+  [hg score]
+
+  (or (hasSlotsHighScores hg)
+      (some #(< (:value %) score) (:scores @hg))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn insertHighScores "" [hg name score]
+  (let [s (mkScore (or name "???") score)
+        {:keys [scores]} @hg
+        len (count scores)]
+    (when-not (hasSlotsHighScores hg)
+      (loop [i (dec len) arr nil]
+        (if (some? arr)
+          (swap! hg #(assoc % :scores (js->clj arr)))
+          (if-not (neg? i)
+            (recur (dec i)
+                   (if (< (:value (nth scores i)) score)
+                     (.splice (clj->js scores) i 1)))))))
+    (when (hasSlotsHighScores hg)
+      (swap! hg
+             (fn [{:keys [scores] :as root}]
+               (assoc root
+                      :scores
+                      (sort (fn [a b]
+                              (cond (< (:value a) (:value b)) -1
+                                    (> (:value a) (:value b)) 1 :else 0))
+                            (conj scores s)))))
+      (writeHighScores hg))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn dbHighScores "" [key size & [duration]]
+  {:duration (or duration (* 60 60 24 1000)) :size size :scores [] :KEY key })
 
 

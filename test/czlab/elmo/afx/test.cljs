@@ -11,7 +11,8 @@
 
   czlab.elmo.afx.test
 
-  (:require [czlab.elmo.afx.caesar :as cas]
+  (:require [czlab.elmo.afx.negamax :as nega]
+            [czlab.elmo.afx.caesar :as cas]
             [czlab.elmo.afx.ccsx :as cx]
             [czlab.elmo.afx.ecs :as ecs]
             [czlab.elmo.afx.ebus :as bus]

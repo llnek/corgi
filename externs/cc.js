@@ -109,6 +109,11 @@ cc.game={
   run :function(){}
 };
 
+var Cookies= {
+  set:function(){},
+  get:function(){}
+};
+
 var Mustache= {
   render:function(){}
 };
