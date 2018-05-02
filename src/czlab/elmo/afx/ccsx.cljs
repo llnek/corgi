@@ -13,7 +13,7 @@
 
   (:refer-clojure :exclude [contains?])
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [do-with]]
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [do-with numStr]]
                    [czlab.elmo.afx.ccsx
                     :as cx :refer [oget-x oget-y oget-piccy
                                    oget-bottom oget-right
@@ -23,7 +23,7 @@
                                    oget-left oget-top oget-id
                                    oget-width oget-height
                                    snode? bbox? bbox4? sprite?]])
-  (:require [czlab.elmo.afx.core :as ec :refer [raise!]]
+  (:require [czlab.elmo.afx.core :as ec :refer [xmod raise!]]
             [czlab.elmo.afx.ebus :as ebus]
             [goog.object :as go]
             [oops.core :refer [oget oset! ocall oapply
@@ -32,6 +32,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (declare bbox bbox4)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn debug* "" [& msgs] (cc.log (apply str msgs)))
+(defn info* "" [& msgs] (cc.log (apply str msgs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isIntersect? "" [a1 a2]
+  (not (or (> (oget-left a1)(oget-right a2))
+           (> (oget-left a2)(oget-right a1))
+           (< (oget-top a1)(oget-bottom a2))
+           (< (oget-top a2)(oget-bottom a1)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn contains? "" [B x & [y]]
@@ -411,6 +422,10 @@
     nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn removeAll! "" [node] (ocall node "removeAllChildren"))
+(defn remove! "" [child] (ocall child "removeFromParent"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bmfText* "" [text font] (new js/cc.LabelBMFont text font))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -423,15 +438,26 @@
     (if (number? scale) (ocall node "setScale" scale)) node))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn misprite* "" [nnn cb & [sss ddd ctx]]
+  (new js/cc.MenuItemSprite (sprite* nnn)
+                            (sprite* (or sss nnn))
+                            (sprite* (or ddd nnn)) cb ctx))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mitoggle* "" [on off cb]
+  (new js/cc.MenuItemToggle on off cb))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tmenu
   "Create a text menu containing this set of items."
   [items & [options]]
 
-  (let [{:keys [flat? color scale anchor pos show?]} options]
+  (let [{:keys [flat? color]} options]
     (do-with
       [menu (new js/cc.Menu)]
       (doseq [{:keys [text font cb ctx]} items
-              :let [mi (new js/cc.MenuItemLabel (bmfText* text font) cb ctx)]]
+              :let [mi (new js/cc.MenuItemLabel
+                            (bmfText* text font) cb ctx)]]
         (if (some? color) (.setColor mi color))
         (.addChild menu mi))
       (setXXX! menu options)
@@ -444,27 +470,348 @@
   "Create a menu with graphic buttons."
   [items & [options]]
 
-  (let [{:keys [pad flat?
-                pos scale anchor]} options
-        padding (or pad 10)]
+  (let [{:keys [padding flat?] :or {padding 10}} options]
     (do-with
       [menu (new js/cc.Menu)]
       (doseq [{:keys [cb ctx
                       nnn sss ddd]} items
-              :let [mi (new js/cc.MenuItemSprite
-                            (sprite* nnn)
-                            (sprite* (or sss nnn))
-                            (sprite* (or ddd nnn)) cb ctx)]]
-        (if (number? scale) (.setScale mi scale))
+              :let [mi (misprite* nnn cb sss ddd ctx)]]
         (.addChild menu mi))
+      (setXXX! menu options)
       (if flat?
-        (.alignItemsHorizontallyWithPadding menu  padding)
+        (.alignItemsHorizontallyWithPadding menu padding)
         (.alignItemsVerticallyWithPadding menu padding)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bmfLabel
   "" [text font & [options]]
   (setXXX! (bmfText* text font) options))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def *xcfg*
+  (atom {:urlPrefix "/public/ig/"
+         :appid ""
+         :color ""
+         :resolution {:web js/cc.ResolutionPolicy.SHOW_ALL
+                      :resDir "sd" }
+         :levels {}
+         :images { }
+         :plists { }
+         :tiles { }
+         :sounds {:start_game "res/cocos2d/sfx/PowerUp" }
+         :fonts {
+      :TinyBoxBB [ 'res/cocos2d/fon/{{lang}}', 'TinyBoxBlackBitA8.png', 'TinyBoxBlackBitA8.fnt' ]
+      :OogieBoogie [ 'res/cocos2d/fon/{{lang}}', 'OogieBoogie.png', 'OogieBoogie.fnt' ]
+      :JellyBelly [ 'res/cocos2d/fon/{{lang}}', 'JellyBelly.png', 'JellyBelly.fnt' ]
+      :AgentOrange [ 'res/cocos2d/fon/{{lang}}', 'AgentOrange.png', 'AgentOrange.fnt' ]
+      :Hiruko [ 'res/cocos2d/fon/{{lang}}', 'Hiruko.png', 'Hiruko.fnt' ]
+      :OCR [ 'res/cocos2d/fon/{{lang}}', 'OCR.png', 'OCR.fnt' ] }
+         :game {:borderTiles "cbox-borders_x8.png"
+                :start nil
+                :preloadLevels true
+                :scale 1
+                :sfx :mp3
+                :landscape? false
+                :gravity 0
+                :version ""
+                :trackingID "" }
+         :l10nTable {:en {"%mobileStart" "Press Anywhere To Start!"
+                          "%webStart" "Press Spacebar To Start!"
+                          "%passwd" "Password"
+                          "%userid" "UserId"
+                          "%player2" "Player 2"
+                          "%player1" "Player 1"
+                          "%computer" "Computer"
+                          "%cpu" "CPU"
+                          "%2players" "2 Players"
+                          "%1player" "1 Player"
+                          "%online" "Online"
+                          "%gameover" "Game Over"
+                          "%quit!" "Quit"
+                          "%back" "Back"
+                          "%ok" "OK"
+                          "%mmenu" "Main Menu"
+                          "%replay" "REPLAY"
+                          "%play" "PLAY"
+                          "%waitothers" "Waiting...\nfor other players."
+                          "%waitother" "Waiting...\nfor another player."
+                          "%signinplay" "Please sign in to play."
+                          "%quit?" "Continue and quit game?" } }
+         :csts {:CV_X (ocall "X" "charCodeAt" 0)
+                :CV_O (ocall "0" "charCodeAt" 0)
+                :P2_COLOR "O"
+                :P1_COLOR "X"
+                :NETP 3
+                :HUMAN 1
+                :BOT 2
+                :GAME_MODE 1
+                :TILE 8
+                :S_OFF 4
+                :GAME_ID "" }
+         :sound {:volume 0.5
+                 :open? false}
+         :music {:volume 0.5
+                 :track nil }
+
+        :handleResolution (fn [rs] nil)
+
+        :runOnce (fn [] nil)
+}))
+
+;import Mustache from "mustache";
+;import LZString from "eligrey/l10njs";
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn l10nInit
+  "Initialize the l10n module with the string table."
+  [table]
+
+  (oset! js/LZString "locale" js/cc.sys.language)
+  (oset! js/LZString "defaultLocale" "en")
+  (js/LZString.toLocaleString table)
+  (info* "Loaded l10n strings. locale = " (oget js/LZString "locale")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn l10n
+  "Localize the string." [s & [pms]]
+  (let [t (ocall s "toLocaleString")]
+    (if (some? pms) (js/Mustache.render t pms) t)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def *ws-uri* "/network/odin/websocket")
+(def *main-game* (atom nil))
+(def *online-game* 3)
+(def *game-2* 2)
+(def *game-1* 1)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getCfgXXX "" [path key] (get (get-in @*xcfg* path) key))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn fire! "" [topic & args]
+  (if-some [g (deref *main-game*)]
+    (if-some [bus (oget g "?ebus")]
+      (apply ebus/pub bus (concat [topic] args)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn radToDeg "" [rad] (* 180 (/ rad js/Math.PI)))
+(defn degToRad "" [deg] (* deg (/ js/Math.PI 180)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn calcXY
+  "Find the corresponding x, y lengths based on the
+  provided angle and length of the hypotenuse.
+  quadrants =  4 | 1
+               -----
+               3 | 2"
+  [angle hypot]
+  (let [[t fx fy q]
+        (cond
+          (and (>= angle 0)(<= angle 90))
+          [(degToRad (- 90 angle))
+           js/Math.cos js/Math.sin 1]
+          (and (>= angle 90)(<= angle 180))
+          [(degToRad (- angle 90))
+           js/Math.cos #(* -1 (js/Math.sin %)) 2]
+          (and (>= angle 180)(<= angle 270))
+          [(degToRad (- 270 angle))
+           #(* -1 (js/Math.cos %))
+           #(* -1 (js/Math.sin %)) 3]
+          (and (>= angle 270)(<= angle 360))
+          [(degToRad (- angle 270))
+           #(* -1 (js/Math.cos %)) js/Math.sin 4]
+          :else (raise! "bad calcXY call"))]
+    [(* hypot (fx t)) (* hypot (fy t)) q]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn normalizeDeg
+  "Normalize the degree - modulo 360." [deg]
+    (if (> deg 360)
+      (xmod deg 360)
+      (if (< deg 0)
+        (- 360 (xmod (- deg) 360)) deg)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn setSfx! "" [v]
+  (swap! *xcfg*
+         #(update-in %
+                     [:sound :open?] (fn [_] v))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn toggleSfx! "" []
+  (swap! *xcfg*
+         #(update-in %
+                     [:sound :open?] (fn [b] (not b)))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxOn? "" [] (get-in @*xcfg* [:sound :open?]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxMusicVol "" [vol]
+  (if (number? vol) (js/cc.audioEngine.setMusicVolume vol)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxPlayMusic "" [key & [options]]
+  (if (sfxOn?)
+    (let [{:keys [vol repeat?]} options]
+      (sfxMusicVol vol)
+      (js/cc.audioEngine.playMusic (getCfgXXX [:sounds] key) repeat?))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxPlayEffect "" [key & [options]]
+  (if (sfxOn?)
+    (let [{:keys [vol repeat?]} options]
+      (sfxMusicVol vol)
+      (js/cc.audioEngine.playEffect (getCfgXXX [:sounds] key) repeat?))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxCancel "" []
+  (js/cc.audioEngine.stopMusic)
+  (js/cc.audioEngine.stopAllEffects))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxInit "" []
+  (sfxMusicVol (get-in @*xcfg* [:sound :volume])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sanitizeUrlForDevice "" [url] url)
+(defn sanitizeUrlForWeb "" [url] url)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn fixUrl
+  "Sanitize this url differently for web and for devices." [url]
+  (if (not-native?)
+    (sanitizeUrlForWeb url) (sanitizeUrlForDevice url)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getImage "" [key]
+  (fixUrl (get-in @*xcfg* [:assets :images key])))
+(defn getPList "" [key]
+  (fixUrl (get-in @*xcfg* [:assets :plists key])))
+(defn getTile "" [key]
+  (fixUrl (get-in @*xcfg* [:assets :tiles key])))
+(defn getFont "" [key]
+  (fixUrl (get-in @*xcfg* [:assets :fonts key])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addItem "" [node child]
+  (if (and (instance? js/cc.SpriteBatchNode node)
+           (sprite? child))
+      (ocall child "setBatchNode" node))
+  (ocall node "addChild" child)
+  child)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn xlive "" [img & [options]]
+  (let [s (sprite* img)] (setXXX! s options)))
+
+  ;create() { const dummy = new XLive(0,0,this.options); this.lifeSize = { width: ccsx.getScaledWidth(dummy), height: ccsx.getScaledHeight(dummy) } ; this.drawLives(); }
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn xliveGroup "" [hud img total x y direction]
+  (atom {:topLeft (js/cc.p x y)
+         :image img
+         :totalLives total
+         :icons [] :parent hud :curLives total :dir direction}))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn reduceOneLive "" [g]
+  (swap! g
+         (fn [{:keys [parent icons curLives] :as root}]
+           (let [e (peek icons)
+                 c (pop icons)
+                 n (dec curLives)]
+             (remove! e)
+             (merge root {:icons c :curLives n})))) g)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn countLives "" [g] (get-in @g [:curLives]))
+(defn noLives? "" [g] (pos? (countLives g)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn resetLiveGroup "" [g]
+  (swap! g
+         (fn [{:keys [parent curLives total icons] :as root}]
+           (doseq [x icons] (remove! x))
+           (merge root {:curLives total :icons []}))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn drawLives "" [g]
+  (swap!
+    g
+    (fn [{:keys [parent topLeft curLives dir image] :as root}]
+      (let
+        [sz (csize image)
+         h (oget-height sz)
+         w (oget-width sz)
+         [hw hh] (half-size* sz)
+         icons
+         (loop [n 0 arr []
+                y (- (oget-y topLeft) hh)
+                x (+ (oget-x topLeft) hw)]
+           (if-not (< n curLives)
+             arr
+             (let [v (xlive image {:pos (js/cc.p x y)})]
+               (addItem parent v)
+               (recur (inc n) (conj arr v)
+                      y (if (pos? dir) (+ x w) (- x w))))))]
+        (merge root {:icons icons})))) g)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn batchNode* "" [img]
+  (new js/cc.SpriteBatchNode
+       (js/cc.textureCache.addImage img)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addAudioIcon "" [node yes no & [options]]
+  (let
+    [cb #(setSfx!
+           (zero? (ocall % "getSelectedIndex")))
+     off (misprite* no nil)
+     on (misprite* yes nil)
+     audio (mitoggle* on off cb)]
+    (ocall audio "setSelectedIndex" (if (sfxOn?) 0 1))
+    (let [menu (new js/cc.Menu audio)]
+      (setXXX! menu options)
+      (ocall node "addChild" menu))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn quit! "" [ctor]
+  (js/cc.director.pushScene
+    (ctor {:no #(js/cc.director.popScene)
+           :yes (fn [start]
+                  (js/cc.director.popToRootScene)
+                  (runScene start))})))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn centerImage "" [node frame]
+  (let [bg (sprite* frame)]
+    (setXXX! bg {:pos (centerPos)})
+    (ocall node "addChild" bg)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn updateScore "" [node score]
+  (ocall node "setString" (numStr score)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pegToAnchor "" [node where]
+  (let [sz (csize node)
+        [hw hh] (half-size* sz)
+        B (vbox4)]
+    (setXXX! node {:pos (js/cc.p (- (oget-right B) hw) 0)})))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn gameLayer "" [options]
+  (let [y (new js/cc.Layer)]
+    (ocall y
+           "attr"
+           #js{:ebus (ebus/createEvBus)
+               :keyboard []
+               :players []
+               :level 1
+               :actor nil})
+    (set! *main-game* y)
+    y))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

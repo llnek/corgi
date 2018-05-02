@@ -8,9 +8,8 @@ var cc = {
 
   winSize: { x : 0, y : 0 },
   sys: { isNative : {}, os : {} , OS_IOS : {},  isMobile : {},
-                            browserType: {}, BROWSER_TYPE_BAIDU : {},
-                            BROWSER_TYPE_WECHAT : {}
-              },
+         language : {},
+         browserType: {}, BROWSER_TYPE_BAIDU : {}, BROWSER_TYPE_WECHAT : {} },
   view: { enableRetina: function(){},
           enableAutoFullScreen:function(){},
           getVisibleSize:function(){},
@@ -22,6 +21,9 @@ var cc = {
   ResolutionPolicy : { SHOW_ALL : {} },
   director : { getRunningScene: function(){},
                getWinSize:function(){},
+               pushScene:function(){},
+               popToRootScene:function(){},
+               popScene:function(){},
                runScene:function(){} },
 
   eventManager: {
@@ -30,21 +32,34 @@ var cc = {
   LoaderScene : { preload:function(){} }
 };
 
-cc.Node.prototype.setAnchorPoint=function(){};
-cc.Node.prototype.setColor=function(){};
-cc.Node.prototype.setPosition=function(){};
-cc.Node.prototype.setVisible=function(){};
-cc.Node.prototype.setScale=function(){};
-cc.Node.prototype.addChild=function(){};
+cc.Node= {
+  setColor:function(){},
+  setPosition:function(){},
+  setVisible:function(){},
+  setScale:function(){},
+  addChild:function(){},
+  setAnchorPoint:function(){}
+};
 
+cc.audioEngine= {
+  setMusicVolume:function(){},
+  stopAllEffects:function(){},
+  stopMusic:function(){},
+  playMusic:function(){},
+  playEffect:function(){}
+};
 
+cc.MenuItemToggle=function() {};
 cc.MenuItemSprite=function() {};
 cc.MenuItemLabel=function() {};
+cc.MenuItemLabel.prototype.setColor=function(){};
 cc.LabelBMFont=function(){};
+cc.LabelBMFont.prototype.setColor=function(){};
 
 cc.Menu=function(){};
 cc.Menu.prototype.alignItemsHorizontally=function(){};
 cc.Menu.prototype.alignItemsVertically=function(){};
+cc.Menu.prototype.addChild=function(){};
 cc.Menu.prototype.alignItemsHorizontallyWithPadding=function(){};
 cc.Menu.prototype.alignItemsVerticallyWithPadding=function(){};
 
@@ -84,10 +99,23 @@ cc.Scene.prototype.extend=function() {};
 cc.Scene.prototype.addChild=function(){};
 cc.Scene.prototype._super=function(){};
 
+cc.SpriteBatchNode=function(){};
+cc.textureCache={
+  addImage:function(){}
+};
 
 cc.game={
   onStartFunc :function(){},
   run :function(){}
 };
+
+var Mustache= {
+  render:function(){}
+};
+
+var LZString= {
+  locale: {},
+  defaultLocale: {},
+  toLocaleString:function(){} };
 
 
