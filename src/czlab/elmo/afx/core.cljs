@@ -23,6 +23,12 @@
 (defn raise! "" [& args] (throw (js/Error. (apply str args ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn debug* "" [& msgs] (js/console.log (apply str msgs)))
+(defn info* "" [& msgs] (js/console.log (apply str msgs)))
+(defn warn* "" [& msgs] (js/console.log (apply str msgs)))
+(defn error* "" [& msgs] (js/console.log (apply str msgs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn repeat-string "" [n x] (gs/repeat x n))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

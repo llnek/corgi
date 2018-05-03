@@ -182,7 +182,7 @@
 (defn dbg "Internal: test only" [bus] (pr-str @bus))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn finz "Remove all" [bus]
+(defn unsubAll! "Remove all" [bus]
   (let [{:keys [::qos]} @bus]
     (swap! bus
            #(merge %

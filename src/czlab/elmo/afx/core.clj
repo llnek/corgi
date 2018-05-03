@@ -15,8 +15,8 @@
 (defmacro trye!
   "Wrap try around code and eat exception."
   [& xs] `(try ~@xs
-              (catch js/Error _ nil)
-              (catch js/Object _ nil)))
+              (catch js/Error e1 nil)
+              (catch js/Object e2 nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro _1 "Refer to first." [x] `(first ~x))
