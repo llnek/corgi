@@ -1,6 +1,7 @@
 var cc = {
   rectIntersectsRect: function() {},
   size :function(){},
+  color:function(){},
   p:function(){},
   rect:function(){},
 
@@ -32,13 +33,26 @@ var cc = {
   LoaderScene : { preload:function(){} }
 };
 
-cc.Node= {
-  setColor:function(){},
-  setPosition:function(){},
-  setVisible:function(){},
-  setScale:function(){},
-  addChild:function(){},
-  setAnchorPoint:function(){}
+cc.Node=function(){};
+cc.Node.prototype.onEnter=function(){};
+cc.Node.prototype.onExit=function(){};
+cc.Node.prototype.setColor=function(){};
+cc.Node.prototype.setPosition=function(){};
+cc.Node.prototype.setVisible=function(){};
+cc.Node.prototype.setScale=function(){};
+cc.Node.prototype.addChild=function(){};
+cc.Node.prototype.setAnchorPoint=function(){};
+
+cc.Sequence=function(){};
+cc.Sequence.create=function(){};
+cc.FadeOut=function(){};
+cc.FadeOut.create=function(){};
+cc.CallFunc=function(){};
+cc.CallFunc.create=function(){};
+
+
+cc.loader={
+  load:function(){}
 };
 
 cc.audioEngine= {
@@ -55,6 +69,10 @@ cc.MenuItemLabel=function() {};
 cc.MenuItemLabel.prototype.setColor=function(){};
 cc.LabelBMFont=function(){};
 cc.LabelBMFont.prototype.setColor=function(){};
+
+cc.ProgressTimer=function(){};
+cc.ProgressTimer.TYPE_BAR={};
+cc.LayerColor=function(){};
 
 cc.Menu=function(){};
 cc.Menu.prototype.alignItemsHorizontally=function(){};

@@ -18,7 +18,9 @@
                     :as cx :refer [oget-x oget-y oget-piccy
                                    oget-bottom oget-right
                                    not-native? native?
-                                   sprite* half*
+                                   gcbyn gcbyt
+                                   zeropt
+                                   sprite* half* attr*
                                    newBBox newBBox4
                                    oget-left oget-top oget-id
                                    oget-width oget-height
@@ -30,6 +32,7 @@
             [oops.core :refer [oget oset! ocall oapply
                                ocall! oapply! oget+
                                oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- cfgStyleObj "" [ctx styleObj]
   (oset! ctx "strokeStyle" (oget styleObj "?stroke?style"))
@@ -503,8 +506,12 @@
     nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;cc.Node stuff
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeAll! "" [node] (ocall node "removeAllChildren"))
 (defn remove! "" [child] (ocall child "removeFromParent"))
+;(defn gcbyn "" [p n] (ocall p "getChildByName" n))
+;(defn gcbyt "" [p t] (ocall p "getChildByTag" t))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bmfText* "" [text font] (new js/cc.LabelBMFont text font))
@@ -770,11 +777,15 @@
   (fixUrl (get-in @*xcfg* [:assets :fonts key])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addItem "" [node child]
+(defn addItem "" [node child & [tag zOrder]]
   (if (and (instance? js/cc.SpriteBatchNode node)
            (sprite? child))
       (ocall child "setBatchNode" node))
-  (ocall node "addChild" child)
+  (ocall node
+         "addChild"
+         child
+         (if (number? zOrder) zOrder js/undefined)
+         (if (or (string? tag)(number? tag)) tag js/undefined))
   child)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -967,5 +978,125 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dbHighScores "" [key size & [duration]]
   {:duration (or duration (* 60 60 24 1000)) :size size :scores [] :KEY key })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def *CHUNK* 36)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn niceFadeOut
+  "After loading resources, runs the first scene." [scene]
+  (let [logo (gcbyn scene "logo")
+        selector (oget scene "_selector")
+        target (oget scene "_target")]
+    (ocall! scene "unscheduleUpdate")
+    (ocall! logo
+           "runAction"
+           (js/cc.Sequence.create
+             (js/cc.FadeOut.create 1.2)
+             (js/cc.CallFunc.create selector target)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn loadChunk
+  "We have to load chunk by chunk because
+  the array of resources can't be too big, else jsb complains"
+  [scene]
+  (let [res (oget scene "_resources")
+        pres (oget scene "_pres")
+        s (nth pres 0)
+        e (nth pres 1)]
+    (info* "start s = " s ", e = " e)
+    (js/cc.loader.load (.slice res s e)
+                       (fn [result total cnt]
+                         (info* "total = " total ", cnt = " cnt)
+                         (oset! scene "_count" (+ 1 (oget scene "_count"))))
+                       (fn []
+                         (aset pres 2 true)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pkStartLoading "loading, step1" [scene]
+  (let [res (oget scene "_resources")
+        func (oget scene "update")
+        pres (oget scene "_pres")]
+    ;;[head, tail, state] snapshot info used by
+    ;;each iteration as we chunk up the unput
+    (aset pres 0 0)
+    (aset pres 1 (js/Math.min *CHUNK* (count res)))
+    (aset pres 2 false)
+    (oset! scene "_count" 0)
+    (ocall! scene "schedule" func 0.25)
+    (loadChunk scene)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- pkLoad "" [scene]
+  (let [logo (sprite* "cocos2d/pics/ZotohLab.png")
+        sz (csize logo)
+        cp (centerPos)
+        y (gcbyn scene "bgLayer")
+        pg (new js/cc.ProgressTimer
+                (sprite* "cocos2d/pics/preloader_bar.png"))]
+    (setXXX! logo {:pos cp})
+    (addItem y logo "logo")
+    (ocall! pg "setType" js/cc.ProgressTimer.TYPE_BAR)
+    (ocall! pg "setScaleX" 0.8)
+    (ocall! pg "setScaleY" 0.3)
+    (setXXX! pg {:pos (js/cc.p (oget-x cp)
+                               (- (oget-y cp)
+                                  (* 0.6 (oget-height sz))))})
+    (addItem y pg "progress")
+    (pkStartLoading scene)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn loadingScene "" [resources selector target]
+  (let [s (new js/cc.Scene)
+        func (fn [& xs] (pkLoad s))
+        y (new js/cc.LayerColor (js/cc.color 0 0 0 255))]
+    (setXXX! y {:pos (zeropt)})
+    (addItem s y "bgLayer" -1)
+    (attr* s
+           #js{:_resources resources
+               :_selector selector
+               :_target target
+               :_count 0
+               :_pres (array nil nil nil)
+               :onEnter
+               #(this-as me
+                         (do (.call js/cc.Node.prototype.onEnter me)
+                             (ocall! me "scheduleOnce" func 0.3 "pkLoad")))
+               :onExit
+               #(this-as me (.call js/cc.Node.prototype.onExit me))
+               :update
+               #(this-as
+                  me
+                  (let [_ %
+                        res (oget me "_resources")
+                        len (count res)
+                        pg (gcbyn me "progress")
+                        cnt (oget me "_count")
+                        pres (oget me "_pres")
+                        ratio (/ cnt len)
+                        perc (js/Math.min (* ratio 100) 100)]
+                    (ocall! pg "setPercentage" perc)
+                    (cond
+                      (>= cnt len) ;;done
+                      (do (ocall! me "unscheduleUpdate")
+                          (niceFadeOut me))
+                      (nth pres 2)
+                      (let [s (nth pres 1)
+                            e (+ s (js/Math.min *CHUNK* (- len s)))]
+                        (aset pres 0 s)
+                        (aset pres 1 e)
+                        (aset pres 2 false)
+                        (loadChunk me)))))}) s))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def *gloader* nil)
+(defn preloader "" [resources selector target]
+  (when (nil? *gloader*)
+    (set! *gloader* (loadingScene resources selector target))
+    (js/cc.director.runScene *gloader*))
+  *gloader*)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
 

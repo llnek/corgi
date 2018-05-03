@@ -24,6 +24,16 @@
 (defmacro bbox4? "" [obj] `(goog.object/containsKey ~obj "bottom"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro zerort "" [] `(js/cc.rect 0 0 0 0))
+(defmacro zeropt "" [] `(js/cc.p 0 0))
+(defmacro zerosz "" [] `(js/cc.size 0 0))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro attr* "" [node attrs] `(oops.core/ocall! ~node "attr" ~attrs))
+(defmacro gcbyn "" [p n] `(oops.core/ocall ~p "getChildByName" ~n))
+(defmacro gcbyt "" [p t] `(oops.core/ocall ~p "getChildByTag" ~t))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro oget-x "" [obj] `(oops.core/oget ~obj "x"))
 (defmacro oget-y "" [obj] `(oops.core/oget ~obj "y"))
 
