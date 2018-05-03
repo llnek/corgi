@@ -33,6 +33,12 @@ var cc = {
   LoaderScene : { preload:function(){} }
 };
 
+var jsb={
+  fileUtils: {
+    getSearchPaths:function(){}
+  }
+};
+
 cc.Node=function(){};
 cc.Node.prototype.onEnter=function(){};
 cc.Node.prototype.onExit=function(){};
