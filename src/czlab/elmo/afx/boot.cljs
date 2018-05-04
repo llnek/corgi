@@ -11,14 +11,19 @@
 
   czlab.elmo.afx.boot
 
-  (:require-macros [])
-  (:require []))
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [do-with]]
+                   [czlab.elmo.afx.ccsx
+                    :as cx :refer [not-native? native? attrs*]])
+  (:require [czlab.elmo.afx.ccsx :as cx :refer [*xcfg*]]
+            [czlab.elmo.afx.core :as ec]
+            [oops.core :refer [oget oset! ocall oapply
+                               ocall! oapply! oget+
+                               oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn handleMultiDevices "" []
+(defn- handleMultiDevices "" []
   (let [{:keys [width height]} (js->clj (cx/screenSize))
-        policy (get-in @xcfg [:resolution :policy])
-        flat? (get-in @*xcfg* [:game :landscape?])
+        {:keys [policy landscape?]} (:game @*xcfg*)
         [X Y dir] (cond (or (>= width 2048)
                             (>= height 2048))
                         [2048 1536 :hdr]
@@ -32,38 +37,52 @@
                             (>= height 960))
                         [960 640 :hds]
                         :else [480 320 :sd])]
-    (apply cx/setDevRes! (conj (if flat? [X Y] [Y X]) policy))
-    (swap! *xcfg* #(assoc-in % [:resolution :resDir] dir))
+    (apply cx/setDevRes!
+           (conj (if landscape? [X Y] [Y X]) policy))
+    (swap! *xcfg* #(assoc-in % [:game :resDir] dir))
     ;;device window size or canvas size.
     (cx/info* "view.frameSize = [" width ", " height "]")
     ;;need to prefix "assets" for andriod
-    (do-with [searchPaths (js/jsb.fileUtils.getSearchPaths)]
-             (doseq [p (map #(str % dir) ["assets/res/" "res/"])] (.push searchPaths p))
-             (doseq [p ["assets/src" "src"]] (.push searchPaths p)))))
+    (do-with [searchs (js/jsb.fileUtils.getSearchPaths)]
+      (doseq [p (map #(str % dir)
+                     ["assets/res/" "res/"])] (.push searchs p))
+      (doseq [p ["assets/src" "src"]] (.push searchs p)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- _startLoading "" [scene]
-  (let [cb (oget scene "_callback")]
-    (js/cc.loader.load (clj->js (oget scene "_resources"))
-                       (fn [result cnt loadedCount] nil) (fn [] (cb)))))
+(defn- _startLoading "" [scene & more]
+  (js/cc.loader.load (clj->js (oget scene "_resources"))
+                     (fn [result cnt loadedCount] nil)
+                     (fn [] ((oget scene "_callback")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn MyLoaderScene "" [resources callback]
-  (let [scene (js/cc.Scene)
+(defn- bootLoaderScene
+  "Hack to suppress the showing of cocos2d's logo,
+  instead, we load our own logo and progress bar.
+  Then we run another loading scene which actually
+  loads the game assets - updating the progress bar."
+  []
+  (let [{:keys [runOnce startScene]} @*xcfg*
+        res ["czlab/ZotohLab.png"
+             "czlab/preloader_bar.png"]
+        cb #(cx/preload
+              (pvGatherPreloads)
+              #(do (runOnce)
+                   (js/cc.director.runScene (startScene))))
+        ;;create the boot scene
+        scene (js/cc.Scene)
         func #(_startLoading scene %)]
     (->>
-      #js{:_callback (or callback ec/noopy)
-          :_resources (or resources [])
-          :init (fn [] true)
+      #js{:init #(.call js/cc.Scene.prototype.init scene)
+          :_resources res
+          :_callback cb
           :onEnter
-          #(this-as me
-                    (do (.call js/cc.Node.prototype.onEnter me)
-                        (ocall me "scheduleOnce" func 0.3)))
-          :onExit #(this-as me (.call js/cc.Node.prototype.onExit me))}
+          #(do (.call js/cc.Node.prototype.onEnter scene)
+               (ocall scene "scheduleOnce" func 0.3))
+          :onExit #(.call js/cc.Node.prototype.onExit scene)}
       (attrs* scene))
     scene))
 
-//////////////////////////////////////////////////////////////////////////////
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- preLaunch "" []
   (if (and (not-native?)
            (js/document.getElementById "cocosLoading"))
@@ -88,22 +107,15 @@
     (if debug?
       (js/cc.director.setDisplayStats true))
     ;;hack to suppress the showing of cocos2d's logo
-    (let [res ["cocos2d/pics/ZotohLab.png"
-               "cocos2d/pics/preloader_bar.png"]
-          cb #(ldr.preload (pvGatherPreloads)
-                           #(let [{:keys [runOnce startScene]} @*xcfg*]
-                              (runOnce)
-                              (js/cc.director.runScene (startScene))))
-          s (MyLoaderScene res cb)]
-      (set! js/cc.loaderScene s)
-      (js/cc.director.runScene s))))
+    (set! js/cc.loaderScene (bootLoaderScene))
+    (js/cc.director.runScene js/cc.loaderScene)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- startFunc "" []
   (cx/info* "game.start called")
   (preLaunch)
-  (l10nInit)
-  (sfxInit)
+  ;(cx/l10nInit)
+  ;(sfxInit)
   (let [rs (js/cc.view.getDesignResolutionSize)]
     (cx/info* "DesignResolution, = [" (oget-width rs) ", " (oget-height rs) "]")
     (cx/info* "loaded and running. OK")))

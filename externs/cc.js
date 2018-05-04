@@ -5,6 +5,8 @@ var cc = {
   p:function(){},
   rect:function(){},
 
+  loaderScene: {},
+
   capabilities: {},
 
   winSize: { x : 0, y : 0 },
