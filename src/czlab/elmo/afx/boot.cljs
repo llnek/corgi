@@ -15,264 +15,103 @@
   (:require []))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handleMultiDevices* "" [xcfg]
-  (let [searchPaths (js/jsb.fileUtils.getSearchPaths)
-        flat? (get-in @xcfg [:game :landscape?])
-        pcy (get-in @xcfg [:resolution :policy])
-        fsz (cx/screenSize)]
-
-
-  // need to prefix "assets" for andriod
-  if (fsz.width >= 2048 || fsz.height >= 2048) {
-    ps = ['assets/res/hdr', 'res/hdr'];
-    xcfg.resolution.resDir = 'hdr';
-    ccsx.setdr(landscape, 2048, 1536, pcy);
-  }
-  else
-  if (fsz.width >= 1136 || fsz.height >= 1136) {
-    ps = ['assets/res/hds', 'res/hds'];
-    xcfg.resolution.resDir= 'hds';
-    ccsx.setdr(landscape, 1136, 640, pcy);
-  }
-  else
-  if (fsz.width >= 1024 || fsz.height >= 1024) {
-    ps = ['assets/res/hds', 'res/hds'];
-    xcfg.resolution.resDir= 'hds';
-    ccsx.setdr(landscape, 1024, 768, pcy);
-  }
-  else
-  if (fsz.width >= 960 || fsz.height >= 960) {
-    ps = ['assets/res/hds', 'res/hds'];
-    xcfg.resolution.resDir= 'hds';
-    ccsx.setdr(landscape, 960, 640, pcy);
-  }
-  else {
-    ps = ['assets/res/sd', 'res/sd'];
-    xcfg.resolution.resDir= 'sd';
-    ccsx.setdr(landscape, 480, 320, pcy);
-  }
-
-  ps= ps.concat(['assets/src', 'src']);
-
-  for (let n=0; n < ps.length; ++n) {
-    searchPaths.push(ps[n]);
-  }
-
-  sjs.loggr.info("Resource search paths: " + searchPaths);
-  return searchPaths;
-}
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handleMultiDevices
-  "Sort out what resolution to use for this device." [xcfg]
-  (let [pcy (get-in @xcfg [:resolution :policy])
-        fh (get-in @xcfg [:handleDevices])
-        fsz (cx/screenSize)]
+(defn handleMultiDevices "" []
+  (let [{:keys [width height]} (js->clj (cx/screenSize))
+        policy (get-in @xcfg [:resolution :policy])
+        flat? (get-in @*xcfg* [:game :landscape?])
+        [X Y dir] (cond (or (>= width 2048)
+                            (>= height 2048))
+                        [2048 1536 :hdr]
+                        (or (>= width 1136)
+                            (>= height 1136))
+                        [1136 640 :hds]
+                        (or (>= width 1024)
+                            (>= height 1024))
+                        [1024 768 :hds]
+                        (or (>= width 960)
+                            (>= height 960))
+                        [960 640 :hds]
+                        :else [480 320 :sd])]
+    (apply cx/setDevRes! (conj (if flat? [X Y] [Y X]) policy))
+    (swap! *xcfg* #(assoc-in % [:resolution :resDir] dir))
     ;;device window size or canvas size.
-    (cx/info* "view.frameSize = ["
-              (oget-width fsz) ", " (oget-height fsz) "]")
-    ;;if handler provided, call it and go.
-    (if (fn? fh) (fh) (handleMultiDevices* xcfg))))
+    (cx/info* "view.frameSize = [" width ", " height "]")
+    ;;need to prefix "assets" for andriod
+    (do-with [searchPaths (js/jsb.fileUtils.getSearchPaths)]
+             (doseq [p (map #(str % dir) ["assets/res/" "res/"])] (.push searchPaths p))
+             (doseq [p ["assets/src" "src"]] (.push searchPaths p)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- _startLoading "" [scene]
+  (let [cb (oget scene "_callback")]
+    (js/cc.loader.load (clj->js (oget scene "_resources"))
+                       (fn [result cnt loadedCount] nil) (fn [] (cb)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn MyLoaderScene "" [resources callback]
+  (let [scene (js/cc.Scene)
+        func #(_startLoading scene %)]
+    (->>
+      #js{:_callback (or callback ec/noopy)
+          :_resources (or resources [])
+          :init (fn [] true)
+          :onEnter
+          #(this-as me
+                    (do (.call js/cc.Node.prototype.onEnter me)
+                        (ocall me "scheduleOnce" func 0.3)))
+          :onExit #(this-as me (.call js/cc.Node.prototype.onExit me))}
+      (attrs* scene))
+    scene))
 
 //////////////////////////////////////////////////////////////////////////////
-let pvLoadSound = (sh, xcfg, k,v) => {
-  return sh.sanitizeUrl( v + '.' + xcfg.game.sfx );
-}
-let pvLoadSprite = (sh, xcfg, k, v) => {
-  return sh.sanitizeUrl(v[0]);
-}
-let pvLoadImage = (sh, xcfg, k,v) => {
-  return sh.sanitizeUrl(v);
-}
-let pvLoadTile = (sh, xcfg, k,v) => {
-  return sh.sanitizeUrl(v);
-}
-let pvLoadAtlas = (sh, xcfg, k,v) => {
-  return [sh.sanitizeUrl( v + '.plist'),
-          sh.sanitizeUrl( v + '.png') ];
-}
+(defn- preLaunch "" []
+  (if (and (not-native?)
+           (js/document.getElementById "cocosLoading"))
+    (js/document.body.removeChild (js/document.getElementById "cocosLoading")))
+  (js/cc.director.setProjection js/cc.Director.PROJECTION_2D)
+  ;;for IOS
+  (js/cc.view.enableRetina (= js/cc.sys.os js/cc.sys.OS_IOS))
+  ;;for mobile web
+  (if (and js/cc.sys.isMobile
+           (not= js/cc.sys.browserType js/cc.sys.BROWSER_TYPE_BAIDU)
+           (not= js/cc.sys.browserType js/cc.sys.BROWSER_TYPE_WECHAT))
+    (js/cc.view.enableAutoFullScreen true))
+  (let [{:keys [debug? frameRate size policy]} (:game @*xcfg*)]
+    (if (native?)
+      (->> (clj->js (handleMultiDevices))
+           (js/jsb.fileUtils.setSearchPaths))
+      (do (js/cc.view.resizeWithBrowserSize true)
+          (js/cc.view.adjustViewPort true)
+          (setDevRes! (:width size) (:height size) policy)))
+    (if (number? frameRate)
+      (js/cc.director.setAnimationInterval (/ 1 frameRate)))
+    (if debug?
+      (js/cc.director.setDisplayStats true))
+    ;;hack to suppress the showing of cocos2d's logo
+    (let [res ["cocos2d/pics/ZotohLab.png"
+               "cocos2d/pics/preloader_bar.png"]
+          cb #(ldr.preload (pvGatherPreloads)
+                           #(let [{:keys [runOnce startScene]} @*xcfg*]
+                              (runOnce)
+                              (js/cc.director.runScene (startScene))))
+          s (MyLoaderScene res cb)]
+      (set! js/cc.loaderScene s)
+      (js/cc.director.runScene s))))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-let pvLoadLevels = (sjs, sh, xcfg) => {
-  let rc = [],
-  f1= (k) => {
-    return (v, n) => {
-      const a = sjs.reduceObj( (memo, item, key) => {
-        const z= [k, n, key].join('.');
-        switch (n) {
-          case 'sprites':
-            memo.push( pvLoadSprite( sh, xcfg, z, item));
-            xcfg.assets.sprites[z] = item;
-          break;
-          case 'images':
-            memo.push( pvLoadImage( sh, xcfg, z, item));
-            xcfg.assets.images[z] = item;
-          break;
-          case 'tiles':
-            memo.push( pvLoadTile(sh, xcfg,  z, item));
-            xcfg.assets.tiles[z] = item;
-          break;
-        }
-        return memo;
-      }, [], v);
-      rc = rc.concat(a);
-    };
-  };
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- startFunc "" []
+  (cx/info* "game.start called")
+  (preLaunch)
+  (l10nInit)
+  (sfxInit)
+  (let [rs (js/cc.view.getDesignResolutionSize)]
+    (cx/info* "DesignResolution, = [" (oget-width rs) ", " (oget-height rs) "]")
+    (cx/info* "loaded and running. OK")))
 
-  sjs.eachObj((v,k) => { sjs.eachObj(f1(k), v); }, xcfg.levels);
-  return rc;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set! js/cc.game.onStartFunc startFunc)
 
-/////////////////////////////////////////////////////////////////////////////
-let pvGatherPreloads = (sjs, sh, xcfg) => {
-  let assets= xcfg.assets,
-  p,
-  rc= [
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
-    R.values(R.mapObjIndexed((v,k) => {
-      return pvLoadSprite(sh,xcfg,k,v);
-    }, assets.sprites)),
-
-    R.values(R.mapObjIndexed((v,k) => {
-      return pvLoadImage(sh,xcfg,k,v);
-    }, assets.images)),
-
-    R.values(R.mapObjIndexed((v,k) => {
-      return pvLoadSound(sh,xcfg,k,v);
-    }, assets.sounds)),
-
-    sjs.reduceObj((memo, v,k) => {
-      // value is array of [ path, image , xml ]
-      p= sh.sanitizeUrl(v[0]);
-      return memo.concat([p+'/'+v[1], p+'/'+v[2]]);
-    }, [], assets.fonts),
-
-    sjs.reduceObj((memo, v,k) => {
-      return memo.concat( pvLoadAtlas(sh, xcfg, k,v));
-    }, [], assets.atlases),
-
-    R.values(R.mapObjIndexed((v,k) => {
-      return pvLoadTile(sh, xcfg, k,v);
-    }, assets.tiles)),
-
-    xcfg.game.preloadLevels ? pvLoadLevels(sjs, sh, xcfg) : []
-  ];
-
-  return R.reduce((memo,v) => {
-    sjs.loggr.info('Loading ' + v);
-    memo.push( v );
-    return memo;
-  }, [], R.flatten(rc));
-}
-
-/////////////////////////////////////////////////////////////////////////////
-/**
- * @class MyLoaderScene
- */
-const MyLoaderScene = cc.Scene.extend(/** @lends MyLoaderScene# */{
-
-  init() { return true; },
-
-  _startLoading() {
-    const res = this.resources,
-    self=this;
-
-    self.unschedule(self._startLoading);
-    cc.loader.load(res,
-                   (result, count, loadedCount) => {},
-                   () => {
-                     if (sjs.isfunc(self.cb)) {
-                       self.cb();
-                     }
-                   });
-  },
-
-  initWithResources(resources, cb) {
-    this.resources = resources || [];
-    this.cb = cb;
-  },
-
-  onEnter() {
-    const self = this;
-    cc.Node.prototype.onEnter.call(self);
-    self.schedule(self._startLoading, 0.3);
-  },
-
-  onExit() {
-    cc.Node.prototype.onExit.call(this);
-  }
-
-});
-
-//////////////////////////////////////////////////////////////////////////////
-let preLaunchApp = (sjs, sh, xcfg, ldr,  ss1) => {
-  let fz= ccsx.screen(),
-  paths,
-  sz,
-  pfx,
-  rs, pcy;
-
-  if (cc.sys.isNative) {
-    paths= handleMultiDevices();
-    if (!!paths) {
-      jsb.fileUtils.setSearchPaths(paths);
-    }
-  } else {
-    sz= xcfg.game[xcfg.resolution.resDir];
-    pcy = xcfg.resolution.web;
-    cc.view.setDesignResolutionSize(sz.width, sz.height, pcy);
-  }
-
-  rs= cc.view.getDesignResolutionSize();
-  xcfg.handleResolution(rs);
-  sjs.loggr.info('DesignResolution, = [' +
-                 rs.width + ", " +
-                 rs.height + "]" +
-                 ", scale = " + xcfg.game.scale);
-
-  cc.director.setProjection(cc.Director.PROJECTION_2D);
-  if (cc.sys.isNative) {
-    pfx= "";
-  } else {
-    cc.view.resizeWithBrowserSize(true);
-    cc.view.adjustViewPort(true);
-    pfx = "/public/ig/res/";
-  }
-
-  //cc.director.setAnimationInterval(1 / sh.xcfg.game.frameRate);
-  if (xcfg.game.debug) {
-    cc.director.setDisplayStats(xcfg.game.showFPS);
-  }
-
-  rs= [ pfx + 'cocos2d/pics/preloader_bar.png',
-        pfx + 'cocos2d/pics/ZotohLab.png' ];
-  // hack to suppress the showing of cocos2d's logo
-  cc.loaderScene = new MyLoaderScene();
-  cc.loaderScene.init();
-  cc.loaderScene.initWithResources(rs, () => {
-    ldr.preload(pvGatherPreloads(sjs, sh, xcfg), () => {
-      xcfg.runOnce();
-      cc.director.runScene( sh.protos[ss1].reify() );
-    });
-  });
-  cc.director.runScene(cc.loaderScene);
-}
-
-sjs.loggr.info("About to create Cocos2D HTML5 Game");
-
-preLaunchApp(sjs, sh, xcfg, loader, ss1);
-sh.l10nInit(),
-sh.sfxInit();
-
-//sjs.merge(me.xcfg.game, global.document.ccConfig);
-sjs.loggr.debug(sjs.jsonfy(xcfg.game));
-sjs.loggr.info("Registered game start state - " + ss1);
-sjs.loggr.info("Loaded and running. OK");
-
-/*@@
-return xbox;
-@@*/
-
-//////////////////////////////////////////////////////////////////////////////
-//EOF
 

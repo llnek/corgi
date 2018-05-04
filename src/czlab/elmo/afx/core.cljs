@@ -21,6 +21,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn raise! "" [& args] (throw (js/Error. (apply str args ))))
+(defn noopy "" [& xs] js/undefined)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn debug* "" [& msgs] (js/console.log (apply str msgs)))

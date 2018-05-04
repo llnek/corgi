@@ -18,9 +18,13 @@ var cc = {
           getVisibleOrigin:function(){},
           adjustViewPort:function(){},
           setDesignResolutionSize:function(){},
+          getDesignResolutionSize:function(){},
           resizeWithBrowserSize:function(){} },
   ResolutionPolicy : { SHOW_ALL : {} },
   director : { getRunningScene: function(){},
+               setProjection:function(){},
+               setAnimationInterval:function(){},
+               setDisplayStats:function(){},
                getWinSize:function(){},
                pushScene:function(){},
                popToRootScene:function(){},
@@ -35,7 +39,8 @@ var cc = {
 
 var jsb={
   fileUtils: {
-    getSearchPaths:function(){}
+    getSearchPaths:function(){},
+    setSearchPaths:function(){}
   }
 };
 
@@ -56,6 +61,8 @@ cc.FadeOut.create=function(){};
 cc.CallFunc=function(){};
 cc.CallFunc.create=function(){};
 
+cc.Director=function(){};
+cc.Director.PROJECTION_2D={};
 
 cc.loader={
   load:function(){}
