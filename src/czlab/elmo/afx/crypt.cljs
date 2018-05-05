@@ -9,7 +9,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.afx.caesar
+  czlab.elmo.afx.crypt
 
   (:require-macros [czlab.elmo.afx.core :as ec])
   (:require [clojure.string :as cs]

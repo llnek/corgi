@@ -514,6 +514,10 @@
 ;(defn gcbyt "" [p t] (ocall p "getChildByTag" t))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addSpriteFrames* "" [plist]
+  (js/cc.spriteFrameCache.addSpriteFrames plist))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bmfText* "" [text font] (new js/cc.LabelBMFont text font))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -577,31 +581,26 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def *xcfg*
-  (atom {:urlPrefix "/public/ig/"
+  (atom {:urlPrefix "/public/elmo/"
          :appid ""
-         :color ""
-         :resolution {:web js/cc.ResolutionPolicy.SHOW_ALL
-                      :resDir "sd" }
+         :version ""
+         :trackingID ""
+         :color (js/cc.color 0 0 0)
          :levels {}
-         :images { }
-         :plists { }
+         :images {:czlab "core/ZotohLab.png"
+                  :preloader "core/preloader_bar.png"}
+         :sprites { }
          :tiles { }
-         :sounds {:start_game "res/cocos2d/sfx/PowerUp" }
-         :fonts {:TinyBoxBB "TinyBoxBlackBitA8"
-                 :OogieBoogie "OogieBoogie"
-                 :JellyBelly "JellyBelly"
-                 :AgentOrange "AgentOrange"
-                 :Hiruko "Hiruko"
-                 :OCR "OCR"}
-         :game {:borderTiles "cbox-borders_x8.png"
-                :start nil
-                :preloadLevels true
+         :sounds {}
+         :fonts {}
+         :game {:policy js/cc.ResolutionPolicy.SHOW_ALL
+                :preloadLevels? true
+                :size {:width 0 :height 0}
+                :resDir ""
+                :landscape? true
                 :scale 1
                 :sfx :mp3
-                :landscape? false
-                :gravity 0
-                :version ""
-                :trackingID "" }
+                :gravity 0 }
          :l10nTable {:en {"%mobileStart" "Press Anywhere To Start!"
                           "%webStart" "Press Spacebar To Start!"
                           "%passwd" "Password"
@@ -624,23 +623,22 @@
                           "%waitother" "Waiting...\nfor another player."
                           "%signinplay" "Please sign in to play."
                           "%quit?" "Continue and quit game?" } }
-         :csts {:CV_X (ocall "X" "charCodeAt" 0)
-                :CV_O (ocall "0" "charCodeAt" 0)
-                :P2_COLOR "O"
-                :P1_COLOR "X"
+         :csts {:CV-X (ocall "X" "charCodeAt" 0)
+                :CV-O (ocall "0" "charCodeAt" 0)
+                :P2-COLOR "O"
+                :P1-COLOR "X"
                 :NETP 3
                 :HUMAN 1
                 :BOT 2
-                :GAME_MODE 1
+                :GAME-MODE 1
                 :TILE 8
-                :S_OFF 4
-                :GAME_ID "" }
-         :sound {:volume 0.5
-                 :open? false}
-         :music {:volume 0.5
+                :S-OFF 4
+                :GAME-ID "" }
+         :audio {:volume 0.5
+                 :open? false
                  :track nil }
 
-        :handleResolution (fn [rs] nil)
+        :startScene (fn [] nil)
 
         :runOnce (fn [] nil)
 }))
@@ -767,14 +765,17 @@
     (sanitizeUrlForWeb url) (sanitizeUrlForDevice url)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getImage "" [key]
-  (fixUrl (get-in @*xcfg* [:assets :images key])))
-(defn getPList "" [key]
-  (fixUrl (get-in @*xcfg* [:assets :plists key])))
-(defn getTile "" [key]
-  (fixUrl (get-in @*xcfg* [:assets :tiles key])))
-(defn getFont "" [key]
-  (fixUrl (get-in @*xcfg* [:assets :fonts key])))
+(defn getImage "" [key] (str "res/" (get-in @*xcfg* [:images key])))
+(defn getTile "" [key] (str "res/" (get-in @*xcfg* [:tiles key])))
+(defn getFontDef "" [key]
+  (str "res/" (first (get-in @*xcfg* [:fonts key]))))
+(defn getFontImg "" [key]
+  (let [s (getFontDef key)]
+    (cs/replace (getFontDef key) #"\.fnt$" ".png")))
+(defn getSound "" [key]
+  (let [ext (get-in @*xcfg* [:game :sfx])]
+    (str "res/" (get-in @*xcfg* [:sounds key]) "." ext)))
+(defn getPList "" [key] (str "res/" (get-in @*xcfg* [:plists key])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addItem "" [node child & [tag zOrder]]

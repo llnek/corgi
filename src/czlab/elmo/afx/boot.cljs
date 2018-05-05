@@ -61,9 +61,8 @@
   Then we run another loading scene which actually
   loads the game assets - updating the progress bar."
   []
-  (let [{:keys [runOnce startScene]} @*xcfg*
-        res ["czlab/ZotohLab.png"
-             "czlab/preloader_bar.png"]
+  (let [res [(cx/getImage :czlab) (cz/getImage :preloader)]
+        {:keys [runOnce startScene]} @*xcfg*
         cb #(cx/preload
               (pvGatherPreloads)
               #(do (runOnce)
@@ -101,7 +100,7 @@
            (js/jsb.fileUtils.setSearchPaths))
       (do (js/cc.view.resizeWithBrowserSize true)
           (js/cc.view.adjustViewPort true)
-          (setDevRes! (:width size) (:height size) policy)))
+          (cx/setDevRes! (:width size) (:height size) policy)))
     (if (number? frameRate)
       (js/cc.director.setAnimationInterval (/ 1 frameRate)))
     (if debug?
@@ -111,17 +110,18 @@
     (js/cc.director.runScene js/cc.loaderScene)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- startFunc "" []
-  (cx/info* "game.start called")
-  (preLaunch)
-  ;(cx/l10nInit)
-  ;(sfxInit)
-  (let [rs (js/cc.view.getDesignResolutionSize)]
-    (cx/info* "DesignResolution, = [" (oget-width rs) ", " (oget-height rs) "]")
-    (cx/info* "loaded and running. OK")))
+(set! js/cc.game.startElmo
+      (fn []
+        (cx/info* "game.start called")
+        (swap! *xcfg*
+               #(merge % (js/cc.game.configElmo)))
+        (preLaunch)
+        ;(cx/l10nInit)
+        ;(sfxInit)
+        (let [rs (js/cc.view.getDesignResolutionSize)]
+          (cx/info* "DesignResolution, = [" (oget-width rs) ", " (oget-height rs) "]")
+          (cx/info* "loaded and running. OK"))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! js/cc.game.onStartFunc startFunc)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

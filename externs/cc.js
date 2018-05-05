@@ -22,7 +22,8 @@ var cc = {
           setDesignResolutionSize:function(){},
           getDesignResolutionSize:function(){},
           resizeWithBrowserSize:function(){} },
-  ResolutionPolicy : { SHOW_ALL : {} },
+  ResolutionPolicy : { SHOW_ALL : {},
+                       FIXED_HEIGHT: {} },
   director : { getRunningScene: function(){},
                setProjection:function(){},
                setAnimationInterval:function(){},
@@ -109,7 +110,8 @@ cc.EventMouse.BUTTON_LEFT={};
 
 
 cc.spriteFrameCache= {
-  getSpriteFrame:function(){}
+  getSpriteFrame:function(){},
+  addSpriteFrames:function(){}
 };
 
 cc.Sprite=function(){};
@@ -138,7 +140,8 @@ cc.textureCache={
 };
 
 cc.game={
-  onStartFunc :function(){},
+  configElmo : function(){},
+  startElmo :function(){},
   run :function(){}
 };
 

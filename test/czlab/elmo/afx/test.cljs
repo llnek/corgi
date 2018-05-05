@@ -11,8 +11,8 @@
 
   czlab.elmo.afx.test
 
-  (:require [czlab.elmo.afx.negamax :as nega]
-            [czlab.elmo.afx.caesar :as cas]
+  (:require [czlab.elmo.afx.algos :as algos]
+            [czlab.elmo.afx.crypt :as cas]
             [czlab.elmo.afx.ccsx :as cx]
             [czlab.elmo.afx.odin :as odin]
             [czlab.elmo.afx.ecs :as ecs]
@@ -55,6 +55,18 @@
   (ensure?? (= 2 (nth (ec/cdr [1 2]) 0)) "cdr")
   (ensure?? (= 1 (ec/car [1 2])) "car")
   (ensure?? (= 2 (ec/nexth [1 2] 0)) "nexth")
+
+  (ensure?? (= {:a 5 :z 9 :b {:c 2 :d 2}}
+               (ec/deepMerge {:a 1 :b {:c 2}}
+                             {:z 9 :a 5 :b {:d 2}})) "deepMerge,map")
+
+  (ensure?? (= {:a 5 :z 9 :b #{ :c 2 :d 3 4}}
+               (ec/deepMerge {:a 1 :b #{ :c 2 4}}
+                             {:z 9 :a 5 :b #{ :d 2 3}})) "deepMerge,set")
+
+  (ensure?? (= {:a 5 :z 9 :b [1 3]}
+               (ec/deepMerge {:a 1 :b [4]}
+                             {:z 9 :a 5 :b [1 3]})) "deepMerge,*")
 
   (ensure?? (= 3 (ec/do-with [a (+ 1 2)]
                              (/ a 3))) "do-with")
@@ -364,22 +376,22 @@
 (def CAESAR-DATA "hello, bonjour, blah!")
 (def CAESAR-DLEN (count CAESAR-DATA))
 
-(deftest caesar-test
+(deftest crypt-test
 
   (ensure?? (let [s (cas/encrypt CAESAR-DATA 178)]
-              (and (= CAESAR-DLEN (count s)) (not= s CAESAR-DATA))) "caesar, encrypt")
+              (and (= CAESAR-DLEN (count s)) (not= s CAESAR-DATA))) "crypt, encrypt")
 
   (ensure?? (let [s (cas/encrypt CAESAR-DATA 178)
-                  s' (cas/decrypt s 178)] (= s' CAESAR-DATA)) "caesar, decrypt")
+                  s' (cas/decrypt s 178)] (= s' CAESAR-DATA)) "crypt, decrypt")
   (ensure?? (let [s (cas/encrypt CAESAR-DATA 178)
-                  s' (cas/decrypt s 18)] (not= s' CAESAR-DATA)) "caesar, bad decrypt"))
+                  s' (cas/decrypt s 18)] (not= s' CAESAR-DATA)) "crypt, bad decrypt"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (js/console.log (runtest test-core "elmo test-core"))
 (js/console.log (runtest ecs-test "elmo test-ecs"))
 (js/console.log (runtest ebus-test "elmo test-ebus"))
-(js/console.log (runtest caesar-test "elmo test-caesar"))
+(js/console.log (runtest crypt-test "elmo test-crypt"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

@@ -1,55 +1,47 @@
-(ns czlab.elmo.tictactoe.app
+;; Copyright ©  2013-2018, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author ""}
+
+  czlab.elmo.tictactoe.app
+
   (:require [czlab.elmo.afx.ccsx :as cx]
-            [czlab.elmo.tictactoe.resource :refer [g_resources res]]))
+            [czlab.elmo.afx.core :as ec]))
 
-(js/console.log "ttt.app loaded")
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def cfg {:appKey "bd5f79bb-eb41-4ed5-bb44-2529dc27ed3c"
+          :appid "tictactoe"
+          :game {:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
+                 :landscape? false
+                 :size {:width 480 :height 640}}
+          :csts {:PLAYER-THINK-TIME 7
+                 :GRID-SIZE 3 :CELLS 9 :CV-Z 0}
+          :images {:lang-pics "l10n/images.png"
+                   :game-pics "imgs/images.png"
+                   :gui-edit-orange "pics/orange_edit.png"
+                   :game-bg "imgs/bg.png" }
+          :sprites {:lang-pics "l10n/images.plist"
+                    :game-pics "imgs/images.plist"}
+          :sounds {:game-end "snds/MineExplosion"
+                   :x-pick "snds/ElevatorBeep"
+                   :o-pick "snds/MineBeep"
+                   :game-quit "snds/Death" }
+          :fonts {:a "fnts/SmallTypeWriting.fnt"
+                  :b "fnts/AutoMission.fnt"
+                  :c "fnts/Subito.fnt"
+                  :d "fnts/CoffeeBuzzed.fnt" }})
 
-(def XXX (cx/tmenu [] {}))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set! js/cc.game.configElmo (fn [] cfg))
 
-(def HelloWorldLayer
-  (js/cc.Layer.extend
-    #js {
-      :sprite nil
-      :shit XXX
-      :ctor
-      #(this-as this
-                 (let [_ (._super this)
-                       size js/cc.winSize
-                       helloLabel (new js/cc.LabelTTF "Hello World" "Arial" 38)]
-                   (set! helloLabel.x (/ size.width 2))
-                   (set! helloLabel.y (+ 200 (/ size.height 2)))
-                   (.addChild this helloLabel 5)
-                   (set! this.sprite (new js/cc.Sprite (:HelloWorld_png res)))
-                   (.attr this.sprite
-                          #js {:x (/ size.width 2)
-                               :y (/ size.height  2) })
-                   (.addChild this this.sprite 0)
-                   this)) }))
-
-(def HelloWorldScene
-  (js/cc.Scene.extend
-    #js {:onEnter
-         #(this-as this
-                 (let [_ (._super this)]
-                   (.addChild this (new HelloWorldLayer)))) }))
-
-(set! js/cc.game.onStartFunc
-        #(this-as this
-                 (let [sys js/cc.sys]
-                   (js/console.log "game.onStart called")
-                   (if (and (not sys.isNative)
-                            (js/document.getElementById "cocosLoading"))
-                     (js/document.body.removeChild (js/document.getElementById "cocosLoading")))
-                   (js/cc.view.enableRetina (= sys.os sys.OS_IOS))
-                   (if (and sys.isMobile
-                            (not= sys.browserType sys.BROWSER_TYPE_BAIDU)
-                            (not= sys.browserType sys.BROWSER_TYPE_WECHAT))
-                     (js/cc.view.enableAutoFullScreen true))
-                   (js/cc.view.adjustViewPort true)
-                   (js/cc.view.setDesignResolutionSize 960 640 js/cc.ResolutionPolicy.SHOW_ALL)
-                   (js/cc.view.resizeWithBrowserSize true)
-                   (js/cc.LoaderScene.preload g_resources
-                                              (fn [] (js/cc.director.runScene (new HelloWorldScene)))))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
 
 

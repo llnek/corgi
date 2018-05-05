@@ -9,7 +9,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.afx.negamax
+  czlab.elmo.afx.algos
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [_1]])
   (:require [czlab.elmo.afx.core :as ec]))

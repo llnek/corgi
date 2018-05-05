@@ -174,6 +174,21 @@
                         (b64/encodeString (str "" user ":" pwd) true))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn deepMerge "" [a b & more]
+  (let [tmp (transient a)]
+    (doseq [[k vb] b
+            :let [va (get a k)]]
+      (->> (if-not (contains? a k)
+             vb
+             (cond (and (map? vb) (map? va))
+                   (deepMerge va vb)
+                   (and (set? vb) (set? va))
+                   (clojure.set/union va vb)
+                   :else vb))
+           (assoc! tmp k)))
+    (persistent! tmp)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;testing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn ensureTest "" [cnd msg]
