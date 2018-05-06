@@ -11,7 +11,7 @@
 
   czlab.elmo.afx.algos
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1]])
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [car _1 n#]])
   (:require [czlab.elmo.afx.core :as ec]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -21,31 +21,45 @@
 (declare negamax)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn isGameOver? "" [board game] false)
-(defn evalScore "" [board game] 0)
-(defn getNextMoves "" [board game] [])
-(defn makeMove "" [board game move] nil)
-(defn switchPlayer "" [board game] nil)
-(defn unmakeMove "" [board game move] nil)
-(defn takeSnapshot "" [board] nil)
+(defn Snapshot "" []
+  (atom {:lastBestMove nil :other nil :cur nil :state nil}))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defprotocol BoardGame
+  (isGameOver? [board game])
+  (evalScore [board game])
+  (nextMoves [boardgame] )
+  (makeMove "" [board game move] )
+  (switchPlayer [board game] )
+  (undoMove "" [board game move])
+  (takeSnapshot "" [board] ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- negamax* "" [board game maxDepth depth alpha beta]
-  (let [openMoves (getNextMoves board game) sz (count openMoves) m1 (_1 openMoves)]
-    (if (= depth maxDepth) (swap! game #(update-in % [:lastBestMove] (fn [_] m1))))
-    (loop [n 0 break? false bestValue' (- PINF) bestMove' m1 alpha' alpha beta' beta]
+  (let [attempts (nextMoves board game)
+        sz (n# attempts)
+        m1 (car attempts)]
+    (if (= depth maxDepth)
+      (swap! game #(assoc-in % [:lastBestMove] m1)))
+    (loop [n 0
+           break? false
+           bestValue' (- PINF)
+           bestMove' m1
+           alpha' alpha beta' beta]
       (if (or break? (>= n sz))
         bestValue'
-        (let [move (nth openMoves n)
-              _ (makeMove board game move)
-              _ (switchPlayer board game)
+        (let [move (nth attempts n)
+              _ (doto board
+                  (makeMove game move)
+                  (switchPlayer game))
               rc (- (negamax board game maxDepth
                              (- depth 1) (- beta') (- alpha')))
-              _ (switchPlayer board game)
-              _ (unmakeMove board game move)
-              bestValue'' (js/Math.max bestValue' rc )]
+              _ (doto board
+                  (switchPlayer game)
+                  (undoMove game move))
+              bestValue'' (max bestValue' rc )]
           (if (< alpha' rc)
-            (do (if (= depth maxDepth) (swap! game #(update-in % [:lastBestMove] (fn [_] move))))
+            (do (if (= depth maxDepth) (swap! game #(assoc-in % [:lastBestMove] move)))
                 (recur (inc n) (if (>= rc beta') true break?) bestValue'' move rc beta'))
             (recur (inc n) break? bestValue'' bestMove' alpha' beta')))))))
 
@@ -57,15 +71,9 @@
     (negamax* board game maxDepth depth alpha beta)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Snapshot "" []
-  (atom {:lastBestMove nil :other nil :cur nil :state nil}))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn evalNegaMax "" [board]
   (let [game (takeSnapshot board)]
-    (negamax board game
-             10 10 (- PINF) PINF)
-    (get-in @game [:lastBestMove])))
+    (negamax board game 10 10 (- PINF) PINF) (:lastBestMove @game)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

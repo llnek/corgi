@@ -11,14 +11,14 @@
 
   czlab.elmo.afx.crypt
 
-  (:require-macros [czlab.elmo.afx.core :as ec])
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [n#]])
   (:require [clojure.string :as cs]
             [czlab.elmo.afx.core :as ec :refer [xmod]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def VISCHS (str " @N/\\Ri2}aP`(xeT4F3mt;8~%r0v:L5$+Z{'V)\"CKIc>z.*"
                  "fJEwSU7juYg<klO&1?[h9=n,yoQGsW]BMHpXb6A|D#q^_d!-"))
-(def VISCHS-LEN  (count VISCHS))
+(def VISCHS-LEN  (n# VISCHS))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- chat "" [pos & [s]] (.charAt (or s VISCHS) pos))
@@ -50,7 +50,7 @@
 (defn encrypt "" [src shift]
   (->>
     (if (and (string? src) (not-empty src) (not (zero? shift)))
-      (let [len (count src)
+      (let [len (n# src)
             delta (-> (js/Math.abs shift) (xmod VISCHS-LEN))]
         (loop [pos 0 out (transient [])]
           (if-not (< pos len)
@@ -65,7 +65,7 @@
 (defn decrypt "" [cipher shift]
   (->>
     (if (and (string? cipher) (not-empty cipher) (not (zero? shift)))
-      (let [len (count cipher)
+      (let [len (n# cipher)
             delta (-> (js/Math.abs shift) (xmod VISCHS-LEN))]
         (loop [pos 0 out (transient [])]
           (if-not (< pos len)

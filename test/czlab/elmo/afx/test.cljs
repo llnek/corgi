@@ -285,7 +285,7 @@
                    @TEMP-VAR)) "engine,addSystem"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- cbbus [x y z] (swap! TMPVAR inc))
+(defn- cbbus [& xs] (swap! TMPVAR inc))
 (deftest ebus-test
 
   (ensure?? (let [_ (reset! TMPVAR 0)

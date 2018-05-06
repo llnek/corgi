@@ -11,7 +11,7 @@
 
   czlab.elmo.afx.ecs
 
-  (:require-macros [czlab.elmo.afx.core :as ec])
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [n#]])
   (:require [czlab.elmo.afx.core :as ec :refer [raise!]]
             [oops.core :refer [oget oset! ocall oapply
                                ocall! oapply! oget+
@@ -20,27 +20,27 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createPool "" [ctor rinse & [batch]]
   {:pre [(fn? ctor)(fn? rinse)]}
-  (let [a (atom {:batch (or batch 10) :size 0 :next 0
+  (let [a (atom {::batch (or batch 10) ::size 0 ::next 0
                  ;easier to use jsarray
-                 :slots #js[] :ctor ctor :rinse rinse})
+                 ::slots #js[] ::ctor ctor ::rinse rinse})
         g (fn [b]
-            (dotimes [_ (:batch @a)]
+            (dotimes [_ (::batch @a)]
                (.push b (oset! (ctor) "!____pool" a)))
-             [(+ (:size @a) (:batch @a)) b])]
-    (swap! a #(merge % {:grow g})) a))
+             [(+ (::size @a) (::batch @a)) b])]
+    (swap! a #(merge % {::grow g})) a))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn countUsedInPool "" [pool] (:next @pool))
+(defn countUsedInPool "" [pool] (::next @pool))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sizeOfPool "" [pool] (:size @pool))
+(defn sizeOfPool "" [pool] (::size @pool))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn takeFromPool! "" [pool]
   (let [out (atom nil)]
     (swap! pool
-           (fn [{:keys [grow size
-                        next slots] :as root}]
+           (fn [{:keys [::grow ::size
+                        ::next ::slots] :as root}]
              (let [next1 (inc next)
                    [sz buf]
                    (if (>= next size)
@@ -52,8 +52,8 @@
                  (oset! "!____status" true))
                (merge root
                       (if (= sz size)
-                        {:next next1}
-                        {:next next1 :size sz}))))) @out))
+                        {::next next1}
+                        {::next next1 ::size sz}))))) @out))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn returnToPool! "" [pool obj]
@@ -62,7 +62,7 @@
            (identical? (oget obj "?____pool") pool))
     ;jiggle the free slot to reuse the one just dropped
     (swap! pool
-           (fn [{:keys [rinse next slots] :as root}]
+           (fn [{:keys [::rinse ::next ::slots] :as root}]
              (let [next1 (dec next)
                    _ (rinse obj)
                    tail (aget slots next1)
@@ -75,23 +75,23 @@
                (oset! tail "!____slot" epos')
                (oset! obj "!____slot" slot')
                (oset! obj "!____status" false)
-               (merge root {:next next1}))))) pool)
+               (merge root {::next next1}))))) pool)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createECS "" []
-  (atom {:entities #{}
-         :templates {}
-         :registry {}
-         :data {}
-         :systems [] :uid 1}))
+  (atom {::entities #{}
+         ::templates {}
+         ::registry {}
+         ::data {}
+         ::systems [] ::uid 1}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- genUid "" [ecs]
   (let [out (atom 0)]
     (swap! ecs
-           (fn [{:keys [uid] :as root}]
+           (fn [{:keys [::uid] :as root}]
              (reset! out uid)
-             (assoc root :uid (inc uid)))) @out))
+             (assoc root ::uid (inc uid)))) @out))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- retUsed "" [obj]
@@ -114,9 +114,9 @@
                          (recur (if-some [v (get ct e)]
                                   (do (retUsed v) (dissoc ct e)) ct) xs)))]
               (recur (if (identical? ct cOrig) dt (assoc dt k ct)) xs))))
-     rt (if (identical? dt data) root (assoc root :data dt))]
+     rt (if (identical? dt data) root (assoc root ::data dt))]
     (assoc rt
-           :entities (apply disj (:entities rt) ents))))
+           ::entities (apply disj (::entities rt) ents))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeEntity "" [ecs entity & more]
@@ -130,26 +130,26 @@
                (map (fn [a] (vec a)))
                (vec)
                (into {})
-               (merge (:registry %))
-               (assoc % :registry))) ecs)
+               (merge (::registry %))
+               (assoc % ::registry))) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeComponent "" [ecs id & more]
   (swap!
     ecs
-    (fn [{:keys [data registry] :as root}]
+    (fn [{:keys [::data ::registry] :as root}]
       (let [cids (concat [id] more)]
         (doseq [c cids
                 :let [v (get data c)]
                 :when (some? v)] (retUsed v))
         (-> root
-            (assoc :data (apply dissoc data cids))
-            (assoc :registry (apply dissoc registry cids)))))) ecs)
+            (assoc ::data (apply dissoc data cids))
+            (assoc ::registry (apply dissoc registry cids)))))) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addToEntity "" [ecs entity componentDecl & moreDecls]
   (swap! ecs
-         (fn [{:keys [data registry] :as root}]
+         (fn [{:keys [::data ::registry] :as root}]
            (->> (loop [dtree data
                        [dc & xs]
                        (concat [componentDecl] moreDecls)]
@@ -163,7 +163,7 @@
                                  (oset! "!____entity" entity))]
                       (recur (update-in dtree
                                         [cid] #(assoc % entity co)) xs))))
-                (assoc root :data)))) ecs)
+                (assoc root ::data)))) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createEntity "" [ecs componentDecl & moreDecls]
@@ -172,14 +172,14 @@
            (concat [ecs entity componentDecl] moreDecls))
     (swap! ecs
            #(update-in %
-                       [:entities]
+                       [::entities]
                        (fn [c] (conj c entity)))) entity))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeFromEntity "" [ecs entity & componentIds]
   (swap! ecs
          (fn
-           [{:keys [data] :as root}]
+           [{:keys [::data] :as root}]
            (let
              [dt (loop [dtree data
                         [cid & xs] componentIds]
@@ -193,12 +193,12 @@
                                              [cid] #(dissoc % entity)))
                               dtree)
                             xs))))]
-        (if (identical? dt data) root (assoc root :data dt))))) ecs)
+        (if (identical? dt data) root (assoc root ::data dt))))) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getEntityData "" [ecs entity componentId]
   (if-some
-    [ct (-> (:data @ecs)
+    [ct (-> (::data @ecs)
             (get componentId))] (get ct entity)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -207,25 +207,25 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getComponentsData "" [ecs componentId]
-  (if-some [c (-> (:data @ecs) (get componentId))] (vals c) []))
+  (if-some [c (-> (::data @ecs) (get componentId))] (vals c) []))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getComponentKeys "" [ecs] (keys (:registry @ecs)))
+(defn getComponentKeys "" [ecs] (keys (::registry @ecs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn findComponent
-  "" [ecs componentId] (get (:registry @ecs) componentId))
+  "" [ecs componentId] (get (::registry @ecs) componentId))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn componentInEntity?
   "" [ecs entity componentId & moreIds]
-  (let [d (:data @ecs)]
+  (let [d (::data @ecs)]
     (not (some #(if-some [co (get d %)]
                   (not (contains? co entity)) true) (concat [componentId] moreIds)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn findEntities "" [ecs componentId & moreIds]
-  (let [data (:data @ecs)
+  (let [data (::data @ecs)
         ret (atom [])
         cids (concat [componentId] moreIds)]
     (when (every? #(contains? data %) cids)
@@ -233,8 +233,8 @@
         [ccs (sort #(cond
                       (< (first %1) (first %2)) -1
                       (> (first %1) (first %2)) 1 :else 0)
-                   (map #(let [v (get data %)] [(count v) v]) cids))
-         ccsz (count ccs)
+                   (map #(let [v (get data %)] [(n# v) v]) cids))
+         ccsz (n# ccs)
          [_ c0] (if (pos? ccsz) (first ccs))]
         ;;use the shortest cache as the baseline
         (when (some? c0)
@@ -258,26 +258,26 @@
                (map (fn [a] (vec a)))
                (vec)
                (into {})
-               (merge (:templates %))
-               (assoc % :templates))) ecs)
+               (merge (::templates %))
+               (assoc % ::templates))) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getTemplateKeys "" [ecs] (keys (:templates @ecs)))
+(defn getTemplateKeys "" [ecs] (keys (::templates @ecs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn findTemplate
-  "" [ecs templateId] (get (:templates @ecs) templateId))
+  "" [ecs templateId] (get (::templates @ecs) templateId))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeTemplate "" [ecs id & moreIds]
   (swap! ecs
          #(assoc %
-                 :templates
-                 (apply dissoc (concat [(:templates %) id] moreIds)))) ecs)
+                 ::templates
+                 (apply dissoc (concat [(::templates %) id] moreIds)))) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createTemplateEntity "" [ecs id]
-  (let [{:keys [components initor] :as t} (get (:templates @ecs) id)
+  (let [{:keys [::components ::initor] :as t} (get (::templates @ecs) id)
         e (if (some? t) (apply createEntity (concat [ecs] components)))]
     (if (and (some? e)
              (fn? initor)) (initor ecs e)) e))
@@ -285,22 +285,22 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addSystem "" [ecs system & more]
   (swap! ecs #(assoc %
-                     :systems
-                     (concat (:systems %) (concat [system] more)))) ecs)
+                     ::systems
+                     (concat (::systems %) (concat [system] more)))) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeSystem "" [ecs system & more]
   (let [yy (concat [system] more)]
     (swap! ecs
            (fn [root]
-             (->> (:systems root)
+             (->> (::systems root)
                   (filter (fn [s] (not-any?
                                     #(identical? % s) yy)))
-                  (assoc root :systems)))) ecs))
+                  (assoc root ::systems)))) ecs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateECS "" [ecs dt]
-  (doseq [s (:systems @ecs)] (s ecs dt)) ecs)
+  (doseq [s (::systems @ecs)] (s ecs dt)) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

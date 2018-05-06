@@ -29,90 +29,49 @@
             [czlab.elmo.afx.ebus :as ebus]
             [clojure.string :as cs]
             [goog.object :as go]
-            [oops.core :refer [oget oset! ocall oapply
-                               ocall! oapply! oget+
-                               oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- cfgStyleObj "" [ctx styleObj]
-  (oset! ctx "strokeStyle" (oget styleObj "?stroke?style"))
-  (oset! ctx "lineWidth" (oget styleObj "?line?width")))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn circle "" [x y radius] {:x x :y y :radius radius})
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn drawCircle "" [circle ctx styleObj]
-  (ocall ctx "beginPath")
-  (cfgStyleObj ctx styleObj)
-  (ocall ctx
-         "arc" (:x circle) (:y circle)
-         (:radius circle) 0, (* 2 js/Math.PI) true)
-  (ocall ctx "stroke"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn line "" [x1 y1 x2 y2] {:x1 x1 :y1 y1 :x2 x2 :y2 y2})
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn drawLine "" [line ctx styleObj]
-  (ocall ctx "beginPath")
-  (ocall ctx "moveTo" (:x1 line) (:y1 line))
-  (ocall ctx "lineTo" (:x2 line) (:y2 line))
-  (cfgStyleObj ctx styleObj)
-  (if (some? (oget styleObj "?line?cap"))
-      (oset! ctx "lineCap" (oget styleObj "?line?cap")))
-  (ocall ctx "stroke"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn point2d "" [x y] {:x x :y y})
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn area2d "" [x y width height] {:x x :y y :width width :height height})
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn textStyle "" []
-  {:font "14px 'Arial'" :fill "#dddddd" :align "left" :base "top" })
+            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn radToDeg "" [rad] (* 180 (/ rad js/Math.PI)))
 (defn degToRad "" [deg] (* deg (/ js/Math.PI 180)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vector2 "" [x1 y1 x2 y2] {:x (- x2 x1) :y (- y2 y1)})
+(defn vec2 "" [x1 y1 x2 y2] {:x (- x2 x1) :y (- y2 y1)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn multVector2
+(defn multVec2
   "Scalar multiplication."
-  [this n]
-  (vector2 0 0 (* n (:x this)) (* n (:y this))))
+  [v2 n]
+  (vec2 0 0 (* n (:x v2)) (* n (:y v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rotateVector2
-  "Transpose and rotate." [this cx cy deg]
-  (let [rad (degToRad deg)]
-    (vector2 0 0
-             (+ cx (- (* (js/Math.cos rad) (- (:x this) cx))
-                      (* (js/Math.sin rad) (- (:y this) cy))))
-             (+ cy (+ (* (js/Math.sin rad) (- (:x this) cx))
-                      (* (js/Math.cos rad) (- (:y this) cy)))))))
+(defn rotateVec2
+  "Transpose and rotate." [v2 cx cy deg]
+  (let [{:keys [x y]} v2
+        rad (degToRad deg)]
+    (vec2 0 0
+          (+ cx (- (* (js/Math.cos rad) (- x cx))
+                   (* (js/Math.sin rad) (- y cy))))
+          (+ cy (+ (* (js/Math.sin rad) (- x cx))
+                   (* (js/Math.cos rad) (- y cy)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn lengthVector2
-  "Calculate the length of this vector." [this]
-    (js/Math.sqrt (* (:x this)(:x this))
-                  (* (:y this)(:y this))))
+(defn lengthVec2
+  "Calculate the length of this vector." [v2]
+  (let [{:keys [x y]} v2]
+    (js/Math.sqrt (+ (* x x) (* y y)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn plusVector2
-  "Add 2 vectors together." [this v2]
-  (vector2 0 0
-           (+ (:x this)(:x v2)) (+ (:y this) (:y v2))))
+(defn plusVec2
+  "Add 2 vectors together." [v1 v2]
+  (vec2 0 0
+        (+ (:x v1)(:x v2)) (+ (:y v1) (:y v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn minusVector2
-  "Subtract another vector." [this v2]
-  (vector2 0 0
-           (- (:x this)(:x v2)) (- (:y this) (:y v2))))
+(defn minusVec2
+  "Subtract another vector." [v1 v2]
+  (vec2 0 0
+        (- (:x v1)(:x v2)) (- (:y v1) (:y v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (declare bbox bbox4)
@@ -120,6 +79,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn debug* "" [& msgs] (cc.log (apply str msgs)))
 (defn info* "" [& msgs] (cc.log (apply str msgs)))
+(defn warn* "" [& msgs] (cc.log (apply str msgs)))
+(defn error* "" [& msgs] (cc.log (apply str msgs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn isIntersect? "" [a1 a2]
@@ -182,8 +143,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collide?
-  "Test collision of 2 entities using cc-rects.  Each entity
-  wraps a sprite object."
+  "Test collision of 2 entities using cc-rects."
   [a b]
   (cond (and (sprite? a) (sprite? b))
         (collide? (bbox a) (bbox b))
@@ -260,8 +220,8 @@
 (defn outOfBound?
   "Test if this entity is out of bound."
   [ent B]
-  (let [a (bbox4 ent)
-        b (or B (vbox))]
+  (let [b (bbox4 B)
+        a (bbox4 ent)]
     (or (> (oget-left a)(oget-right b))
         (< (oget-top a)(oget-bottom b))
         (< (oget-right a)(oget-left b))
@@ -272,19 +232,19 @@
   "Maybe release this timer."
   [p t]
   (if (and (native?)
-           (some? t)) (ocall t "release")) nil)
+           (some? t)) (ocall! t "release")) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createTimer
   "Create a timer action."
   [p t]
-  (do-with [rc (ocall p
-                      "runAction"
-                      (new js/cc.DelayTime t))] (if (native?)
-                                                  (ocall rc "retain"))))
+  (do-with [rc (ocall! p
+                       "runAction"
+                       (new js/cc.DelayTime t))] (if (native?)
+                                                   (ocall! rc "retain"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn timerDone
+(defn timerDone?
   "Test if this timer is done."
   [t] (and (some? t) (ocall t "isDone")))
 
@@ -356,43 +316,41 @@
     (raise! "bad call spriteBBox")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getBottom "" [obj] (oget-y (spriteBBox obj)))
+(defn getBottom "" [obj] (oget-bottom (spriteBBox4 obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getLeft "" [obj] (oget-x (spriteBBox obj)))
+(defn getLeft "" [obj] (oget-left (spriteBBox4 obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getRight "" [obj]
-  (let [b (spriteBBox obj)] (+ (oget-x b) (oget-width b))))
+(defn getRight "" [obj] (oget-right (spriteBBox4 obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getTop "" [obj]
-  (let [b (spriteBBox obj)] (+ (oget-y b) (oget-height b))))
+(defn getTop "" [obj] (oget-top (spriteBBox4 obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn traceEnclosure
   "Test if this box is hitting boundaries.
-  rect.x & y are center positioned.
   If hit, the new position and velocities are returned."
   [dt bbox4 rect vel]
-  (let [[sw sz] (half-size* rect)
+  (let [[hw hh] (half-size* rect)
+        pt (vboxMID rect)
         vx (oget-x vel)
         vy (oget-y vel)
-        y (+ (oget-y rect) (* dt vy))
-        x (+ (oget-x rect) (* dt vx))
+        y (+ (oget-y pt) (* dt vy))
+        x (+ (oget-x pt) (* dt vx))
         [x1 y1 vx1 vy1 t?]
         (cond
-          (> (+ y sz) (oget-top bbox4)) ;;hitting top wall
-          [x (- (oget-top bbox4) sz) vx (- vy) true]
-          (< (- y sz) (oget-bottom bbox4)) ;;hitting bottom wall
-          [x (+ (oget-bottom bbox4) sz) vx (- vy) true]
+          (> (+ y hh) (oget-top bbox4)) ;;hitting top wall
+          [x (- (oget-top bbox4) hh) vx (- vy) true]
+          (< (- y hh) (oget-bottom bbox4)) ;;hitting bottom wall
+          [x (+ (oget-bottom bbox4) hh) vx (- vy) true]
           :else [x y vx vy false])
         [x2 y2 vx2 vy2 t2?]
         (cond
-          (> (+ x sw) (oget-right bbox4)) ;;hitting right wall
-          [(- (oget-right bbox4) sw) y1 (- vx1) vy1 true]
-          (< (- x sw) (oget-left bbox4)) ;;hitting left wall
-          [(+ (oget-left bbox4) sw) y1 (- vx1) vy1 true]
+          (> (+ x hw) (oget-right bbox4)) ;;hitting right wall
+          [(- (oget-right bbox4) hw) y1 (- vx1) vy1 true]
+          (< (- x hw) (oget-left bbox4)) ;;hitting left wall
+          [(+ (oget-left bbox4) hw) y1 (- vx1) vy1 true]
           :else
           [x1 y1 vx1 vy1 t?])]
     [x2 y2 vx2 vy2 t2?]))
@@ -411,7 +369,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hasKeyPad? "" []
   (and (not-native?)
-       (some? (oget js/cc.sys.capabilities "keyboard"))))
+       (some? (oget js/cc.sys.capabilities ".?keyboard"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn onKeyPolls "" [kb]
@@ -425,12 +383,12 @@
   (if (hasKeyPad?)
     (subEvent js/cc.EventListener.KEYBOARD
               #js{:onKeyPressed (fn [key e]
-                                  (ebus/pub bus "key.down" [key e]))
+                                  (ebus/pub bus "key.down" key e))
                   :onKeyReleased (fn [key e]
-                                   (ebus/pub bus "key.up" [key e]))})))
+                                   (ebus/pub bus "key.up" key e))})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn hasMouse? "" [] (some? (oget js/cc.sys.capabilities "mouse")))
+(defn hasMouse? "" [] (some? (oget js/cc.sys.capabilities ".?mouse")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn onMouse "" [bus]
@@ -447,7 +405,7 @@
                   (fn [e] (ebus/pub bus "mouse.up" e))})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn hasTouch? "" [] (some? (oget js/cc.sys.capabilities "touches")))
+(defn hasTouch? "" [] (some? (oget js/cc.sys.capabilities ".?touches")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn onTouchAll "" [bus]
@@ -457,15 +415,15 @@
                   :onTouchesBegan (fn [ts e] true)
                   :onTouchesEnded
                   (fn [ts e]
-                    (ebus/pub bus "touch.all.end" [ts e]))
+                    (ebus/pub bus "touch.all.end" ts e))
                   :onTouchesMoved
                   (fn [ts e]
                     (this-as
                       self
                       (let [id (oget-id (aget ts 0))]
-                        (if (not= (oget self "prevTouchId") id)
+                        (if (not= (oget self ".?prevTouchId") id)
                           (oset! self "prevTouchId" id)
-                          (ebus/pub bus "touch.all.move" [ts e])))))})))
+                          (ebus/pub bus "touch.all.move" ts e)))))})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn onTouchOne "" [bus]
@@ -475,10 +433,10 @@
                   :onTouchBegan (fn [t e] true)
                   :onTouchMoved
                   (fn [t e]
-                    (ebus/pub bus "touch.one.move" [t e]))
+                    (ebus/pub bus "touch.one.move" t e))
                   :onTouchEnded
                   (fn [t e]
-                    (ebus/pub bus "touch.one.end" [t e]))})))
+                    (ebus/pub bus "touch.one.end" t e))})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def *anchor-center* 1)
@@ -508,10 +466,27 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;cc.Node stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn removeAll! "" [node] (ocall node "removeAllChildren"))
-(defn remove! "" [child] (ocall child "removeFromParent"))
+(defn removeAll! "" [node] (ocall! node "removeAllChildren"))
+(defn remove! "" [child] (ocall! child "removeFromParent"))
 ;(defn gcbyn "" [p n] (ocall p "getChildByName" n))
 ;(defn gcbyt "" [p t] (ocall p "getChildByTag" t))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addItem "" [node child & [tag zOrder]]
+  (if (and (instance? js/cc.SpriteBatchNode node)
+           (sprite? child))
+      (ocall! child "setBatchNode" node))
+  (ocall! node
+          "addChild"
+          child
+          (if (number? zOrder) zOrder js/undefined)
+          (if (or (string? tag)(number? tag)) tag js/undefined))
+  child)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn batchNode* "" [img]
+  (new js/cc.SpriteBatchNode
+       (js/cc.textureCache.addImage img)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addSpriteFrames* "" [plist]
@@ -523,11 +498,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- setXXX! "" [node & [options]]
   (let [{:keys [scale color pos anchor show?]} options]
-    (if (some? anchor) (ocall node "setAnchorPoint" anchor))
-    (if (some? color) (ocall node "setColor" color))
-    (if (some? pos) (ocall node "setPosition" pos))
-    (if-not show? (ocall node "setVisible" false))
-    (if (number? scale) (ocall node "setScale" scale)) node))
+    (if (some? anchor) (ocall! node "setAnchorPoint" anchor))
+    (if (some? color) (ocall! node "setColor" color))
+    (if (some? pos) (ocall! node "setPosition" pos))
+    (if-not show? (ocall! node "setVisible" false))
+    (if (number? scale) (ocall! node "setScale" scale)) node))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn misprite* "" [nnn cb & [sss ddd ctx]]
@@ -551,7 +526,7 @@
               :let [mi (new js/cc.MenuItemLabel
                             (bmfText* text font) cb ctx)]]
         (if (some? color) (.setColor mi color))
-        (.addChild menu mi))
+        (addItem menu mi))
       (setXXX! menu options)
       (if flat?
         (.alignItemsHorizontally menu)
@@ -568,7 +543,7 @@
       (doseq [{:keys [cb ctx
                       nnn sss ddd]} items
               :let [mi (misprite* nnn cb sss ddd ctx)]]
-        (.addChild menu mi))
+        (addItem menu mi))
       (setXXX! menu options)
       (if flat?
         (.alignItemsHorizontallyWithPadding menu padding)
@@ -589,7 +564,7 @@
          :levels {}
          :images {:czlab "core/ZotohLab.png"
                   :preloader "core/preloader_bar.png"}
-         :sprites { }
+         :atlases { }
          :tiles { }
          :sounds {}
          :fonts {}
@@ -653,7 +628,7 @@
   (oset! js/LZString "locale" js/cc.sys.language)
   (oset! js/LZString "defaultLocale" "en")
   (js/LZString.toLocaleString table)
-  (info* "Loaded l10n strings. locale = " (oget js/LZString "locale")))
+  (info* "Loaded l10n strings. locale = " (oget js/LZString ".?locale")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn l10n
@@ -674,7 +649,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fire! "" [topic & args]
   (if-some [g (deref *main-game*)]
-    (if-some [bus (oget g "?ebus")]
+    (if-some [bus (oget g ".?ebus")]
       (apply ebus/pub bus (concat [topic] args)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -714,15 +689,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setSfx! "" [v]
-  (swap! *xcfg*
-         #(update-in %
-                     [:sound :open?] (fn [_] v))))
+  (swap! *xcfg* #(assoc-in % [:sound :open?] v)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn toggleSfx! "" []
   (swap! *xcfg*
          #(update-in %
                      [:sound :open?] (fn [b] (not b)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sfxOn? "" [] (get-in @*xcfg* [:sound :open?]))
 
@@ -744,15 +718,14 @@
       (sfxMusicVol vol)
       (js/cc.audioEngine.playEffect (getCfgXXX [:sounds] key) repeat?))))
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sfxCancel "" []
+(defn sfxCancel! "" []
   (js/cc.audioEngine.stopMusic)
   (js/cc.audioEngine.stopAllEffects))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sfxInit "" []
-  (sfxMusicVol (get-in @*xcfg* [:sound :volume])))
+  (sfxMusicVol (getCfgXXX [:audio] :volume)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sanitizeUrlForDevice "" [url] url)
@@ -765,33 +738,22 @@
     (sanitizeUrlForWeb url) (sanitizeUrlForDevice url)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getImage "" [key] (str "res/" (get-in @*xcfg* [:images key])))
-(defn getTile "" [key] (str "res/" (get-in @*xcfg* [:tiles key])))
-(defn getFontDef "" [key]
-  (str "res/" (first (get-in @*xcfg* [:fonts key]))))
-(defn getFontImg "" [key]
-  (let [s (getFontDef key)]
-    (cs/replace (getFontDef key) #"\.fnt$" ".png")))
-(defn getSound "" [key]
-  (let [ext (get-in @*xcfg* [:game :sfx])]
-    (str "res/" (get-in @*xcfg* [:sounds key]) "." ext)))
-(defn getPList "" [key] (str "res/" (get-in @*xcfg* [:plists key])))
+(defn getAtlasDef "" [key] (str "res/" (_1 (getCfgXXX [:atlases] key))))
+(defn getAtlasImg "" [key] (cs/replace (getAtlasDef key) #"\.plist$" ".png"))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addItem "" [node child & [tag zOrder]]
-  (if (and (instance? js/cc.SpriteBatchNode node)
-           (sprite? child))
-      (ocall child "setBatchNode" node))
-  (ocall node
-         "addChild"
-         child
-         (if (number? zOrder) zOrder js/undefined)
-         (if (or (string? tag)(number? tag)) tag js/undefined))
-  child)
+(defn getImage "" [key] (str "res/" (getCfgXXX [:images] key)))
+(defn getTile "" [key] (str "res/" (getCfgXXX [:tiles] key)))
+
+(defn getFontDef "" [key] (str "res/" (_1 (getCfgXXX [:fonts] key))))
+(defn getFontImg "" [key] (cs/replace (getFontDef key) #"\.fnt$" ".png"))
+
+(defn getSound "" [key]
+  (->> (getCfgXXX [:game] :sfx)
+       (str "res/" (getCfgXXX [:sounds] key) ".")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn xlive "" [img & [options]]
-  (let [s (sprite* img)] (setXXX! s options)))
+  (do-with [s (sprite* img)] (setXXX! s options)))
 
   ;create() { const dummy = new XLive(0,0,this.options); this.lifeSize = { width: ccsx.getScaledWidth(dummy), height: ccsx.getScaledHeight(dummy) } ; this.drawLives(); }
 
@@ -813,7 +775,7 @@
              (merge root {:icons c :curLives n})))) g)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn countLives "" [g] (get-in @g [:curLives]))
+(defn countLives "" [g] (:curLives @g))
 (defn noLives? "" [g] (pos? (countLives g)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -846,11 +808,6 @@
         (merge root {:icons icons})))) g)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn batchNode* "" [img]
-  (new js/cc.SpriteBatchNode
-       (js/cc.textureCache.addImage img)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addAudioIcon "" [node yes no & [options]]
   (let
     [cb #(setSfx!
@@ -858,10 +815,10 @@
      off (misprite* no nil)
      on (misprite* yes nil)
      audio (mitoggle* on off cb)]
-    (ocall audio "setSelectedIndex" (if (sfxOn?) 0 1))
+    (ocall! audio "setSelectedIndex" (if (sfxOn?) 0 1))
     (let [menu (new js/cc.Menu audio)]
       (setXXX! menu options)
-      (ocall node "addChild" menu))))
+      (addItem node menu))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn quit! "" [ctor]
@@ -874,12 +831,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn centerImage "" [node frame]
   (let [bg (sprite* frame)]
-    (setXXX! bg {:pos (centerPos)})
-    (ocall node "addChild" bg)))
+    (setXXX! bg {:pos (centerPos)}) (addItem node bg)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateScore "" [node score]
-  (ocall node "setString" (numStr score)))
+  (ocall! node "setString" (numStr score)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pegToAnchor "" [node where]
@@ -901,10 +857,7 @@
     (set! *main-game* y)
     y))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
 ;import Cookies from 'Cookies';
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mkScore [n v] {:value (js/Number (cs/trim v)) :name (cs/trim n) })
@@ -919,17 +872,17 @@
                    (reduce
                      (fn [acc z]
                        (let [a (cs/split (or z "") ":")]
-                         (if (= 2 (count a))
+                         (if (= 2 (n# a))
                            (conj acc (mkScore (_1 a) (_2 a))) acc)))
                      []
                      (cs/split s "|")))) hs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn resetHighScores "" [hg]
-  (swap! hg #(assoc % :scores [])) hg)
+(defn resetHighScores! "" [hg]
+  (swap! hg #(assoc-in % [:scores] [])) hg)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn writeHighScores "" [hg]
+(defn writeHighScores! "" [hg]
   (let [{:keys [KEY scores duration]} @hg]
     (js/Cookies.set KEY
                     (->> (map #(str (:name %)
@@ -940,44 +893,44 @@
     hg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- hasSlotsHighScores
+(defn- hasSlotsHighScores?
    "Test if there is more room to store a new high score." [hg]
-   (let [{:keys [scores size]} @hg] (< (count scores) size)))
+   (let [{:keys [scores size]} @hg] (< (n# scores) size)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn canAddHighScores
+(defn canAddHighScores?
   "Test if we can add this score to the list of highscores."
   [hg score]
 
-  (or (hasSlotsHighScores hg)
+  (or (hasSlotsHighScores? hg)
       (some #(< (:value %) score) (:scores @hg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn insertHighScores "" [hg name score]
+(defn insertHighScores! "" [hg name score]
   (let [s (mkScore (or name "???") score)
         {:keys [scores]} @hg
-        len (count scores)]
-    (when-not (hasSlotsHighScores hg)
+        len (n# scores)]
+    (when-not (hasSlotsHighScores? hg)
       (loop [i (dec len) arr nil]
         (if (some? arr)
-          (swap! hg #(assoc % :scores (js->clj arr)))
+          (swap! hg #(assoc-in % [:scores] (js->clj arr)))
           (if-not (neg? i)
             (recur (dec i)
                    (if (< (:value (nth scores i)) score)
                      (.splice (clj->js scores) i 1)))))))
-    (when (hasSlotsHighScores hg)
+    (when (hasSlotsHighScores? hg)
       (swap! hg
              (fn [{:keys [scores] :as root}]
-               (assoc root
-                      :scores
-                      (sort (fn [a b]
-                              (cond (< (:value a) (:value b)) -1
-                                    (> (:value a) (:value b)) 1 :else 0))
-                            (conj scores s)))))
-      (writeHighScores hg))))
+               (assoc-in root
+                         [:scores]
+                         (sort (fn [a b]
+                                 (cond (< (:value a) (:value b)) -1
+                                       (> (:value a) (:value b)) 1 :else 0))
+                               (conj scores s)))))
+      (writeHighScores! hg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dbHighScores "" [key size & [duration]]
+(defn fmtHighScores "" [key size & [duration]]
   {:duration (or duration (* 60 60 24 1000)) :size size :scores [] :KEY key })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1021,7 +974,7 @@
     ;;[head, tail, state] snapshot info used by
     ;;each iteration as we chunk up the unput
     (aset pres 0 0)
-    (aset pres 1 (js/Math.min *CHUNK* (count res)))
+    (aset pres 1 (js/Math.min *CHUNK* (n# res)))
     (aset pres 2 false)
     (oset! scene "_count" 0)
     (ocall! scene "schedule" func 0.25)
@@ -1029,12 +982,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pkLoad "" [scene]
-  (let [logo (sprite* "cocos2d/pics/ZotohLab.png")
+  (let [logo (sprite* "core/ZotohLab.png")
         sz (csize logo)
         cp (centerPos)
         y (gcbyn scene "bgLayer")
         pg (new js/cc.ProgressTimer
-                (sprite* "cocos2d/pics/preloader_bar.png"))]
+                (sprite* "core/preloader_bar.png"))]
     (setXXX! logo {:pos cp})
     (addItem y logo "logo")
     (ocall! pg "setType" js/cc.ProgressTimer.TYPE_BAR)
@@ -1060,34 +1013,31 @@
                :_count 0
                :_pres (array nil nil nil)
                :onEnter
-               #(this-as me
-                         (do (.call js/cc.Node.prototype.onEnter me)
-                             (ocall! me "scheduleOnce" func 0.3 "pkLoad")))
+               #(do (.call js/cc.Node.prototype.onEnter s)
+                    (ocall! s "scheduleOnce" func 0.3 "pkLoad"))
                :onExit
-               #(this-as me (.call js/cc.Node.prototype.onExit me))
+               #(.call js/cc.Node.prototype.onExit s)
                :update
-               #(this-as
-                  me
-                  (let [_ %
-                        res (oget me "_resources")
-                        len (count res)
-                        pg (gcbyn me "progress")
-                        cnt (oget me "_count")
-                        pres (oget me "_pres")
-                        ratio (/ cnt len)
-                        perc (js/Math.min (* ratio 100) 100)]
-                    (ocall! pg "setPercentage" perc)
-                    (cond
-                      (>= cnt len) ;;done
-                      (do (ocall! me "unscheduleUpdate")
-                          (niceFadeOut me))
-                      (nth pres 2)
-                      (let [s (nth pres 1)
-                            e (+ s (js/Math.min *CHUNK* (- len s)))]
-                        (aset pres 0 s)
-                        (aset pres 1 e)
-                        (aset pres 2 false)
-                        (loadChunk me)))))}) s))
+               #(let [_ %
+                      res (oget s "_resources")
+                      len (n# res)
+                      pg (gcbyn s "progress")
+                      cnt (oget s "_count")
+                      pres (oget s "_pres")
+                      ratio (/ cnt len)
+                      perc (js/Math.min (* ratio 100) 100)]
+                  (ocall! pg "setPercentage" perc)
+                  (cond
+                    (>= cnt len) ;;done
+                    (do (ocall! s "unscheduleUpdate")
+                        (niceFadeOut s))
+                    (nth pres 2)
+                    (let [x (nth pres 1)
+                          e (+ x (js/Math.min *CHUNK* (- len x)))]
+                      (aset pres 0 x)
+                      (aset pres 1 e)
+                      (aset pres 2 false)
+                      (loadChunk s))))}) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def *gloader* nil)

@@ -19,6 +19,9 @@
               (catch js/Object e2 nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro n# "" [c] `(count ~c))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro _1 "Refer to first." [x] `(first ~x))
 (defmacro _2 "Refer to second." [x] `(second ~x))
 (defmacro _3 "Refer to 3rd." [x] `(nth ~x 2))

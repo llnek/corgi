@@ -55,30 +55,58 @@
                      (fn [] ((oget scene "_callback")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- preloadImages "" []
+  (reduce #(conj %1 (cx/getImage %2)) [] (keys (:images @*xcfg*))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- preloadTiles "" []
+  (reduce #(conj %1 (cx/getTile %2)) [] (keys (:tiles @*xcfg*))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- preloadSounds "" []
+  (reduce #(conj %1 (cx/getSound %2)) [] (keys (:sounds @*xcfg*))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- preloadFonts "" []
+  (reduce (fn [acc k]
+            (conj acc
+                  (cx/getFontImg k)
+                  (cx/getFontDef k))) [] (keys (:fonts @*xcfg*))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- preloadAtlases "" []
+  (reduce (fn [acc k]
+            (conj acc
+                  (cx/getAtlasImg k)
+                  (cx/getAtlasDef k))) [] (keys (:atlases @*xcfg*))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- gatherPreloads "" []
+  (concat (preloadImages)
+          (preloadTiles)
+          (preloadFonts)
+          (preloadSounds)
+          (preloadAtlases)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- bootLoaderScene
   "Hack to suppress the showing of cocos2d's logo,
   instead, we load our own logo and progress bar.
   Then we run another loading scene which actually
   loads the game assets - updating the progress bar."
   []
-  (let [res [(cx/getImage :czlab) (cz/getImage :preloader)]
-        {:keys [runOnce startScene]} @*xcfg*
-        cb #(cx/preload
-              (pvGatherPreloads)
-              #(do (runOnce)
-                   (js/cc.director.runScene (startScene))))
-        ;;create the boot scene
+  (let [{:keys [runOnce startScene]} @*xcfg*
         scene (js/cc.Scene)
         func #(_startLoading scene %)]
-    (->>
-      #js{:init #(.call js/cc.Scene.prototype.init scene)
-          :_resources res
-          :_callback cb
-          :onEnter
-          #(do (.call js/cc.Node.prototype.onEnter scene)
-               (ocall scene "scheduleOnce" func 0.3))
-          :onExit #(.call js/cc.Node.prototype.onExit scene)}
-      (attrs* scene))
+    (attrs* scene
+            #js{:_resources [(cx/getImage :czlab) (cz/getImage :preloader)]
+                :_callback #(cx/preload
+                              (gatherPreloads)
+                              #(do (runOnce) (js/cc.director.runScene (startScene))))
+                :init #(.call js/cc.Scene.prototype.init scene)
+                :onEnter #(do (.call js/cc.Node.prototype.onEnter scene)
+                              (ocall scene "scheduleOnce" func 0.3))
+                :onExit #(.call js/cc.Node.prototype.onExit scene)})
     scene))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -119,9 +147,9 @@
         ;(cx/l10nInit)
         ;(sfxInit)
         (let [rs (js/cc.view.getDesignResolutionSize)]
-          (cx/info* "DesignResolution, = [" (oget-width rs) ", " (oget-height rs) "]")
+          (cx/info* "DesignResolution, = ["
+                    (oget-width rs) ", " (oget-height rs) "]")
           (cx/info* "loaded and running. OK"))))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

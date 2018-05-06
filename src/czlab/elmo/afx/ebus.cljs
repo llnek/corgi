@@ -58,17 +58,17 @@
       (mapcat (split* topic)) (vec) (conj ::subcs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- run "" [subcs msgTopic msg]
+(defn- run "" [subcs msgTopic msgs]
   (doseq [[_ z] subcs
           :let [{:keys [::repeat? ::topic
                         ::action ::status]} z]
           :when (pos? @status)]
-    (action topic msgTopic msg)
+    (apply action (concat [topic msgTopic] msgs))
     ;for one time only subsc, flag it dead
     (if-not repeat? (reset! status -1))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- walk "" [branch path topic msg tst]
+(defn- walk "" [branch path topic msgs tst]
   (let [{:keys [::levels ::subcs]} branch
         [p & more] path
         cur (get levels p)
@@ -79,22 +79,22 @@
     (when s2
       (if (some? tst)
         (swap! tst inc)
-        (run (::subcs s2) topic msg)))
+        (run (::subcs s2) topic msgs)))
     (if s1
       (cond (and (empty? more)
                  (empty? s1c))
             (if (some? tst)
               (swap! tst inc)
-              (run (::subcs s1) topic msg))
+              (run (::subcs s1) topic msgs))
             (and (not-empty s1c)
                  (not-empty more))
-            (walk s1 more topic msg tst)))
+            (walk s1 more topic msgs tst)))
     (when (some? cur)
       (if (not-empty more)
-        (walk cur more topic msg tst)
+        (walk cur more topic msgs tst)
         (if (some? tst)
           (swap! tst inc)
-          (run (::subcs cur) topic msg))))))
+          (run (::subcs cur) topic msgs))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- resume* "Flag subscriber on" [bus hd]
@@ -136,13 +136,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pub
-  "Send a message" [bus topic msg]
+  "Send a message" [bus topic & msgs]
   (if (= ::rv (::qos @bus))
     (if-some+
-      [path (split* topic)] (walk @bus path topic msg nil))
+      [path (split* topic)] (walk @bus path topic msgs nil))
     (if-some [sub
               (get-in @bus
-                      [::topics topic])] (run sub topic msg))))
+                      [::topics topic])] (run sub topic msgs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn resume
