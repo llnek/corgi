@@ -100,7 +100,7 @@
         func #(_startLoading scene %)]
     (attrs* scene
             #js{:_resources [(cx/getImage :czlab) (cz/getImage :preloader)]
-                :_callback #(cx/preload
+                :_callback #(cx/preloader
                               (gatherPreloads)
                               #(do (runOnce) (js/cc.director.runScene (startScene))))
                 :init #(.call js/cc.Scene.prototype.init scene)

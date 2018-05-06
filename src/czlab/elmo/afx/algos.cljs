@@ -28,11 +28,11 @@
 (defprotocol BoardGame
   (isGameOver? [board game])
   (evalScore [board game])
-  (nextMoves [boardgame] )
-  (makeMove "" [board game move] )
+  (nextMoves [board game] )
+  (makeMove [board game move] )
   (switchPlayer [board game] )
-  (undoMove "" [board game move])
-  (takeSnapshot "" [board] ))
+  (undoMove [board game move])
+  (takeSnapshot [board] ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- negamax* "" [board game maxDepth depth alpha beta]
@@ -40,7 +40,7 @@
         sz (n# attempts)
         m1 (car attempts)]
     (if (= depth maxDepth)
-      (swap! game #(assoc-in % [:lastBestMove] m1)))
+      (swap! game #(assoc % :lastBestMove m1)))
     (loop [n 0
            break? false
            bestValue' (- PINF)
@@ -59,7 +59,7 @@
                   (undoMove game move))
               bestValue'' (max bestValue' rc )]
           (if (< alpha' rc)
-            (do (if (= depth maxDepth) (swap! game #(assoc-in % [:lastBestMove] move)))
+            (do (if (= depth maxDepth) (swap! game #(assoc % :lastBestMove move)))
                 (recur (inc n) (if (>= rc beta') true break?) bestValue'' move rc beta'))
             (recur (inc n) break? bestValue'' bestMove' alpha' beta')))))))
 

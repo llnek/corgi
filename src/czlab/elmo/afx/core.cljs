@@ -13,6 +13,7 @@
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 car defmonad]])
   (:require [clojure.string :as cs]
+            [clojure.set :as cst]
             [goog.string :as gs]
             [goog.crypt.base64 :as b64]
             [oops.core :refer [oget oset! ocall oapply
@@ -183,7 +184,7 @@
              (cond (and (map? vb) (map? va))
                    (deepMerge va vb)
                    (and (set? vb) (set? va))
-                   (clojure.set/union va vb)
+                   (cst/union va vb)
                    :else vb))
            (assoc! tmp k)))
     (persistent! tmp)))

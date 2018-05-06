@@ -14,9 +14,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro trye!
   "Wrap try around code and eat exception."
-  [& xs] `(try ~@xs
-              (catch js/Error e1 nil)
-              (catch js/Object e2 nil)))
+  [& xs]
+  `(try ~@xs (catch ~'js/Error ~'e1 nil) (catch ~'js/Object ~'e2 nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro n# "" [c] `(count ~c))

@@ -17,9 +17,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- cfgStyle! "" [ctx styleObj]
-  (doto ctx
-    (oset! "strokeStyle" (oget styleObj ".?stroke.?style"))
-    (oset! "lineWidth" (oget styleObj ".?line.?width"))))
+  (oset! ctx "lineWidth" (oget styleObj "?line" "?width"))
+  (oset! ctx "strokeStyle" (oget styleObj "?stroke" "?style")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn circle "" [x y radius] {:x x :y y :radius radius})
@@ -44,8 +43,7 @@
     (ocall! ctx "moveTo" x1 y1)
     (ocall! ctx "lineTo" x2 y2)
     (cfgStyle! ctx styleObj)
-    (if (some? (oget styleObj ".?line.?cap"))
-      (oset! ctx "lineCap" (oget styleObj ".?line.?cap")))
+    (if-some [x (oget styleObj "?line" "?cap")] (oset! ctx "!lineCap" x))
     (ocall! ctx "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -13,7 +13,7 @@
 
   (:refer-clojure :exclude [contains?])
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 _2 do-with numStr]]
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [n# _1 _2 do-with numStr]]
                    [czlab.elmo.afx.ccsx
                     :as cx :refer [oget-x oget-y oget-piccy
                                    oget-bottom oget-right
@@ -25,7 +25,7 @@
                                    oget-left oget-top oget-id
                                    oget-width oget-height
                                    snode? bbox? bbox4? sprite?]])
-  (:require [czlab.elmo.afx.core :as ec :refer [xmod raise!]]
+  (:require [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
             [czlab.elmo.afx.ebus :as ebus]
             [clojure.string :as cs]
             [goog.object :as go]
@@ -57,9 +57,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn lengthVec2
-  "Calculate the length of this vector." [v2]
-  (let [{:keys [x y]} v2]
-    (js/Math.sqrt (+ (* x x) (* y y)))))
+  "Calculate the length of this vector."
+  [v2] (let [{:keys [x y]} v2] (js/Math.sqrt (+ (* x x) (* y y)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn plusVec2
@@ -364,12 +363,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- subEvent
-  "" [e obj] (js/cc.eventManager.addListener (oset! obj "event" e)))
+  "" [e obj] (js/cc.eventManager.addListener (oset! obj "!event" e)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hasKeyPad? "" []
   (and (not-native?)
-       (some? (oget js/cc.sys.capabilities ".?keyboard"))))
+       (some? (oget js/cc.sys.capabilities "?keyboard"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn onKeyPolls "" [kb]
@@ -388,7 +387,7 @@
                                    (ebus/pub bus "key.up" key e))})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn hasMouse? "" [] (some? (oget js/cc.sys.capabilities ".?mouse")))
+(defn hasMouse? "" [] (some? (oget js/cc.sys.capabilities "?mouse")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn onMouse "" [bus]
@@ -405,32 +404,31 @@
                   (fn [e] (ebus/pub bus "mouse.up" e))})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn hasTouch? "" [] (some? (oget js/cc.sys.capabilities ".?touches")))
+(defn hasTouch? "" [] (some? (oget js/cc.sys.capabilities "?touches")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn onTouchAll "" [bus]
   (if (hasTouch?)
-    (subEvent js/cc.EventListener.TOUCH_ALL_AT_ONCE
-              #js{:prevTouchId -1
-                  :onTouchesBegan (fn [ts e] true)
+    (let [obj #js{:onTouchesBegan (fn [ts e] true)
+                  :prevTouchId -1
                   :onTouchesEnded
                   (fn [ts e]
-                    (ebus/pub bus "touch.all.end" ts e))
-                  :onTouchesMoved
-                  (fn [ts e]
-                    (this-as
-                      self
-                      (let [id (oget-id (aget ts 0))]
-                        (if (not= (oget self ".?prevTouchId") id)
-                          (oset! self "prevTouchId" id)
-                          (ebus/pub bus "touch.all.move" ts e)))))})))
+                    (ebus/pub bus "touch.all.end" ts e))}]
+      (oset! obj
+             "!onTouchesMoved"
+             (fn [ts e]
+               (let [id (oget-id (aget ts 0))]
+                 (if (not= (oget obj "?prevTouchId") id)
+                   (oset! obj "!prevTouchId" id)
+                   (ebus/pub bus "touch.all.move" ts e)))))
+      (subEvent js/cc.EventListener.TOUCH_ALL_AT_ONCE obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn onTouchOne "" [bus]
   (if (hasTouch?)
     (subEvent js/cc.EventListener.TOUCH_ONE_BY_ONE
-              #js{:swallowTouches true
-                  :onTouchBegan (fn [t e] true)
+              #js{:onTouchBegan (fn [t e] true)
+                  :swallowTouches true
                   :onTouchMoved
                   (fn [t e]
                     (ebus/pub bus "touch.one.move" t e))
@@ -508,11 +506,10 @@
 (defn misprite* "" [nnn cb & [sss ddd ctx]]
   (new js/cc.MenuItemSprite (sprite* nnn)
                             (sprite* (or sss nnn))
-                            (sprite* (or ddd nnn)) cb ctx))
+                            (sprite* (or ddd nnn)) (or cb noopy) ctx))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn mitoggle* "" [on off cb]
-  (new js/cc.MenuItemToggle on off cb))
+(defn mitoggle* "" [on off cb] (new js/cc.MenuItemToggle on off cb))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tmenu
@@ -525,12 +522,12 @@
       (doseq [{:keys [text font cb ctx]} items
               :let [mi (new js/cc.MenuItemLabel
                             (bmfText* text font) cb ctx)]]
-        (if (some? color) (.setColor mi color))
+        (if (some? color) (ocall mi "setColor" color))
         (addItem menu mi))
       (setXXX! menu options)
       (if flat?
-        (.alignItemsHorizontally menu)
-        (.alignItemsVertically menu)))))
+        (ocall menu "alignItemsHorizontally")
+        (ocall menu "alignItemsVertically")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gmenu
@@ -546,8 +543,8 @@
         (addItem menu mi))
       (setXXX! menu options)
       (if flat?
-        (.alignItemsHorizontallyWithPadding menu padding)
-        (.alignItemsVerticallyWithPadding menu padding)))))
+        (ocall menu "alignItemsHorizontallyWithPadding" padding)
+        (ocall menu "alignItemsVerticallyWithPadding" padding)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bmfLabel
@@ -555,17 +552,19 @@
   (setXXX! (bmfText* text font) options))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; config object
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def *xcfg*
   (atom {:urlPrefix "/public/elmo/"
-         :appid ""
-         :version ""
          :trackingID ""
+         :version ""
+         :appid ""
          :color (js/cc.color 0 0 0)
          :levels {}
-         :images {:czlab "core/ZotohLab.png"
-                  :preloader "core/preloader_bar.png"}
-         :atlases { }
-         :tiles { }
+         :images {::czlab "core/ZotohLab.png"
+                  ::preloader "core/preloader_bar.png"}
+         :atlases {}
+         :tiles {}
          :sounds {}
          :fonts {}
          :game {:policy js/cc.ResolutionPolicy.SHOW_ALL
@@ -597,7 +596,7 @@
                           "%waitothers" "Waiting...\nfor other players."
                           "%waitother" "Waiting...\nfor another player."
                           "%signinplay" "Please sign in to play."
-                          "%quit?" "Continue and quit game?" } }
+                          "%quit?" "Continue and quit game?" }}
          :csts {:CV-X (ocall "X" "charCodeAt" 0)
                 :CV-O (ocall "0" "charCodeAt" 0)
                 :P2-COLOR "O"
@@ -612,11 +611,8 @@
          :audio {:volume 0.5
                  :open? false
                  :track nil }
-
-        :startScene (fn [] nil)
-
         :runOnce (fn [] nil)
-}))
+        :startScene (fn [] nil)}))
 
 ;import Mustache from "mustache";
 ;import LZString from "eligrey/l10njs";
@@ -625,10 +621,10 @@
   "Initialize the l10n module with the string table."
   [table]
 
-  (oset! js/LZString "locale" js/cc.sys.language)
-  (oset! js/LZString "defaultLocale" "en")
+  (oset! js/LZString "!locale" js/cc.sys.language)
+  (oset! js/LZString "!defaultLocale" "en")
   (js/LZString.toLocaleString table)
-  (info* "Loaded l10n strings. locale = " (oget js/LZString ".?locale")))
+  (info* "Loaded l10n strings. locale = " (oget js/LZString "?locale")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn l10n
@@ -644,12 +640,12 @@
 (def *game-1* 1)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getCfgXXX "" [path key] (get (get-in @*xcfg* path) key))
+(defn getCfgXXX "" [& path] (get-in @*xcfg* path))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fire! "" [topic & args]
   (if-some [g (deref *main-game*)]
-    (if-some [bus (oget g ".?ebus")]
+    (if-some [bus (oget g "?ebus")]
       (apply ebus/pub bus (concat [topic] args)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -698,7 +694,7 @@
                      [:sound :open?] (fn [b] (not b)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sfxOn? "" [] (get-in @*xcfg* [:sound :open?]))
+(defn sfxOn? "" [] (getCfgXXX :sound :open?))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sfxMusicVol "" [vol]
@@ -709,14 +705,14 @@
   (if (sfxOn?)
     (let [{:keys [vol repeat?]} options]
       (sfxMusicVol vol)
-      (js/cc.audioEngine.playMusic (getCfgXXX [:sounds] key) repeat?))))
+      (js/cc.audioEngine.playMusic (getCfgXXX :sounds key) repeat?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sfxPlayEffect "" [key & [options]]
   (if (sfxOn?)
     (let [{:keys [vol repeat?]} options]
       (sfxMusicVol vol)
-      (js/cc.audioEngine.playEffect (getCfgXXX [:sounds] key) repeat?))))
+      (js/cc.audioEngine.playEffect (getCfgXXX :sounds key) repeat?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sfxCancel! "" []
@@ -725,7 +721,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sfxInit "" []
-  (sfxMusicVol (getCfgXXX [:audio] :volume)))
+  (sfxMusicVol (getCfgXXX :audio :volume)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sanitizeUrlForDevice "" [url] url)
@@ -738,58 +734,60 @@
     (sanitizeUrlForWeb url) (sanitizeUrlForDevice url)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getAtlasDef "" [key] (str "res/" (_1 (getCfgXXX [:atlases] key))))
+(defn getAtlasDef "" [key] (str "res/" (_1 (getCfgXXX :atlases key))))
 (defn getAtlasImg "" [key] (cs/replace (getAtlasDef key) #"\.plist$" ".png"))
 
-(defn getImage "" [key] (str "res/" (getCfgXXX [:images] key)))
-(defn getTile "" [key] (str "res/" (getCfgXXX [:tiles] key)))
+(defn getImage "" [key] (str "res/" (getCfgXXX :images key)))
+(defn getTile "" [key] (str "res/" (getCfgXXX :tiles key)))
 
-(defn getFontDef "" [key] (str "res/" (_1 (getCfgXXX [:fonts] key))))
+(defn getFontDef "" [key] (str "res/" (_1 (getCfgXXX :fonts key))))
 (defn getFontImg "" [key] (cs/replace (getFontDef key) #"\.fnt$" ".png"))
 
 (defn getSound "" [key]
-  (->> (getCfgXXX [:game] :sfx)
-       (str "res/" (getCfgXXX [:sounds] key) ".")))
+  (->> (getCfgXXX :game :sfx)
+       (str "res/" (getCfgXXX :sounds key) ".")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn xlive "" [img & [options]]
+(defn xliveIcon "" [img & [options]]
   (do-with [s (sprite* img)] (setXXX! s options)))
 
-  ;create() { const dummy = new XLive(0,0,this.options); this.lifeSize = { width: ccsx.getScaledWidth(dummy), height: ccsx.getScaledHeight(dummy) } ; this.drawLives(); }
+;create() { const dummy = new XLive(0,0,this.options); this.lifeSize = { width: ccsx.getScaledWidth(dummy), height: ccsx.getScaledHeight(dummy) } ; this.drawLives(); }
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn xliveGroup "" [hud img total x y direction]
-  (atom {:topLeft (js/cc.p x y)
-         :image img
-         :totalLives total
-         :icons [] :parent hud :curLives total :dir direction}))
+  (atom {::topLeft (js/cc.p x y)
+         ::image img
+         ::totalLives total
+         ::icons [] ::parent hud ::curLives total ::dir direction}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn reduceOneLive "" [g]
   (swap! g
-         (fn [{:keys [parent icons curLives] :as root}]
+         (fn [{:keys [::parent ::icons ::curLives] :as root}]
            (let [e (peek icons)
                  c (pop icons)
                  n (dec curLives)]
              (remove! e)
-             (merge root {:icons c :curLives n})))) g)
+             (merge root {::icons c ::curLives n})))) g)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn countLives "" [g] (:curLives @g))
-(defn noLives? "" [g] (pos? (countLives g)))
+(defn countLiveIcons "" [g] (::curLives @g))
+(defn noLiveIcons?
+  "" [g] (pos? (countLiveIcons g)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn resetLiveGroup "" [g]
   (swap! g
-         (fn [{:keys [parent curLives total icons] :as root}]
+         (fn [{:keys [::parent ::curLives ::totalLives ::icons] :as root}]
            (doseq [x icons] (remove! x))
-           (merge root {:curLives total :icons []}))))
+           (merge root {::curLives totalLives ::icons []}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn drawLives "" [g]
+(defn drawLiveIcons "" [g]
   (swap!
     g
-    (fn [{:keys [parent topLeft curLives dir image] :as root}]
+    (fn [{:keys [::parent ::topLeft
+                 ::curLives ::dir ::image] :as root}]
       (let
         [sz (csize image)
          h (oget-height sz)
@@ -801,24 +799,25 @@
                 x (+ (oget-x topLeft) hw)]
            (if-not (< n curLives)
              arr
-             (let [v (xlive image {:pos (js/cc.p x y)})]
+             (let [v (xliveIcon image {:pos (js/cc.p x y)})]
                (addItem parent v)
                (recur (inc n) (conj arr v)
                       y (if (pos? dir) (+ x w) (- x w))))))]
-        (merge root {:icons icons})))) g)
+        (merge root {::icons icons})))) g)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addAudioIcon "" [node yes no & [options]]
+(defn addAudioIcon! "" [node yes no & [options]]
   (let
     [cb #(setSfx!
            (zero? (ocall % "getSelectedIndex")))
      off (misprite* no nil)
      on (misprite* yes nil)
      audio (mitoggle* on off cb)]
-    (ocall! audio "setSelectedIndex" (if (sfxOn?) 0 1))
-    (let [menu (new js/cc.Menu audio)]
-      (setXXX! menu options)
-      (addItem node menu))))
+    (ocall! audio
+            "setSelectedIndex" (if (sfxOn?) 0 1))
+    (do-with
+      [menu (new js/cc.Menu audio)]
+      (setXXX! menu options) (addItem node menu))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn quit! "" [ctor]
@@ -830,8 +829,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn centerImage "" [node frame]
-  (let [bg (sprite* frame)]
-    (setXXX! bg {:pos (centerPos)}) (addItem node bg)))
+  (do-with [bg (sprite* frame)]
+           (setXXX! bg {:pos (centerPos)}) (addItem node bg)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateScore "" [node score]
@@ -839,6 +838,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pegToAnchor "" [node where]
+  ;;TODO
   (let [sz (csize node)
         [hw hh] (half-size* sz)
         B (vbox4)]
@@ -846,21 +846,20 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gameLayer "" [options]
-  (let [y (new js/cc.Layer)]
-    (ocall y
-           "attr"
-           #js{:ebus (ebus/createEvBus)
-               :keyboard []
-               :players []
-               :level 1
-               :actor nil})
-    (set! *main-game* y)
-    y))
+  (do-with [y (new js/cc.Layer)]
+           (attr* y
+                   #js{:ebus (ebus/createEvBus)
+                       :keyboard []
+                       :players []
+                       :level 1
+                       :actor nil})
+           (set! *main-game* y)))
 
 ;import Cookies from 'Cookies';
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- mkScore [n v] {:value (js/Number (cs/trim v)) :name (cs/trim n) })
+(defn- mkScore
+  "" [n v] {::value (js/Number (cs/trim v)) ::name (cs/trim n) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn readHighScores "" [hs]
@@ -868,7 +867,7 @@
         s (cs/trim (or (js/Cookies.get KEY) ""))]
     (swap! hs
            #(assoc %
-                   :scores
+                   ::scores
                    (reduce
                      (fn [acc z]
                        (let [a (cs/split (or z "") ":")]
@@ -879,15 +878,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn resetHighScores! "" [hg]
-  (swap! hg #(assoc-in % [:scores] [])) hg)
+  (swap! hg #(assoc % ::scores [])) hg)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn writeHighScores! "" [hg]
-  (let [{:keys [KEY scores duration]} @hg]
+  (let [{:keys [::KEY ::scores ::duration]} @hg]
     (js/Cookies.set KEY
-                    (->> (map #(str (:name %)
+                    (->> (map #(str (::name %)
                                     ":"
-                                    (:value %)) scores)
+                                    (::value %)) scores)
                          (cs/join "|"))
                     duration)
     hg))
@@ -895,7 +894,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- hasSlotsHighScores?
    "Test if there is more room to store a new high score." [hg]
-   (let [{:keys [scores size]} @hg] (< (n# scores) size)))
+   (let [{:keys [::scores ::size]} @hg] (< (n# scores) size)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn canAddHighScores?
@@ -903,35 +902,35 @@
   [hg score]
 
   (or (hasSlotsHighScores? hg)
-      (some #(< (:value %) score) (:scores @hg))))
+      (some #(< (::value %) score) (::scores @hg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn insertHighScores! "" [hg name score]
   (let [s (mkScore (or name "???") score)
-        {:keys [scores]} @hg
+        {:keys [::scores]} @hg
         len (n# scores)]
     (when-not (hasSlotsHighScores? hg)
       (loop [i (dec len) arr nil]
         (if (some? arr)
-          (swap! hg #(assoc-in % [:scores] (js->clj arr)))
+          (swap! hg #(assoc % ::scores (js->clj arr)))
           (if-not (neg? i)
             (recur (dec i)
-                   (if (< (:value (nth scores i)) score)
+                   (if (< (::value (nth scores i)) score)
                      (.splice (clj->js scores) i 1)))))))
     (when (hasSlotsHighScores? hg)
       (swap! hg
-             (fn [{:keys [scores] :as root}]
-               (assoc-in root
-                         [:scores]
-                         (sort (fn [a b]
-                                 (cond (< (:value a) (:value b)) -1
-                                       (> (:value a) (:value b)) 1 :else 0))
-                               (conj scores s)))))
+             (fn [{:keys [::scores] :as root}]
+               (assoc root
+                      ::scores
+                      (sort (fn [a b]
+                              (cond (< (::value a) (::value b)) -1
+                                    (> (::value a) (::value b)) 1 :else 0))
+                            (conj scores s)))))
       (writeHighScores! hg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fmtHighScores "" [key size & [duration]]
-  {:duration (or duration (* 60 60 24 1000)) :size size :scores [] :KEY key })
+  {::duration (or duration (* 60 60 24 1000)) ::size size ::scores [] ::KEY key })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def *CHUNK* 36)
@@ -940,8 +939,8 @@
 (defn niceFadeOut
   "After loading resources, runs the first scene." [scene]
   (let [logo (gcbyn scene "logo")
-        selector (oget scene "_selector")
-        target (oget scene "_target")]
+        selector (oget scene "?_selector")
+        target (oget scene "?_target")]
     (ocall! scene "unscheduleUpdate")
     (ocall! logo
            "runAction"
@@ -954,29 +953,29 @@
   "We have to load chunk by chunk because
   the array of resources can't be too big, else jsb complains"
   [scene]
-  (let [res (oget scene "_resources")
-        pres (oget scene "_pres")
+  (let [res (oget scene "?_resources")
+        pres (oget scene "?_pres")
         s (nth pres 0)
         e (nth pres 1)]
     (info* "start s = " s ", e = " e)
     (js/cc.loader.load (.slice res s e)
                        (fn [result total cnt]
                          (info* "total = " total ", cnt = " cnt)
-                         (oset! scene "_count" (+ 1 (oget scene "_count"))))
+                         (oset! scene "!_count" (+ 1 (oget scene "?_count"))))
                        (fn []
                          (aset pres 2 true)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pkStartLoading "loading, step1" [scene]
-  (let [res (oget scene "_resources")
-        func (oget scene "update")
-        pres (oget scene "_pres")]
+  (let [res (oget scene "?_resources")
+        func (oget scene "?update")
+        pres (oget scene "?_pres")]
     ;;[head, tail, state] snapshot info used by
     ;;each iteration as we chunk up the unput
     (aset pres 0 0)
-    (aset pres 1 (js/Math.min *CHUNK* (n# res)))
+    (aset pres 1 (min *CHUNK* (n# res)))
     (aset pres 2 false)
-    (oset! scene "_count" 0)
+    (oset! scene "!_count" 0)
     (ocall! scene "schedule" func 0.25)
     (loadChunk scene)))
 
@@ -1001,51 +1000,47 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn loadingScene "" [resources selector target]
-  (let [s (new js/cc.Scene)
-        func (fn [& xs] (pkLoad s))
+  (let [scene (new js/cc.Scene)
+        func (fn [& xs] (pkLoad scene))
         y (new js/cc.LayerColor (js/cc.color 0 0 0 255))]
     (setXXX! y {:pos (zeropt)})
-    (addItem s y "bgLayer" -1)
-    (attr* s
+    (addItem scene y "bgLayer" -1)
+    (attr* scene
            #js{:_resources resources
                :_selector selector
                :_target target
                :_count 0
                :_pres (array nil nil nil)
                :onEnter
-               #(do (.call js/cc.Node.prototype.onEnter s)
-                    (ocall! s "scheduleOnce" func 0.3 "pkLoad"))
+               #(do (.call js/cc.Node.prototype.onEnter scene)
+                    (ocall! scene "scheduleOnce" func 0.3 "pkLoad"))
                :onExit
-               #(.call js/cc.Node.prototype.onExit s)
+               #(.call js/cc.Node.prototype.onExit scene)
                :update
                #(let [_ %
-                      res (oget s "_resources")
+                      res (oget scene "?_resources")
                       len (n# res)
-                      pg (gcbyn s "progress")
-                      cnt (oget s "_count")
-                      pres (oget s "_pres")
+                      pg (gcbyn scene "progress")
+                      cnt (oget scene "?_count")
+                      pres (oget scene "?_pres")
                       ratio (/ cnt len)
-                      perc (js/Math.min (* ratio 100) 100)]
+                      perc (min (* ratio 100) 100)]
                   (ocall! pg "setPercentage" perc)
                   (cond
                     (>= cnt len) ;;done
-                    (do (ocall! s "unscheduleUpdate")
-                        (niceFadeOut s))
+                    (do (ocall! scene "unscheduleUpdate")
+                        (niceFadeOut scene))
                     (nth pres 2)
                     (let [x (nth pres 1)
-                          e (+ x (js/Math.min *CHUNK* (- len x)))]
+                          e (+ x (min *CHUNK* (- len x)))]
                       (aset pres 0 x)
                       (aset pres 1 e)
                       (aset pres 2 false)
-                      (loadChunk s))))}) s))
+                      (loadChunk scene))))}) scene))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def *gloader* nil)
-(defn preloader "" [resources selector target]
-  (when (nil? *gloader*)
-    (set! *gloader* (loadingScene resources selector target))
-    (js/cc.director.runScene *gloader*))
-  *gloader*)
+(defn preloader "" [resources func ctx]
+  (->> (loadingScene resources func ctx) (js/cc.director.runScene )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

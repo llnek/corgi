@@ -82,10 +82,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- json-decode "" [input]
-  (let [obj (or (try
-                  (objectize input)
-                  (catch js/Error e1 nil)
-                  (catch js/Object e2 nil)) #js{})]
+  (let [obj (or (trye! (objectize input)) #js{})]
     (merge {:etype -1 :ecode -1} (js->clj obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -190,10 +187,7 @@
          (fn [{:keys [::wsock] :as root}]
            (if (and (some? wsock)
                     (= 1 (oget wsock "readyState")))
-             (try
-               (ocall wsock "close")
-               (catch js/Error e1 nil)
-               (catch js/Object e2 nil)))
+             (trye! (ocall wsock "close")))
            (assoc root ::wsock nil)))
   odin)
 

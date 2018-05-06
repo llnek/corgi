@@ -13,9 +13,7 @@
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [n#]])
   (:require [czlab.elmo.afx.core :as ec :refer [raise!]]
-            [oops.core :refer [oget oset! ocall oapply
-                               ocall! oapply! oget+
-                               oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
+            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createPool "" [ctor rinse & [batch]]
@@ -102,7 +100,7 @@
                     [p (oget obj "?____pool")] (returnToPool! p obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- remEnt "" [{:keys [data registry] :as root} ents]
+(defn- remEnt "" [{:keys [::data ::registry] :as root} ents]
   (let
     [dt (loop [dt data [k & xs] (keys registry)]
           (if-not (some? k)
@@ -277,7 +275,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createTemplateEntity "" [ecs id]
-  (let [{:keys [::components ::initor] :as t} (get (::templates @ecs) id)
+  (let [{:keys [:components :initor] :as t} (get (::templates @ecs) id)
         e (if (some? t) (apply createEntity (concat [ecs] components)))]
     (if (and (some? e)
              (fn? initor)) (initor ecs e)) e))
