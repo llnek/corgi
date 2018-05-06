@@ -1039,7 +1039,7 @@
                       (loadChunk scene))))}) scene))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn preloader "" [resources func ctx]
+(defn preloader "" [resources func & [ctx]]
   (->> (loadingScene resources func ctx) (js/cc.director.runScene )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

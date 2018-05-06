@@ -13,16 +13,15 @@
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [do-with]]
                    [czlab.elmo.afx.ccsx
-                    :as cx :refer [not-native? native? attrs*]])
+                    :as cx :refer [oget-width oget-height
+                                   not-native? native? attr*]])
   (:require [czlab.elmo.afx.ccsx :as cx :refer [*xcfg*]]
             [czlab.elmo.afx.core :as ec]
-            [oops.core :refer [oget oset! ocall oapply
-                               ocall! oapply! oget+
-                               oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
+            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handleMultiDevices "" []
-  (let [{:keys [width height]} (js->clj (cx/screenSize))
+  (let [{:keys [width height]} (js->clj (cx/screenBox))
         {:keys [policy landscape?]} (:game @*xcfg*)
         [X Y dir] (cond (or (>= width 2048)
                             (>= height 2048))
@@ -50,9 +49,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- _startLoading "" [scene & more]
-  (js/cc.loader.load (clj->js (oget scene "_resources"))
+  (js/cc.loader.load (clj->js (oget scene "?_resources"))
                      (fn [result cnt loadedCount] nil)
-                     (fn [] ((oget scene "_callback")))))
+                     (fn [] ((oget scene "?_callback")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- preloadImages "" []
@@ -98,15 +97,16 @@
   (let [{:keys [runOnce startScene]} @*xcfg*
         scene (js/cc.Scene)
         func #(_startLoading scene %)]
-    (attrs* scene
-            #js{:_resources [(cx/getImage :czlab) (cz/getImage :preloader)]
-                :_callback #(cx/preloader
-                              (gatherPreloads)
-                              #(do (runOnce) (js/cc.director.runScene (startScene))))
-                :init #(.call js/cc.Scene.prototype.init scene)
-                :onEnter #(do (.call js/cc.Node.prototype.onEnter scene)
-                              (ocall scene "scheduleOnce" func 0.3))
-                :onExit #(.call js/cc.Node.prototype.onExit scene)})
+    (attr* scene
+           #js{:_resources [(cx/getImage :czlab) (cx/getImage :preloader)]
+               :_callback (fn []
+                            (cx/preloader (gatherPreloads)
+                                          #(do (runOnce)
+                                               (js/cc.director.runScene (startScene)))))
+               :init #(.call js/cc.Scene.prototype.init scene)
+               :onEnter #(do (.call js/cc.Node.prototype.onEnter scene)
+                             (ocall scene "scheduleOnce" func 0.3))
+               :onExit #(.call js/cc.Node.prototype.onExit scene)})
     scene))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
