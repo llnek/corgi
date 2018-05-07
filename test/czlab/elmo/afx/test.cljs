@@ -12,9 +12,10 @@
   czlab.elmo.afx.test
 
   (:require [czlab.elmo.afx.algos :as algos]
+            [czlab.elmo.afx.canvas :as cv]
             [czlab.elmo.afx.crypt :as cas]
-            [czlab.elmo.afx.ccsx :as cx]
-            [czlab.elmo.afx.boot :as bt]
+            ;[czlab.elmo.afx.ccsx :as cx]
+            ;[czlab.elmo.afx.boot :as bt]
             [czlab.elmo.afx.odin :as odin]
             [czlab.elmo.afx.ecs :as ecs]
             [czlab.elmo.afx.ebus :as bus]

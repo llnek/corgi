@@ -95,10 +95,11 @@
   loads the game assets - updating the progress bar."
   []
   (let [{:keys [runOnce startScene]} @*xcfg*
-        scene (js/cc.Scene)
+        scene (new js/cc.Scene)
         func #(_startLoading scene %)]
     (attr* scene
-           #js{:_resources [(cx/getImage :czlab) (cx/getImage :preloader)]
+           #js{:_resources [(cx/getImage :czlab.elmo.afx.ccsx/czlab)
+                            (cx/getImage :czlab.elmo.afx.ccsx/preloader)]
                :_callback (fn []
                             (cx/preloader (gatherPreloads)
                                           #(do (runOnce)
@@ -142,7 +143,8 @@
       (fn []
         (cx/info* "game.start called")
         (swap! *xcfg*
-               #(merge % (js/cc.game.configElmo)))
+               #(ec/deepMerge % (js/cc.game.configElmo)))
+        (cx/info* (js/JSON.stringify (clj->js @*xcfg*)))
         (preLaunch)
         ;(cx/l10nInit)
         ;(sfxInit)

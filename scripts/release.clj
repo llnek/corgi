@@ -7,7 +7,8 @@
     {:output-to "release/ttt.js"
      :output-dir "release"
      :externs ["externs/cc.js"]
-     :optimizations :advanced
+     :optimizations :simple
+     ;:optimizations :advanced
      :verbose true})
   (println "... done. Elapsed" (/ (- (System/nanoTime) start) 1e9) "seconds"))
 

@@ -12,7 +12,7 @@
   czlab.elmo.afx.ccsx)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro sprite? "" [obj] `(instance? js/cc.Sprite ~obj))
+(defmacro sprite? "" [obj] `(instance? ~'js/cc.Sprite ~obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro snode? "" [obj] `(goog.object/containsKey ~obj "piccy"))
@@ -24,9 +24,9 @@
 (defmacro bbox4? "" [obj] `(goog.object/containsKey ~obj "bottom"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro zerort "" [] `(js/cc.rect 0 0 0 0))
-(defmacro zeropt "" [] `(js/cc.p 0 0))
-(defmacro zerosz "" [] `(js/cc.size 0 0))
+(defmacro zerort "" [] `(~'js/cc.rect 0 0 0 0))
+(defmacro zeropt "" [] `(~'js/cc.p 0 0))
+(defmacro zerosz "" [] `(~'js/cc.size 0 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro attr* "" [node attrs] `(oops.core/ocall! ~node "attr" ~attrs))
@@ -52,11 +52,12 @@
 (defmacro oget-width "" [obj] `(oops.core/oget ~obj "width"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro not-native? "" [] `(not js/cc.sys.isNative))
-(defmacro native? "" [] `js/cc.sys.isNative)
+(defmacro not-native? "" [] `(not ~'js/cc.sys.isNative))
+(defmacro native? "" [] `~'js/cc.sys.isNative)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro sprite* "" [arg] `(new js/cc.Sprite ~arg))
+(defmacro sprite* "" [arg] `(new ~'js/cc.Sprite ~arg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro size* "" [obj]
@@ -70,7 +71,7 @@
   "" [t r b l] `(js-obj :top ~t :right ~r :bottom ~b :left ~l))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro newBBox "" [x y w h] `(js/cc.rect ~x ~y ~w ~h))
+(defmacro newBBox "" [x y w h] `(~'js/cc.rect ~x ~y ~w ~h))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

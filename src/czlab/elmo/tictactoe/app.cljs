@@ -38,7 +38,10 @@
                   :d "fnts/CoffeeBuzzed.fnt" }})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! js/cc.game.configElmo (fn [] cfg))
+(set! js/cc.game.configElmo
+      (fn []
+        (cx/info* "cc.game.configElmo called")
+        cfg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

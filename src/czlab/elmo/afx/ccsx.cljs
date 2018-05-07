@@ -76,10 +76,10 @@
 (declare bbox bbox4)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn debug* "" [& msgs] (cc.log (apply str msgs)))
-(defn info* "" [& msgs] (cc.log (apply str msgs)))
-(defn warn* "" [& msgs] (cc.log (apply str msgs)))
-(defn error* "" [& msgs] (cc.log (apply str msgs)))
+(defn debug* "" [& msgs] (js/cc.log (apply str msgs)))
+(defn info* "" [& msgs] (js/cc.log (apply str msgs)))
+(defn warn* "" [& msgs] (js/cc.log (apply str msgs)))
+(defn error* "" [& msgs] (js/cc.log (apply str msgs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn isIntersect? "" [a1 a2]
@@ -597,8 +597,8 @@
                           "%waitother" "Waiting...\nfor another player."
                           "%signinplay" "Please sign in to play."
                           "%quit?" "Continue and quit game?" }}
-         :csts {:CV-X (ocall "X" "charCodeAt" 0)
-                :CV-O (ocall "0" "charCodeAt" 0)
+         :csts {:CV-X (.charCodeAt "X" 0)
+                :CV-O (.charCodeAt "0" 0)
                 :P2-COLOR "O"
                 :P1-COLOR "X"
                 :NETP 3
@@ -611,8 +611,8 @@
          :audio {:volume 0.5
                  :open? false
                  :track nil }
-        :runOnce (fn [] nil)
-        :startScene (fn [] nil)}))
+         :runOnce (fn [] nil)
+         :startScene (fn [] nil)}))
 
 ;import Mustache from "mustache";
 ;import LZString from "eligrey/l10njs";
@@ -740,11 +740,12 @@
 (defn getImage "" [key] (str "res/" (getCfgXXX :images key)))
 (defn getTile "" [key] (str "res/" (getCfgXXX :tiles key)))
 
-(defn getFontDef "" [key] (str "res/" (_1 (getCfgXXX :fonts key))))
+(defn getFontDef "" [key] (str "res/" (getCfgXXX :fonts key)))
 (defn getFontImg "" [key] (cs/replace (getFontDef key) #"\.fnt$" ".png"))
 
 (defn getSound "" [key]
   (->> (getCfgXXX :game :sfx)
+       (name)
        (str "res/" (getCfgXXX :sounds key) ".")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -953,12 +954,14 @@
   "We have to load chunk by chunk because
   the array of resources can't be too big, else jsb complains"
   [scene]
-  (let [res (oget scene "?_resources")
+  (let [res (clj->js (oget scene "?_resources"))
         pres (oget scene "?_pres")
         s (nth pres 0)
-        e (nth pres 1)]
+        e (nth pres 1)
+        arr (.slice res s e)]
     (info* "start s = " s ", e = " e)
-    (js/cc.loader.load (.slice res s e)
+    (info* (js/JSON.stringify #js{:arr arr}))
+    (js/cc.loader.load arr
                        (fn [result total cnt]
                          (info* "total = " total ", cnt = " cnt)
                          (oset! scene "!_count" (+ 1 (oget scene "?_count"))))
