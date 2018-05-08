@@ -20,9 +20,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def cfg {:appKey "bd5f79bb-eb41-4ed5-bb44-2529dc27ed3c"
           :appid "tictactoe"
-          :game {:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
+          :game {;:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
                  :landscape? false
-                 :size {:width 480 :height 640}
+                 :size {:width 1536 :height 2048}
                  :PLAYER-THINK-TIME 7
                  :GRID-SIZE 3 :CELLS 9 :CV-Z 0}
           :images {:lang-pics "l10n/images.png"
