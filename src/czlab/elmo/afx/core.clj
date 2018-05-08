@@ -113,6 +113,17 @@
     `(doseq [~x ~coll] (~func ~x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro each-indexed
+  "Executes a provided function once for each array element, indexed."
+  [func coll]
+  (let [c (gensym)
+        t (gensym)
+        i (gensym)]
+    `(let [~c ~coll ~t (count ~c)]
+       (dotimes [~i ~t]
+         (~func (nth ~c ~i) ~i)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;monads
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro monad

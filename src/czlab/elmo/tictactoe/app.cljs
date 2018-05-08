@@ -11,8 +11,11 @@
 
   czlab.elmo.tictactoe.app
 
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [f#*]]
+                   [czlab.elmo.afx.ccsx :as cx :refer []])
   (:require [czlab.elmo.afx.ccsx :as cx]
-            [czlab.elmo.afx.core :as ec]))
+            [czlab.elmo.afx.core :as ec]
+            [czlab.elmo.tictactoe.splash :as splash]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def cfg {:appKey "bd5f79bb-eb41-4ed5-bb44-2529dc27ed3c"
@@ -35,13 +38,12 @@
           :fonts {:a "fnts/SmallTypeWriting.fnt"
                   :b "fnts/AutoMission.fnt"
                   :c "fnts/Subito.fnt"
-                  :d "fnts/CoffeeBuzzed.fnt" }})
+                  :d "fnts/CoffeeBuzzed.fnt" }
+          :startScene (f#* (splash/splashScene))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set! js/cc.game.configElmo
-      (fn []
-        (cx/info* "cc.game.configElmo called")
-        cfg))
+      (f#* (cx/info* "cc.game.configElmo called") cfg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

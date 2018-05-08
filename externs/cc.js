@@ -1,3 +1,7 @@
+//this is funky since goog optimizes some code and names a var or
+//function as gl.  and this gl will shadow the window.gl that
+//cocos2dx internally creates.  so need to do this so goog won't
+//touch the name gl
 var gl={};
 var cc = {
   rectIntersectsRect: function() {},
