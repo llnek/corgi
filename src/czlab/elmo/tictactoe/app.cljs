@@ -19,15 +19,15 @@
           :appid "tictactoe"
           :game {:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
                  :landscape? false
-                 :size {:width 480 :height 640}}
-          :csts {:PLAYER-THINK-TIME 7
+                 :size {:width 480 :height 640}
+                 :PLAYER-THINK-TIME 7
                  :GRID-SIZE 3 :CELLS 9 :CV-Z 0}
           :images {:lang-pics "l10n/images.png"
                    :game-pics "imgs/images.png"
                    :gui-edit-orange "core/orange_edit.png"
                    :game-bg "imgs/bg.png" }
-          :sprites {:lang-pics "l10n/images.plist"
-                    :game-pics "imgs/images.plist"}
+          :sheets {:lang-pics "l10n/images.plist"
+                   :game-pics "imgs/images.plist"}
           :sounds {:game-end "snds/MineExplosion"
                    :x-pick "snds/ElevatorBeep"
                    :o-pick "snds/MineBeep"

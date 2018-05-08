@@ -30,6 +30,10 @@
             [clojure.string :as cs]
             [goog.object :as go]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; config object
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def *xcfg* (atom nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn radToDeg "" [rad] (* 180 (/ rad js/Math.PI)))
@@ -558,70 +562,6 @@
   "" [text font & [options]]
   (setXXX! (bmfText* text font) options))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; config object
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def *xcfg*
-  (atom {:urlPrefix "/public/elmo/"
-         :trackingID ""
-         :version ""
-         :appid ""
-         :color (js/cc.color 0 0 0)
-         :levels {}
-         :loader {::czlab "core/ZotohLab.png"
-                  ::preloader "core/preloader_bar.png"}
-         :images {}
-         :atlases {}
-         :tiles {}
-         :sounds {}
-         :fonts {}
-         :game {:policy js/cc.ResolutionPolicy.SHOW_ALL
-                :preloadLevels? true
-                :size {:width 0 :height 0}
-                :resDir ""
-                :landscape? true
-                :scale 1
-                :sfx :mp3
-                :gravity 0 }
-         :l10nTable {:en {"%mobileStart" "Press Anywhere To Start!"
-                          "%webStart" "Press Spacebar To Start!"
-                          "%passwd" "Password"
-                          "%userid" "UserId"
-                          "%player2" "Player 2"
-                          "%player1" "Player 1"
-                          "%computer" "Computer"
-                          "%cpu" "CPU"
-                          "%2players" "2 Players"
-                          "%1player" "1 Player"
-                          "%online" "Online"
-                          "%gameover" "Game Over"
-                          "%quit!" "Quit"
-                          "%back" "Back"
-                          "%ok" "OK"
-                          "%mmenu" "Main Menu"
-                          "%replay" "REPLAY"
-                          "%play" "PLAY"
-                          "%waitothers" "Waiting...\nfor other players."
-                          "%waitother" "Waiting...\nfor another player."
-                          "%signinplay" "Please sign in to play."
-                          "%quit?" "Continue and quit game?" }}
-         :csts {:CV-X (.charCodeAt "X" 0)
-                :CV-O (.charCodeAt "0" 0)
-                :P2-COLOR "O"
-                :P1-COLOR "X"
-                :NETP 3
-                :HUMAN 1
-                :BOT 2
-                :GAME-MODE 1
-                :TILE 8
-                :S-OFF 4
-                :GAME-ID "" }
-         :audio {:volume 0.5
-                 :open? false
-                 :track nil }
-         :runOnce (fn [] nil)
-         :startScene (fn [] nil)}))
-
 ;import Mustache from "mustache";
 ;import LZString from "eligrey/l10njs";
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -753,8 +693,8 @@
 (defn getLoaderImages "" [] [(getLoaderImage) (getLoaderProgBar)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getAtlasDef "" [key] (str "res/" (_1 (getCfgXXX :atlases key))))
-(defn getAtlasImg "" [key] (cs/replace (getAtlasDef key) #"\.plist$" ".png"))
+(defn getSheetDef "" [key] (str "res/" (getCfgXXX :sheets key)))
+(defn getSheetImg "" [key] (cs/replace (getSheetDef key) #"\.plist$" ".png"))
 
 (defn getImage "" [key] (str "res/" (getCfgXXX :images key)))
 (defn getTile "" [key] (str "res/" (getCfgXXX :tiles key)))
@@ -766,6 +706,12 @@
   (->> (getCfgXXX :game :sfx)
        (name)
        (str "res/" (getCfgXXX :sounds key) ".")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn preCacheSheets "" []
+  (doseq [[k _] (:sheets @*xcfg*)]
+    (->> (getSheetDef  k)
+         (js/cc.spriteFrameCache.addSpriteFrames ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn xliveIcon "" [img & [options]]
@@ -975,11 +921,13 @@
                   (getFontDef k))) [] (keys (:fonts @*xcfg*))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- preloadAtlases "" []
+(defn- preloadSheets "" []
   (reduce (fn [acc k]
             (conj acc
-                  (getAtlasImg k)
-                  (getAtlasDef k))) [] (keys (:atlases @*xcfg*))))
+                  (getSheetImg k)
+                  (getSheetDef k)))
+          []
+          (keys (:sheets @*xcfg*))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- gatherPreloads "" []
@@ -987,7 +935,7 @@
           (preloadTiles)
           (preloadFonts)
           (preloadSounds)
-          (preloadAtlases)))
+          (preloadSheets)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn niceFadeOut
@@ -1085,6 +1033,69 @@
   (f#* (info* "start to run asset preloader.") (run* (loaderScene*))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
+;; patch the config object!!!
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(reset! *xcfg*
+        {:urlPrefix "/public/elmo/"
+         :trackingID ""
+         :version ""
+         :appid ""
+         :color (js/cc.color 0 0 0)
+         :levels {}
+         :loader {::czlab "core/ZotohLab.png"
+                  ::preloader "core/preloader_bar.png"}
+         :images {}
+         :sheets {}
+         :tiles {}
+         :sounds {}
+         :fonts {}
+         :game {:policy js/cc.ResolutionPolicy.SHOW_ALL
+                :preloadLevels? true
+                :size {:width 0 :height 0}
+                :resDir ""
+                :landscape? true
+                :CV-X (.charCodeAt "X" 0)
+                :CV-O (.charCodeAt "0" 0)
+                :P2-COLOR "O"
+                :P1-COLOR "X"
+                :NETP 3
+                :HUMAN 1
+                :BOT 2
+                :GAME-MODE 1
+                :TILE 8
+                :S-OFF 4
+                :GAME-ID ""
+                :scale 1
+                :sfx :mp3
+                :gravity 0 }
+         :l10nTable {:en {"%mobileStart" "Press Anywhere To Start!"
+                          "%webStart" "Press Spacebar To Start!"
+                          "%passwd" "Password"
+                          "%userid" "UserId"
+                          "%player2" "Player 2"
+                          "%player1" "Player 1"
+                          "%computer" "Computer"
+                          "%cpu" "CPU"
+                          "%2players" "2 Players"
+                          "%1player" "1 Player"
+                          "%online" "Online"
+                          "%gameover" "Game Over"
+                          "%quit!" "Quit"
+                          "%back" "Back"
+                          "%ok" "OK"
+                          "%mmenu" "Main Menu"
+                          "%replay" "REPLAY"
+                          "%play" "PLAY"
+                          "%waitothers" "Waiting...\nfor other players."
+                          "%waitother" "Waiting...\nfor another player."
+                          "%signinplay" "Please sign in to play."
+                          "%quit?" "Continue and quit game?" }}
+         :audio {:volume 0.5
+                 :open? false
+                 :track nil }
+         :runOnce (f#* (preCacheSheets))
+         :startScene (f#*  nil)})
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
