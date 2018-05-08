@@ -13,7 +13,7 @@
 
   (:refer-clojure :exclude [contains?])
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [n# _1 _2 do-with numStr]]
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [f#* n# _1 _2 do-with numStr]]
                    [czlab.elmo.afx.ccsx
                     :as cx :refer [oget-x oget-y oget-piccy
                                    oget-bottom oget-right
@@ -464,10 +464,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;cc.Node stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn run* "" [s] (js/cc.director.runScene s))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeAll! "" [node] (ocall! node "removeAllChildren"))
 (defn remove! "" [child] (ocall! child "removeFromParent"))
 ;(defn gcbyn "" [p n] (ocall p "getChildByName" n))
 ;(defn gcbyt "" [p t] (ocall p "getChildByTag" t))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn colorLayer*
+  "" [r b g & [a]] (new js/cc.LayerColor (js/cc.color r b g a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addItem "" [node child & [tag zOrder]]
@@ -495,7 +502,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- setXXX! "" [node & [options]]
-  (let [{:keys [scale color pos anchor show?]} options]
+  (let [{:keys [scale color pos anchor show?] :or {show? true}} options]
     (if (some? anchor) (ocall! node "setAnchorPoint" anchor))
     (if (some? color) (ocall! node "setColor" color))
     (if (some? pos) (ocall! node "setPosition" pos))
@@ -561,8 +568,9 @@
          :appid ""
          :color (js/cc.color 0 0 0)
          :levels {}
-         :images {::czlab "core/ZotohLab.png"
+         :loader {::czlab "core/ZotohLab.png"
                   ::preloader "core/preloader_bar.png"}
+         :images {}
          :atlases {}
          :tiles {}
          :sounds {}
@@ -732,6 +740,17 @@
   "Sanitize this url differently for web and for devices." [url]
   (if (not-native?)
     (sanitizeUrlForWeb url) (sanitizeUrlForDevice url)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getLoaderImage "" []
+  (str "res/" (getCfgXXX :loader ::czlab)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getLoaderProgBar "" []
+  (str "res/" (getCfgXXX :loader ::preloader)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getLoaderImages "" [] [(getLoaderImage) (getLoaderProgBar)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getAtlasDef "" [key] (str "res/" (_1 (getCfgXXX :atlases key))))
@@ -937,12 +956,51 @@
 (def *CHUNK* 36)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- preloadImages "" []
+  (reduce #(conj %1 (getImage %2)) [] (keys (:images @*xcfg*))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- preloadTiles "" []
+  (reduce #(conj %1 (getTile %2)) [] (keys (:tiles @*xcfg*))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- preloadSounds "" []
+  (reduce #(conj %1 (getSound %2)) [] (keys (:sounds @*xcfg*))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- preloadFonts "" []
+  (reduce (fn [acc k]
+            (conj acc
+                  (getFontImg k)
+                  (getFontDef k))) [] (keys (:fonts @*xcfg*))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- preloadAtlases "" []
+  (reduce (fn [acc k]
+            (conj acc
+                  (getAtlasImg k)
+                  (getAtlasDef k))) [] (keys (:atlases @*xcfg*))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- gatherPreloads "" []
+  (concat (preloadImages)
+          (preloadTiles)
+          (preloadFonts)
+          (preloadSounds)
+          (preloadAtlases)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn niceFadeOut
   "After loading resources, runs the first scene." [scene]
-  (let [logo (gcbyn scene "logo")
-        selector (oget scene "?_selector")
-        target (oget scene "?_target")]
+  (let [{:keys [runOnce startScene]} @*xcfg*
+        bar (gcbyn scene "progress")
+        logo (gcbyn scene "logo")
+        target nil
+        selector #(do (runOnce)
+                      (run* (startScene)))]
+    (info* "fade out! run next scene!!!!!")
     (ocall! scene "unscheduleUpdate")
+    (remove! bar)
     (ocall! logo
            "runAction"
            (js/cc.Sequence.create
@@ -953,97 +1011,78 @@
 (defn loadChunk
   "We have to load chunk by chunk because
   the array of resources can't be too big, else jsb complains"
-  [scene]
-  (let [res (clj->js (oget scene "?_resources"))
-        pres (oget scene "?_pres")
-        s (nth pres 0)
-        e (nth pres 1)
-        arr (.slice res s e)]
+  [scene assets state]
+  (let [s (aget state 1)
+        e (aget state 2)
+        arr (.slice assets s e)]
     (info* "start s = " s ", e = " e)
-    (info* (js/JSON.stringify #js{:arr arr}))
-    (js/cc.loader.load arr
-                       (fn [result total cnt]
-                         (info* "total = " total ", cnt = " cnt)
-                         (oset! scene "!_count" (+ 1 (oget scene "?_count"))))
-                       (fn []
-                         (aset pres 2 true)))))
+    (info* (js/JSON.stringify #js{:arr assets}))
+    (if (pos? (n# arr))
+      (js/cc.loader.load arr
+                         (fn [result total cnt]
+                           (info* "total = " total ", cnt = " cnt)
+                           (aset state 0 (+ 1 (aget state 0))))
+                         (fn []
+                           (info* "done = " (aget state 0)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn pkStartLoading "loading, step1" [scene]
-  (let [res (oget scene "?_resources")
-        func (oget scene "?update")
-        pres (oget scene "?_pres")]
-    ;;[head, tail, state] snapshot info used by
-    ;;each iteration as we chunk up the unput
-    (aset pres 0 0)
-    (aset pres 1 (min *CHUNK* (n# res)))
-    (aset pres 2 false)
-    (oset! scene "!_count" 0)
-    (ocall! scene "schedule" func 0.25)
-    (loadChunk scene)))
+(defn- pkLoadMore "" [scene assets state]
+  (f#*
+    (let [pg (gcbyn scene "progress")
+          cnt (aget state 0)
+          len (n# assets)
+          ratio (/ cnt len)
+          perc (min (* ratio 100) 100)]
+      (ocall! pg "setPercentage" perc)
+      (if (< cnt len)
+        (let [head (aget state 2) ;get last tail
+              tail (+ head (min *CHUNK* (- len head)))]
+          (aset state 1 head)
+          (aset state 2 tail)
+          (loadChunk scene assets state))
+        (do (info* "all resources loaded!") (niceFadeOut scene))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- pkLoad "" [scene]
-  (let [logo (sprite* "core/ZotohLab.png")
+(defn- pkLoad "" [scene assets state]
+  (let [logo (sprite* (getLoaderImage))
         sz (csize logo)
         cp (centerPos)
-        y (gcbyn scene "bgLayer")
         pg (new js/cc.ProgressTimer
-                (sprite* "core/preloader_bar.png"))]
+                (sprite* (getLoaderProgBar)))]
     (setXXX! logo {:pos cp})
-    (addItem y logo "logo")
+    (addItem scene logo "logo")
     (ocall! pg "setType" js/cc.ProgressTimer.TYPE_BAR)
     (ocall! pg "setScaleX" 0.8)
     (ocall! pg "setScaleY" 0.3)
     (setXXX! pg {:pos (js/cc.p (oget-x cp)
                                (- (oget-y cp)
                                   (* 0.6 (oget-height sz))))})
-    (addItem y pg "progress")
-    (pkStartLoading scene)))
+    (addItem scene pg "progress")
+    (attr* scene #js{:update
+                     (pkLoadMore scene (clj->js assets) state)})
+    (ocall! scene "scheduleUpdate")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn loadingScene "" [resources selector target]
-  (let [scene (new js/cc.Scene)
-        func (fn [& xs] (pkLoad scene))
-        y (new js/cc.LayerColor (js/cc.color 0 0 0 255))]
-    (setXXX! y {:pos (zeropt)})
-    (addItem scene y "bgLayer" -1)
-    (attr* scene
-           #js{:_resources resources
-               :_selector selector
-               :_target target
-               :_count 0
-               :_pres (array nil nil nil)
-               :onEnter
-               #(do (.call js/cc.Node.prototype.onEnter scene)
-                    (ocall! scene "scheduleOnce" func 0.3 "pkLoad"))
-               :onExit
-               #(.call js/cc.Node.prototype.onExit scene)
-               :update
-               #(let [_ %
-                      res (oget scene "?_resources")
-                      len (n# res)
-                      pg (gcbyn scene "progress")
-                      cnt (oget scene "?_count")
-                      pres (oget scene "?_pres")
-                      ratio (/ cnt len)
-                      perc (min (* ratio 100) 100)]
-                  (ocall! pg "setPercentage" perc)
-                  (cond
-                    (>= cnt len) ;;done
-                    (do (ocall! scene "unscheduleUpdate")
-                        (niceFadeOut scene))
-                    (nth pres 2)
-                    (let [x (nth pres 1)
-                          e (+ x (min *CHUNK* (- len x)))]
-                      (aset pres 0 x)
-                      (aset pres 1 e)
-                      (aset pres 2 false)
-                      (loadChunk scene))))}) scene))
+(defn loaderScene* "" []
+  (do-with [scene (new js/cc.Scene)]
+    (let [assets (gatherPreloads)
+          y (colorLayer* 0 0 0)
+          ;;[count, head, tail] snapshot info used by
+          ;;each iteration as we chunk up the unput
+          state (array 0 0 0)
+          func (f#* (pkLoad scene assets state))]
+      (setXXX! y {:pos (zeropt)})
+      (addItem scene y "bgLayer" -1)
+      (attr* scene
+             #js{:onEnter
+                 #(do (.call js/cc.Node.prototype.onEnter scene)
+                      (ocall! scene "scheduleOnce" func 0.3))
+                 :onExit
+                 #(.call js/cc.Node.prototype.onExit scene)}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn preloader "" [resources func & [ctx]]
-  (->> (loadingScene resources func ctx) (js/cc.director.runScene )))
+(defn preloader "" []
+  (f#* (info* "start to run asset preloader.") (run* (loaderScene*))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

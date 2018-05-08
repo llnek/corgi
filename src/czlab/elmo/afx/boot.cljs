@@ -11,7 +11,7 @@
 
   czlab.elmo.afx.boot
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [do-with]]
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [f#* do-with]]
                    [czlab.elmo.afx.ccsx
                     :as cx :refer [oget-width oget-height
                                    not-native? native? attr*]])
@@ -48,67 +48,21 @@
       (doseq [p ["assets/src" "src"]] (.push searchs p)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- _startLoading "" [scene & more]
-  (js/cc.loader.load (clj->js (oget scene "?_resources"))
-                     (fn [result cnt loadedCount] nil)
-                     (fn [] ((oget scene "?_callback")))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- preloadImages "" []
-  (reduce #(conj %1 (cx/getImage %2)) [] (keys (:images @*xcfg*))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- preloadTiles "" []
-  (reduce #(conj %1 (cx/getTile %2)) [] (keys (:tiles @*xcfg*))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- preloadSounds "" []
-  (reduce #(conj %1 (cx/getSound %2)) [] (keys (:sounds @*xcfg*))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- preloadFonts "" []
-  (reduce (fn [acc k]
-            (conj acc
-                  (cx/getFontImg k)
-                  (cx/getFontDef k))) [] (keys (:fonts @*xcfg*))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- preloadAtlases "" []
-  (reduce (fn [acc k]
-            (conj acc
-                  (cx/getAtlasImg k)
-                  (cx/getAtlasDef k))) [] (keys (:atlases @*xcfg*))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- gatherPreloads "" []
-  (concat (preloadImages)
-          (preloadTiles)
-          (preloadFonts)
-          (preloadSounds)
-          (preloadAtlases)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- bootLoaderScene
+(defn- preloadLogoScene
   "Hack to suppress the showing of cocos2d's logo,
   instead, we load our own logo and progress bar.
   Then we run another loading scene which actually
   loads the game assets - updating the progress bar."
   []
-  (let [{:keys [runOnce startScene]} @*xcfg*
-        scene (new js/cc.Scene)
-        func #(_startLoading scene %)]
+  (do-with [scene (new js/cc.Scene)]
+    (let [func (f#* (js/cc.loader.load
+                      (clj->js (cx/getLoaderImages))
+                      (constantly nil) (cx/preloader)))]
     (attr* scene
-           #js{:_resources [(cx/getImage :czlab.elmo.afx.ccsx/czlab)
-                            (cx/getImage :czlab.elmo.afx.ccsx/preloader)]
-               :_callback (fn []
-                            (cx/preloader (gatherPreloads)
-                                          #(do (runOnce)
-                                               (js/cc.director.runScene (startScene)))))
-               :init #(.call js/cc.Scene.prototype.init scene)
+           #js{:init #(.call js/cc.Scene.prototype.init scene)
                :onEnter #(do (.call js/cc.Node.prototype.onEnter scene)
                              (ocall scene "scheduleOnce" func 0.3))
-               :onExit #(.call js/cc.Node.prototype.onExit scene)})
-    scene))
+               :onExit #(.call js/cc.Node.prototype.onExit scene)}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- preLaunch "" []
@@ -135,8 +89,8 @@
     (if debug?
       (js/cc.director.setDisplayStats true))
     ;;hack to suppress the showing of cocos2d's logo
-    (set! js/cc.loaderScene (bootLoaderScene))
-    (js/cc.director.runScene js/cc.loaderScene)))
+    ;;and instead, show our own!
+    (cx/run* (preloadLogoScene))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set! js/cc.game.startElmo

@@ -24,7 +24,7 @@
                  :GRID-SIZE 3 :CELLS 9 :CV-Z 0}
           :images {:lang-pics "l10n/images.png"
                    :game-pics "imgs/images.png"
-                   :gui-edit-orange "pics/orange_edit.png"
+                   :gui-edit-orange "core/orange_edit.png"
                    :game-bg "imgs/bg.png" }
           :sprites {:lang-pics "l10n/images.plist"
                     :game-pics "imgs/images.plist"}

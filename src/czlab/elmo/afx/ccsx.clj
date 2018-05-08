@@ -11,6 +11,7 @@
 
   czlab.elmo.afx.ccsx)
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro sprite? "" [obj] `(instance? ~'js/cc.Sprite ~obj))
 
