@@ -562,23 +562,38 @@
   "" [text font & [options]]
   (setXXX! (bmfText* text font) options))
 
-;import Mustache from "mustache";
-;import LZString from "eligrey/l10njs";
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getCfgXXX "" [& path] (get-in @*xcfg* path))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn l10nInit
   "Initialize the l10n module with the string table."
-  [table]
-
-  (oset! js/LZString "!locale" js/cc.sys.language)
-  (oset! js/LZString "!defaultLocale" "en")
-  (js/LZString.toLocaleString table)
-  (info* "Loaded l10n strings. locale = " (oget js/LZString "?locale")))
+  []
+  (let [lang (keyword js/cc.sys.language)]
+    (info* "Loaded l10n strings. locale = " (name lang))
+    (info* (js/JSON.stringify
+             (clj->js (getCfgXXX :l10nTable lang))))
+    (swap! *xcfg* #(assoc % :lang lang))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn l10n
-  "Localize the string." [s & [pms]]
-  (let [t (ocall s "toLocaleString")]
-    (if (some? pms) (js/Mustache.render t pms) t)))
+  "Localize the string." [key & pms]
+  (let [table (getCfgXXX :l10nTable
+                         (:lang @*xcfg*))
+        msg (get table key)]
+    (if (not-empty msg)
+      (if (not-empty pms)
+        (let [arr (cs/split msg #"\{\}")
+              sz (n# arr)
+              end (dec sz)
+              plen (n# pms)
+              out (transient [])]
+          (dotimes [i sz]
+            (conj! out (nth arr i))
+            (if (and (< i end)
+                     (< i plen))
+              (conj! out (nth pms i))))
+          (cs/join "" (persistent! out))) msg) "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def *ws-uri* "/network/odin/websocket")
@@ -586,9 +601,6 @@
 (def *online-game* 3)
 (def *game-2* 2)
 (def *game-1* 1)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getCfgXXX "" [& path] (get-in @*xcfg* path))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fire! "" [topic & args]
@@ -963,15 +975,16 @@
   (let [s (aget state 1)
         e (aget state 2)
         arr (.slice assets s e)]
-    (info* "start s = " s ", e = " e)
-    (info* (js/JSON.stringify #js{:arr assets}))
+    ;(info* "start s = " s ", e = " e)
+    ;(info* (js/JSON.stringify #js{:arr assets}))
     (if (pos? (n# arr))
       (js/cc.loader.load arr
                          (fn [result total cnt]
-                           (info* "total = " total ", cnt = " cnt)
+                           ;(info* "total = " total ", cnt = " cnt)
                            (aset state 0 (+ 1 (aget state 0))))
                          (fn []
-                           (info* "done = " (aget state 0)))))))
+                           ;(info* "done = " (aget state 0))
+                           nil)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pkLoadMore "" [scene assets state]

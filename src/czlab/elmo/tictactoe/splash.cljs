@@ -17,6 +17,7 @@
                                    oget-x oget-y
                                    oget-top sprite* ]])
   (:require [czlab.elmo.afx.ccsx :as cx :refer [csize]]
+            [czlab.elmo.tictactoe.mmenu :as mmenu]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
@@ -55,8 +56,8 @@
     gridMap))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- onplay "" [scene]
-  (f#* (js/alert "poo")))
+(defn- onplay "" [& xs]
+  (f#* (cx/run* (mmenu/mmenuScene))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn splashScene "" []

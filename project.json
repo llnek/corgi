@@ -11,5 +11,6 @@
 
     "modules" : ["cocos2d"],
 
-    "jsList" : [ "release/ttt.js" ]
+    "jsList" : [
+      "release/ttt.js" ]
 }

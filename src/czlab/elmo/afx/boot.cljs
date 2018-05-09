@@ -94,14 +94,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set! js/cc.game.startElmo
-      (fn []
+      (f#*
         (cx/info* "game.start called")
         (swap! *xcfg*
                #(ec/deepMerge % (js/cc.game.configElmo)))
-        (cx/info* (js/JSON.stringify (clj->js @*xcfg*)))
+        (cx/info* (js/JSON.stringify
+                    (-> (deref *xcfg*)
+                        (dissoc :l10nTable) (clj->js))))
         (preLaunch)
-        ;(cx/l10nInit)
-        ;(sfxInit)
+        (cx/l10nInit)
+        (cx/sfxInit)
         (let [rs (js/cc.view.getDesignResolutionSize)]
           (cx/info* "DesignResolution, = ["
                     (oget-width rs) ", " (oget-height rs) "]")
