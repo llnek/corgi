@@ -56,7 +56,7 @@
   []
   (do-with [scene (new js/cc.Scene)]
     (let [func (f#* (js/cc.loader.load
-                      (clj->js (cx/getLoaderImages))
+                      (clj->js (cx/gldr->imgs))
                       (constantly nil) (cx/preloader)))]
     (attr* scene
            #js{:init #(.call js/cc.Scene.prototype.init scene)

@@ -30,6 +30,7 @@
             [clojure.string :as cs]
             [goog.object :as go]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; config object
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -507,7 +508,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- setXXX! "" [node & [options]]
   (let [{:keys [scale color pos anchor show?] :or {show? true}} options]
-    (if (some? anchor) (ocall! node "setAnchorPoint" anchor))
+    (if (some? anchor) (ocall! node "setAnchorPoint" (getAnchorPoint anchor)))
     (if (some? color) (ocall! node "setColor" color))
     (if (some? pos) (ocall! node "setPosition" pos))
     (if-not show? (ocall! node "setVisible" false))
@@ -694,35 +695,35 @@
     (sanitizeUrlForWeb url) (sanitizeUrlForDevice url)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getLoaderImage "" []
+(defn gldr->logo "" []
   (str "res/" (getCfgXXX :loader ::czlab)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getLoaderProgBar "" []
+(defn gldr->pbar "" []
   (str "res/" (getCfgXXX :loader ::preloader)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getLoaderImages "" [] [(getLoaderImage) (getLoaderProgBar)])
+(defn gldr->imgs "" [] [(gldr->logo) (gldr->pbar)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getSheetDef "" [key] (str "res/" (getCfgXXX :sheets key)))
-(defn getSheetImg "" [key] (cs/replace (getSheetDef key) #"\.plist$" ".png"))
+(defn gatlas "" [key] (str "res/" (getCfgXXX :sheets key)))
+(defn gatlas->img "" [key] (cs/replace (gatlas key) #"\.plist$" ".png"))
 
-(defn getImage "" [key] (str "res/" (getCfgXXX :images key)))
-(defn getTile "" [key] (str "res/" (getCfgXXX :tiles key)))
+(defn gimg "" [key] (str "res/" (getCfgXXX :images key)))
+(defn gtile "" [key] (str "res/" (getCfgXXX :tiles key)))
 
-(defn getFontDef "" [key] (str "res/" (getCfgXXX :fonts key)))
-(defn getFontImg "" [key] (cs/replace (getFontDef key) #"\.fnt$" ".png"))
+(defn gfnt "" [key] (str "res/" (getCfgXXX :fonts key)))
+(defn gfnt->img "" [key] (cs/replace (gfnt key) #"\.fnt$" ".png"))
 
-(defn getSound "" [key]
+(defn gsfx "" [key]
   (->> (getCfgXXX :game :sfx)
        (name)
        (str "res/" (getCfgXXX :sounds key) ".")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn preCacheSheets "" []
+(defn- preCacheAtlases "" []
   (doseq [[k _] (:sheets @*xcfg*)]
-    (->> (getSheetDef  k)
+    (->> (gatlas  k)
          (js/cc.spriteFrameCache.addSpriteFrames ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -915,29 +916,29 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- preloadImages "" []
-  (reduce #(conj %1 (getImage %2)) [] (keys (:images @*xcfg*))))
+  (reduce #(conj %1 (gimg %2)) [] (keys (:images @*xcfg*))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- preloadTiles "" []
-  (reduce #(conj %1 (getTile %2)) [] (keys (:tiles @*xcfg*))))
+  (reduce #(conj %1 (gtile %2)) [] (keys (:tiles @*xcfg*))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- preloadSounds "" []
-  (reduce #(conj %1 (getSound %2)) [] (keys (:sounds @*xcfg*))))
+  (reduce #(conj %1 (gsfx %2)) [] (keys (:sounds @*xcfg*))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- preloadFonts "" []
   (reduce (fn [acc k]
             (conj acc
-                  (getFontImg k)
-                  (getFontDef k))) [] (keys (:fonts @*xcfg*))))
+                  (gfnt->img k)
+                  (gfnt k))) [] (keys (:fonts @*xcfg*))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- preloadSheets "" []
   (reduce (fn [acc k]
             (conj acc
-                  (getSheetImg k)
-                  (getSheetDef k)))
+                  (gatlas->img k)
+                  (gatlas k)))
           []
           (keys (:sheets @*xcfg*))))
 
@@ -1005,11 +1006,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pkLoad "" [scene assets state]
-  (let [logo (sprite* (getLoaderImage))
+  (let [logo (sprite* (gldr->logo))
         sz (csize logo)
         cp (centerPos)
         pg (new js/cc.ProgressTimer
-                (sprite* (getLoaderProgBar)))]
+                (sprite* (gldr->pbar)))]
     (setXXX! logo {:pos cp})
     (addItem scene logo "logo")
     (ocall! pg "setType" js/cc.ProgressTimer.TYPE_BAR)
@@ -1089,6 +1090,8 @@
                           "%player1" "Player 1"
                           "%computer" "Computer"
                           "%cpu" "CPU"
+                          "%p2" "P2"
+                          "%p1" "P1"
                           "%2players" "2 Players"
                           "%1player" "1 Player"
                           "%online" "Online"
@@ -1106,7 +1109,7 @@
          :audio {:volume 0.5
                  :open? false
                  :track nil }
-         :runOnce (f#* (preCacheSheets))
+         :runOnce (f#* (preCacheAtlases))
          :startScene (f#*  nil)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -35,10 +35,10 @@
                    :x-pick "snds/ElevatorBeep"
                    :o-pick "snds/MineBeep"
                    :game-quit "snds/Death" }
-          :fonts {:a "fnts/SmallTypeWriting.fnt"
-                  :menu-title "fnts/AutoMission.fnt"
+          :fonts {:label "fnts/SmallTypeWriting.fnt"
+                  :title "fnts/AutoMission.fnt"
                   :c "fnts/Subito.fnt"
-                  :d "fnts/CoffeeBuzzed.fnt" }
+                  :text "fnts/CoffeeBuzzed.fnt" }
           :startScene (f#* (splash/splashScene))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

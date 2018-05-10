@@ -18,9 +18,9 @@
                                    oget-top sprite* ]])
   (:require [czlab.elmo.afx.ccsx :as cx :refer [csize]]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
+            [czlab.elmo.tictactoe.game :as ga]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
-(defn- gameScene [& xs] (js/alert "sfdsf"))
 (defn- netScene [& xs])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -28,33 +28,33 @@
   (let [pms {:no (f#* (cx/run* nil))
              :yes (fn [ws p0 msg]
                     (->> (merge {:ws ws :pnum p0} msg)
-                         (gameScene (:1 msg) (:2 msg))
+                         (ga/gameScene (:1 msg) (:2 msg))
                          (cx/run*)))}]
     (cx/run* (netScene pms))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onplay1 "" [& xs]
-  (->> (gameScene [1 (cx/l10n "%p1") (cx/l10n "%player1")]
-                  [2 (cx/l10n "%cpu") (cx/l10n "%computer")])
+  (->> (ga/gameScene [:1 (cx/l10n "%p1") (cx/l10n "%player1")]
+                  [:2 (cx/l10n "%cpu") (cx/l10n "%computer")])
        (cx/run* )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onplay2 "" [& xs]
-  (->> (gameScene [1 (cx/l10n "%p1") (cx/l10n "%player1")]
-                  [2 (cx/l10n "%p2") (cx/l10n "%player2")])
+  (->> (ga/gameScene [:1 (cx/l10n "%p1") (cx/l10n "%player1")]
+                  [:2 (cx/l10n "%p2") (cx/l10n "%player2")])
        (cx/run* )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mmenuScene "" []
   (do-with [scene (new js/cc.Scene)]
-    (let [bg (sprite* (cx/getImage :game-bg))
+    (let [bg (sprite* (cx/gimg :game-bg))
           layer (new js/cc.Layer)
           _ (cx/addItem scene layer)
           cp (cx/centerPos)
           wb (cx/vbox4)
           tt (cx/bmfLabel
                (cx/l10n "%mmenu")
-               (cx/getFontDef :menu-title)
+               (cx/gfnt :title)
                {:pos (js/cc.p (oget-x cp)
                               (* 0.8 (oget-top wb)))
                 :color (js/cc.color "#F6B17F")})
