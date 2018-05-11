@@ -12,9 +12,12 @@
   czlab.elmo.tictactoe.game
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [f#* do-with each-indexed]]
-                   [czlab.elmo.afx.ccsx :as cx :refer [sprite*]])
+                   [czlab.elmo.afx.ccsx :as cx :refer [sprite* attr*]])
   (:require [czlab.elmo.afx.ccsx :as cx :refer [*xcfg*]]
             [czlab.elmo.afx.core :as ec]
+            [czlab.elmo.afx.ecs :as ecs]
+            [czlab.elmo.afx.ebus :as ebus]
+            [czlab.elmo.tictactoe.impl :as impl]
             [czlab.elmo.tictactoe.misc :as mc]
             [czlab.elmo.tictactoe.hud :as hud]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
@@ -43,13 +46,24 @@
       (cx/addItem layer bg)
       (showGrid layer))))
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gameScene "" [px py & more]
   (do-with [scene (new js/cc.Scene)]
-    (let [gl (gameLayer)
+    (let [ecs (ecs/createECS)
+          gl (gameLayer)
           hud (hud/hudLayer px py)]
-      (cx/addItem scene gl "main" 1)
-      (cx/addItem scene hud "hud" 2))))
+      (reset! cx/*game-scene* scene)
+      (cx/addItem scene gl "game" 1)
+      (cx/addItem scene hud "hud" 2)
+      (->>
+        #js{:ebus (ebus/createEvBus)
+            :evQ (array)
+            :ecs ecs
+            :update #(ecs/updateECS ecs %)}
+        (attr* scene))
+      (impl/init scene)
+      (ocall! scene "scheduleUpdate"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

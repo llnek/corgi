@@ -360,6 +360,15 @@
     [x2 y2 vx2 vy2 t2?]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;cc.Node stuff
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def *ws-uri* "/network/odin/websocket")
+(def *game-scene* (atom nil))
+(def *online-game* 3)
+(def *game-2* 2)
+(def *game-1* 1)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getCachedSprite
   "Get the sprite from the frame cache using
   its id (e.g. #ship)."
@@ -368,7 +377,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- subEvent
-  "" [e obj] (js/cc.eventManager.addListener (oset! obj "!event" e)))
+  "" [e obj]
+  (js/cc.eventManager.addListener (oset! obj "!event" e)
+                                  (deref *game-scene*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hasKeyPad? "" []
@@ -396,7 +407,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn onMouse "" [bus]
-  (if (hasMouse?)
+  (when (hasMouse?)
+    (info* "about to listen to mouse events")
     (subEvent js/cc.EventListener.MOUSE
               #js{:onMouseMove
                   (fn [e]
@@ -406,14 +418,15 @@
                   :onMouseDown
                   (fn [e] (ebus/pub bus "mouse.down" e))
                   :onMouseUp
-                  (fn [e] (ebus/pub bus "mouse.up" e))})))
+                  (fn [e] (ebus/pub bus "mouse.up" e))}) true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hasTouch? "" [] (some? (oget js/cc.sys.capabilities "?touches")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn onTouchAll "" [bus]
-  (if (hasTouch?)
+  (when (hasTouch?)
+    (info* "about to listen to touch-all events")
     (let [obj #js{:onTouchesBegan (fn [ts e] true)
                   :prevTouchId -1
                   :onTouchesEnded
@@ -426,11 +439,12 @@
                  (if (not= (oget obj "?prevTouchId") id)
                    (oset! obj "!prevTouchId" id)
                    (ebus/pub bus "touch.all.move" ts e)))))
-      (subEvent js/cc.EventListener.TOUCH_ALL_AT_ONCE obj))))
+      (subEvent js/cc.EventListener.TOUCH_ALL_AT_ONCE obj)) true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn onTouchOne "" [bus]
-  (if (hasTouch?)
+  (when (hasTouch?)
+    (info* "about to listen to touch-one events")
     (subEvent js/cc.EventListener.TOUCH_ONE_BY_ONE
               #js{:onTouchBegan (fn [t e] true)
                   :swallowTouches true
@@ -439,7 +453,7 @@
                     (ebus/pub bus "touch.one.move" t e))
                   :onTouchEnded
                   (fn [t e]
-                    (ebus/pub bus "touch.one.end" t e))})))
+                    (ebus/pub bus "touch.one.end" t e))}) true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def *anchor-center* 1)
@@ -466,8 +480,6 @@
     *anchor-top-left* (js/cc.p 0 1)
     nil))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;cc.Node stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn run* "" [s] (js/cc.director.runScene s))
 
@@ -597,15 +609,8 @@
           (cs/join "" (persistent! out))) msg) "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def *ws-uri* "/network/odin/websocket")
-(def *main-game* (atom nil))
-(def *online-game* 3)
-(def *game-2* 2)
-(def *game-1* 1)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fire! "" [topic & args]
-  (if-some [g (deref *main-game*)]
+  (if-some [g (deref *game-scene*)]
     (if-some [bus (oget g "?ebus")]
       (apply ebus/pub bus (concat [topic] args)))))
 
@@ -824,7 +829,7 @@
     (setXXX! node {:pos (js/cc.p (- (oget-right B) hw) 0)})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn gameLayer "" [options]
+(defn XgameLayer "" [options]
   (do-with [y (new js/cc.Layer)]
            (attr* y
                    #js{:ebus (ebus/createEvBus)
@@ -832,7 +837,7 @@
                        :players []
                        :level 1
                        :actor nil})
-           (set! *main-game* y)))
+           (set! *game-scene* y)))
 
 ;import Cookies from 'Cookies';
 
