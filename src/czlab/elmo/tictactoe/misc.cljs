@@ -25,17 +25,17 @@
   ;;memorize the co-ordinates of each cell on the board, so
   ;;we know which cell the user has clicked on.
   (let [sp (sprite* "#z.png")
+        ro (* (/ 8 72) scale)
+        cp (cx/centerPos)
+        cells (* gsz gsz)
         sz (csize sp)
+        gridMap (array)
         H (* scale (oget-height sz))
         W (* scale (oget-width sz))
-        ro (* (/ 8 72) scale)
-        cells (* gsz gsz)
         gh (* ro H)
         gw (* ro W)
         zh (+ (* gsz H) (* gh (- gsz 1)))
         zw (+ (* gsz W) (* gw (- gsz 1)))
-        cp (cx/centerPos)
-        gridMap (array)
         x0 (- (oget-x cp) (* 0.5 zw))
         y0 (+ (oget-y cp) (* 0.5 zh))]
     (dotimes [n cells] (.push gridMap nil))
