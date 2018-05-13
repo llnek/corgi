@@ -31,6 +31,7 @@
   (let [evt (_1 msgs)
         e (ocall evt "getLocation")
         loc (js->clj e :keywordize-keys true)]
+(js/console.log "e -> " e)
     (js/console.log "clicked -> " (:x loc) ", " (:y loc))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -62,14 +63,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn motion "" [ecs dt]
   (let [scene (deref cx/*game-scene*)
-        evQ (oget scene "?evQ")]
+        state (oget scene "?gstate")
+        {:keys [evQ]} @state]
     (if-some [msg (.shift evQ)] (apply onGUI msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" [scene]
-  (let [ebus (oget scene "?ebus")
-        ecs (oget scene "?ecs")
-        evQ (oget scene "?evQ")
+  (let [state (oget scene "?gstate")
+        {:keys [ebus ecs evQ]} @state
         cb (fn [& xs] (.push evQ xs))]
     (if (cx/onMouse ebus)
       (ebus/sub+ ebus "mouse.up" cb))

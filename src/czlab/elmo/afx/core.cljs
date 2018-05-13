@@ -125,6 +125,11 @@
 (defn jsonize "" [obj] (if (some? obj) (js/JSON.stringify obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn fillArray "" [value len]
+  (let [arr (array)]
+    (dotimes [_ len] (.push arr value) arr)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn isMobile?
   "Test if the client is a mobile device."
   [navigator]

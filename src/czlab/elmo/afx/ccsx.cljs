@@ -13,18 +13,21 @@
 
   (:refer-clojure :exclude [contains?])
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [f#* n# _1 _2 do-with numStr]]
-                   [czlab.elmo.afx.ccsx
-                    :as cx :refer [oget-x oget-y oget-piccy
-                                   oget-bottom oget-right
-                                   not-native? native?
-                                   gcbyn gcbyt
-                                   zeropt
-                                   sprite* half* attr*
-                                   newBBox newBBox4
-                                   oget-left oget-top oget-id
-                                   oget-width oget-height
-                                   snode? bbox? bbox4? sprite?]])
+  (:require-macros
+    [czlab.elmo.afx.core
+     :as ec :refer [applyScalarOp half*
+                    f#* n# _1 _2 do-with numStr]]
+    [czlab.elmo.afx.ccsx
+     :as cx :refer [oget-x oget-y oget-piccy
+                    oget-bottom oget-right
+                    not-native? native?
+                    gcbyn gcbyt
+                    zeropt
+                    sprite* attr*
+                    newBBox newBBox4
+                    oget-left oget-top oget-id
+                    oget-width oget-height
+                    snode? bbox? bbox4? sprite?]])
   (:require [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
             [czlab.elmo.afx.ebus :as ebus]
             [clojure.string :as cs]
@@ -283,7 +286,9 @@
 (defn half-size*
   "Calculate halves of width and height." [obj]
   (let [z (csize obj)]
-    [(half* (oget-width z)) (half* (oget-height z))]))
+    (applyScalarOp *
+                   0.5
+                   (oget-width z) (oget-height z))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getHeight "" [sprite] (oget-height (csize sprite)))

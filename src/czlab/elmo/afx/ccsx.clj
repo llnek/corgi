@@ -65,9 +65,6 @@
   `(vector (oget-width ~obj)(oget-height ~obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro half* "" [obj] `(* 0.5 ~obj))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro newBBox4
   "" [t r b l] `(js-obj :top ~t :right ~r :bottom ~b :left ~l))
 

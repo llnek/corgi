@@ -11,8 +11,10 @@
 
   czlab.elmo.tictactoe.game
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [f#* do-with each-indexed]]
-                   [czlab.elmo.afx.ccsx :as cx :refer [sprite* attr*]])
+  (:require-macros
+    [czlab.elmo.afx.core
+     :as ec :refer [f#* do-with each-indexed]]
+    [czlab.elmo.afx.ccsx :as cx :refer [sprite* attr*]])
   (:require [czlab.elmo.afx.ccsx :as cx :refer [*xcfg*]]
             [czlab.elmo.afx.core :as ec]
             [czlab.elmo.afx.ecs :as ecs]
@@ -23,9 +25,15 @@
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- bgLayer "" []
+  (do-with [layer (new js/cc.Layer)]
+    (cx/addItem layer
+                (-> (sprite* (cx/gimg :game-bg))
+                    (cx/setXXX! {:pos (cx/centerPos)})))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- showGrid "" [node]
-  (let [{:keys [GRID-SIZE
-                CELLS CV-Z]} (:game @*xcfg*)]
+  (let [{:keys [GRID-SIZE CV-Z]} (:game @*xcfg*)]
     (reduce
       (fn [acc mp]
         (let [sp (-> (sprite* "#z.png")
@@ -36,32 +44,32 @@
       (mc/mapGridPos GRID-SIZE 1))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- gameLayer "" []
+(defn- arenaLayer "" []
   (do-with [layer (new js/cc.Layer)]
-    (let [cp (cx/centerPos)
-          wb (cx/vbox4)
-          bg (-> (cx/gimg :game-bg)
-                 (sprite*)
-                 (cx/setXXX! {:pos cp}))]
-      (cx/addItem layer bg)
-      (showGrid layer))))
-
+      (showGrid layer)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gameScene "" [px py & more]
   (do-with [scene (new js/cc.Scene)]
-    (let [ecs (ecs/createECS)
-          gl (gameLayer)
+    (let [{:keys [GRID-SIZE]} @*xcfg*
+          sz (* GRID-SIZE GRID-SIZE)
+          state (atom {:gspace (mc/mapGoalSpace GRID-SIZE)
+                       :gpos (mc/mapGridPos GRID-SIZE 1)
+                       :ebus (ebus/createEvBus)
+                       :ecs (ecs/createECS)
+                       :evQ (array)
+                       :range (range sz)
+                       :cells (ec/fillArray nil sz)})
+          bl (bgLayer)
+          gl (arenaLayer)
           hud (hud/hudLayer px py)]
       (reset! cx/*game-scene* scene)
-      (cx/addItem scene gl "game" 1)
+      (cx/addItem scene bl "bg" -1)
+      (cx/addItem scene gl "arena" 1)
       (cx/addItem scene hud "hud" 2)
-      (->>
-        #js{:ebus (ebus/createEvBus)
-            :evQ (array)
-            :ecs ecs
-            :update #(ecs/updateECS ecs %)}
-        (attr* scene))
+      (attr* scene
+             #js{:gstate state
+                 :update #(ecs/updateECS (:ecs @state) %)})
       (impl/init scene)
       (ocall! scene "scheduleUpdate"))))
 
