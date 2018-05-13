@@ -25,59 +25,61 @@
     [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- onGUI "" [topic msgTopic & msgs]
-  ;let sel = node.selection, map = node.view.gridMap, rect, sz= map.length
-  ;;set the mouse/touch position
-  (let [evt (_1 msgs)
-        e (ocall evt "getLocation")
-        loc (js->clj e :keywordize-keys true)]
-(js/console.log "e -> " e)
-    (js/console.log "clicked -> " (:x loc) ", " (:y loc))))
+(defn- click->cell "" [gridPos x y]
+  (cx/info* "grid pos === " gridPos)
+  (let [ret (some
+              (fn [i]
+                (let [r (nth gridPos i)]
+                  (if (and (>= x (oget-left r))
+                           (<= x (oget-right r))
+                           (>= y (oget-bottom r))
+                           (<= y (oget-top r)))
+                    [i])))
+              (range (n# gridPos)))]
+    (if (not-empty ret) (_1 ret) -1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- XXonGUI "" [topic msgTopic & msgs]
-  ;let sel = node.selection, map = node.view.gridMap, rect, sz= map.length
-  ;;set the mouse/touch position
-  (let [gridRange (range 9)
-        gridMap []
-        evt (_1 msgs)
-        sel (atom nil)
-        actor 1
-        loc (-> (ocall evt "getLocation")
-                (js->clj :keywordize true))]
-    (reset! sel {:loc loc :cell -1})
-    (cond
-      (= 0 actor)
-      nil
-      :else ;;which cell did he click on?
-      (some
-        (fn [pos]
-          (let [rect (nth gridMap pos)]
-            (if (and (>= (:x loc) (oget-left rect))
-                     (<= (:x loc) (oget-right rect))
-                     (>= (:y loc) (oget-bottom rect))
-                     (<= (:y loc) (oget-top rect)))
-              (do->true (swap! sel #(assoc % :cell pos))))))
-        gridRange))))
+(defn- onClick "" [gridPos topic msgTopic & msgs]
+  (let [evt (_1 msgs)
+        e (ocall evt "getLocation")
+        [x y] [(oget-x e) (oget-y e)]
+        _ (js/console.log "clicked -> " x ", " y)
+        cell (click->cell gridPos x y)]
+    (if-not (neg? cell)
+      (cx/info* "cell==== " cell))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- onTouch "" [gridPos topic msgTopic & msgs]
+  (let [evt (_1 msgs)
+        e (ocall evt "getLocation")
+        [x y] [(oget-x e) (oget-y e)]
+        _ (js/console.log "clicked -> " x ", " y)
+        cell (click->cell gridPos x y)]
+    (if-not (neg? cell)
+      (cx/info* "cell==== " cell))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn motion "" [ecs dt]
   (let [scene (deref cx/*game-scene*)
         state (oget scene "?gstate")
-        {:keys [evQ]} @state]
-    (if-some [msg (.shift evQ)] (apply onGUI msg))))
+        {:keys [whoAreYou whosTurn evQ]} @state]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" [scene]
   (let [state (oget scene "?gstate")
-        {:keys [ebus ecs evQ]} @state
+        {:keys [gpos ebus ecs evQ]} @state
         cb (fn [& xs] (.push evQ xs))]
+    (cx/info* "XXXgrid pos === " gpos)
+    ;(swap! state #(assoc % :whosTurn (if (pos? (ec/randSign)) 1 2)))
     (if (cx/onMouse ebus)
-      (ebus/sub+ ebus "mouse.up" cb))
+      (ebus/sub+ ebus
+                 "mouse.up"
+                 (fn [& xs] (apply onClick gpos xs))))
     (if (cx/onTouchOne ebus)
-      (ebus/sub+ ebus "touch.one.end" cb))
+      (ebus/sub+ ebus
+                 "touch.one.end"
+                 (fn [& xs] (apply onTouch gpos xs))))
     (ecs/addSystem ecs motion)))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

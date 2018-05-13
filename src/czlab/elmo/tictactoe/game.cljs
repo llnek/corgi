@@ -51,14 +51,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gameScene "" [px py & more]
   (do-with [scene (new js/cc.Scene)]
-    (let [{:keys [GRID-SIZE]} @*xcfg*
+    (let [{:keys [GRID-SIZE]} (:game @*xcfg*)
           sz (* GRID-SIZE GRID-SIZE)
           state (atom {:gspace (mc/mapGoalSpace GRID-SIZE)
                        :gpos (mc/mapGridPos GRID-SIZE 1)
                        :ebus (ebus/createEvBus)
                        :ecs (ecs/createECS)
                        :evQ (array)
-                       :range (range sz)
+                       :whoAreYou 1
+                       :whosTurn 1
                        :cells (ec/fillArray nil sz)})
           bl (bgLayer)
           gl (arenaLayer)
