@@ -16,7 +16,7 @@
                     :as cx :refer [oget-height oget-width
                                    oget-x oget-y
                                    oget-top sprite* ]])
-  (:require [czlab.elmo.afx.ccsx :as cx :refer [csize]]
+  (:require [czlab.elmo.afx.ccsx :as cx :refer [csize *xcfg*]]
             [czlab.elmo.tictactoe.mmenu :as mu]
             [czlab.elmo.tictactoe.misc :as mc]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
@@ -29,7 +29,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn splashScene "" []
   (do-with [scene (new js/cc.Scene)]
-    (let [bg (sprite* (cx/gimg :game-bg))
+    (let [{:keys [GRID-SIZE]} (:game @*xcfg*)
+          bg (sprite* (cx/gimg :game-bg))
           t (sprite* "#title.png")
           layer (new js/cc.Layer)
           _ (cx/addItem scene layer)
@@ -37,14 +38,14 @@
           cp (cx/centerPos)
           wb (cx/vbox4)
           pmu (cx/gmenu [{:cb (onplay scene) :nnn "#play.png"}]
-                        {:pos (js/cc.p (oget-x cp)
-                                       (* 0.1 (oget-top wb)))})]
+                        {:pos {:x (:x cp)
+                               :y (* 0.1 (:top wb))}})]
       ;;background
       (cx/setXXX! bg {:pos cp})
       (cx/addItem layer bg "bkgd" -1)
       ;;title
-      (cx/setXXX! t {:pos (js/cc.p (oget-x cp)
-                                   (* 0.8 (oget-top wb)))})
+      (cx/setXXX! t {:pos {:x (:x cp)
+                           :y (* 0.8 (:top wb))}})
       (cx/addItem layer t)
       ;;play button
       (cx/addItem layer pmu)
@@ -59,7 +60,7 @@
                         (sprite* ))]
             (cx/setXXX! sp {:pos (cx/vbox4MID mp) :scale scale})
             (cx/addItem layer sp)))
-        (mc/mapGridPos 3 scale)))))
+        (mc/mapGridPos GRID-SIZE scale)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

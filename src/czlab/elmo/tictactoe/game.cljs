@@ -32,37 +32,42 @@
                     (cx/setXXX! {:pos (cx/centerPos)})))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- showGrid "" [node]
+(defn- showGrid "" [layer]
   (let [{:keys [GRID-SIZE CV-Z]} (:game @*xcfg*)]
-    (reduce
-      (fn [acc mp]
-        (let [sp (-> (sprite* "#z.png")
-                     (cx/setXXX! {:pos (cx/vbox4MID mp)}))]
-          (cx/addItem node sp)
-          (conj! acc [sp CV-Z])))
-      (transient [])
-      (mc/mapGridPos GRID-SIZE 1))))
+    (->
+      (reduce
+        (fn [acc mp]
+          (let [pt (cx/vbox4MID mp)
+                sp (-> (sprite* "#z.png")
+                       (cx/setXXX! {:pos pt}))]
+            (cx/addItem layer sp)
+            (conj! acc [sp pt CV-Z])))
+        (transient [])
+        (mc/mapGridPos GRID-SIZE 1))
+      (persistent! ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- arenaLayer "" []
+(defn- arenaLayer "" [state]
   (do-with [layer (new js/cc.Layer)]
-      (showGrid layer)))
+    (let [cs (showGrid layer)]
+      (swap! state #(assoc % :cells cs)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gameScene "" [px py & more]
   (do-with [scene (new js/cc.Scene)]
-    (let [{:keys [GRID-SIZE]} (:game @*xcfg*)
+    (let [{:keys [GRID-SIZE CV-Z]} (:game @*xcfg*)
           sz (* GRID-SIZE GRID-SIZE)
           state (atom {:gspace (mc/mapGoalSpace GRID-SIZE)
                        :gpos (mc/mapGridPos GRID-SIZE 1)
                        :ebus (ebus/createEvBus)
                        :ecs (ecs/createECS)
+                       :grid (ec/fillArray CV-Z sz)
+                       :gmode 2
+                       :selected -1
                        :evQ (array)
-                       :whoAreYou 1
-                       :whosTurn 1
-                       :cells (ec/fillArray nil sz)})
+                       :whoAmI 1 :whosTurn 1 :cells nil})
           bl (bgLayer)
-          gl (arenaLayer)
+          gl (arenaLayer state)
           hud (hud/hudLayer px py)]
       (reset! cx/*game-scene* scene)
       (cx/addItem scene bl "bg" -1)

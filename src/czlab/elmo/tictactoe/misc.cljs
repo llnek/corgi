@@ -30,17 +30,16 @@
         cp (cx/centerPos)
         cells (* gsz gsz)
         sz (csize sp)
-        gridMap (array)
+        gridMap (transient [])
         [W H] (applyScalarOp *
                              scale
-                             (oget-width sz)
-                             (oget-height sz))
+                             (:width sz)
+                             (:height sz))
         [gw gh] (applyScalarOp * ro W H)
         zw (+ (* gsz W) (* gw (dec gsz)))
         zh (+ (* gsz H) (* gh (dec gsz)))
-        x0 (- (oget-x cp) (half* zw))
-        y0 (+ (oget-y cp) (half* zh))]
-    (dotimes [_ cells] (.push gridMap nil))
+        x0 (- (:x cp) (half* zw))
+        y0 (+ (:y cp) (half* zh))]
     (loop [row 0 x1 x0 y1 y0]
       (if (< row gsz)
         (recur (inc row)
@@ -50,11 +49,10 @@
                        x2 (+ x1' W)]
                    (if-not (< col gsz)
                      (- y2 gh)
-                     (do (aset gridMap
-                               (+ col (* row gsz))
-                               #js{:left x1' :top y1' :right x2 :bottom y2})
+                     (do (conj! gridMap
+                               {:left x1' :top y1' :right x2 :bottom y2})
                          (recur (inc col) (+ x2 gw) y1'))))))))
-    gridMap))
+    (persistent! gridMap)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mapGoalSpace

@@ -21,8 +21,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handleMultiDevices "" []
-  (let [{:keys [width height]} (js->clj (cx/screenBox))
-        {:keys [policy landscape?]} (:game @*xcfg*)
+  (let [{:keys [policy landscape?]} (:game @*xcfg*)
+        {:keys [width height]} (cx/screenBox)
         [X Y dir] (cond (or (>= width 2048)
                             (>= height 2048))
                         [2048 1536 :hdr]

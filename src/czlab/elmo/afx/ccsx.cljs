@@ -91,33 +91,33 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn isIntersect? "" [a1 a2]
-  (not (or (> (oget-left a1)(oget-right a2))
-           (> (oget-left a2)(oget-right a1))
-           (< (oget-top a1)(oget-bottom a2))
-           (< (oget-top a2)(oget-bottom a1)))))
+  (not (or (> (:left a1)(:right a2))
+           (> (:left a2)(:right a1))
+           (< (:top a1)(:bottom a2))
+           (< (:top a2)(:bottom a1)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn contains? "" [B x & [y]]
   (let [box4 (bbox4 B)
-        [px py] (if (number? y) [x y] [(oget-x x) (oget-y x)])]
-    (and (>= px (oget-left box4))
-         (<= px (oget-right box4))
-         (>= py (oget-bottom box4))
-         (<= py (oget-top box4)))))
+        [px py] (if (number? y) [x y] [(:x x) (:y x)])]
+    (and (>= px (:left box4))
+         (<= px (:right box4))
+         (>= py (:bottom box4))
+         (<= py (:top box4)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bbox->bbox4 "" [b]
-  #js{:right (+ (oget-x b)(oget-width b))
-      :left (oget-x b)
-      :bottom (oget-y b)
-      :top (+ (oget-y b)(oget-height b))})
+  {:right (+ (:x b)(:width b))
+   :left (:x b)
+   :bottom (:y b)
+   :top (+ (:y b)(:height b))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bbox4->bbox "" [b4]
-  (js/cc.rect (oget-left b4)
-              (oget-bottom b4)
-              (- (oget-right b4)(oget-left b4))
-              (- (oget-top b4)(oget-bottom b4))))
+  {:x (:left b4)
+   :y (:bottom b4)
+   :width (- (:right b4)(:left b4))
+   :height (- (:top b4)(:bottom b4))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bbox4
@@ -134,12 +134,36 @@
         :else (raise! "bad call to bbox4")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- p->point
+  "" [p] {:x (oget-x p) :y (oget-y p)})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- point->p
+  "" [pt] (js/cc.p (:x pt) (:y pt)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sz->size "" [sz]
+  {:width (oget-width sz) :height (oget-height sz)})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- rect->box "" [rc]
+  {:x (oget-x rc)
+   :y (oget-y rc)
+   :width (oget-width rc)
+   :height (oget-height rc)})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- box->rect "" [box]
+  (js/cc.rect (:x box)
+              (:y box) (:width box) (:height box)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bbox
   "Create a rectangle."
   [obj]
   (cond
     (sprite? obj)
-    (ocall obj "getBoundingBox")
+    (rect->box (ocall obj "getBoundingBox"))
     (snode? obj)
     (bbox (oget-piccy obj))
     (bbox4? obj)
@@ -162,7 +186,7 @@
         (collide? (bbox4->bbox a)(bbox4->bbox b))
 
         (and (bbox? a) (bbox? b))
-        (js/cc.rectIntersectsRect a b) :else false))
+        (js/cc.rectIntersectsRect (box->rect a) (box->rect b)) :else false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setDevRes!
@@ -175,17 +199,19 @@
   []
   (let [vo (js/cc.view.getVisibleOrigin)
         wz (js/cc.view.getVisibleSize)]
-    (newBBox (oget-x vo) (oget-y vo) (oget-width wz) (oget-height wz))))
+    (newBBox (oget-x vo)
+             (oget-y vo)
+             (oget-width wz)
+             (oget-height wz))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vbox4 "Get the visible screen box." [] (bbox->bbox4 (vbox)))
+(defn vbox4
+  "Get the visible screen box." [] (bbox->bbox4 (vbox)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vboxMID "" [box]
-  (js/cc.p (+ (oget-x box)
-              (* 0.5 (oget-width box)))
-           (+ (oget-y box)
-              (* 0.5 (oget-height box)))))
+  {:x (+ (:x box) (half* (:width box)))
+   :y (+ (:y box) (half* (:height box)))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vbox4MID "" [box4] (vboxMID (bbox4->bbox box4)))
@@ -195,11 +221,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn centerX
-  "Get x pos of the center of the visible screen." [] (oget-x (centerPos)))
+  "Get x pos of the center of the visible screen." [] (:x (centerPos)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn centerY
-  "Get y pos of the center of the visible screen." [] (oget-y (centerPos)))
+  "Get y pos of the center of the visible screen." [] (:y (centerPos)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn screenBox
@@ -210,10 +236,10 @@
     (newBBox 0 0 (oget-width z)(oget-height z))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn screenHeight "" [] (oget-height (screenBox)))
+(defn screenHeight "" [] (:height (screenBox)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn screenWidth "" [] (oget-width (screenBox)))
+(defn screenWidth "" [] (:width (screenBox)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn screenCenterPos "" [] (vboxMID (screenBox)))
@@ -221,7 +247,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn isPortrait?
   "Test if the screen is oriented vertically." []
-  (let [s (screenBox)] (> (oget-height s)(oget-width s))))
+  (let [s (screenBox)] (> (:height s)(:width s))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn outOfBound?
@@ -229,10 +255,10 @@
   [ent B]
   (let [b (bbox4 B)
         a (bbox4 ent)]
-    (or (> (oget-left a)(oget-right b))
-        (< (oget-top a)(oget-bottom b))
-        (< (oget-right a)(oget-left b))
-        (> (oget-bottom a)(oget-top b)))))
+    (or (> (:left a)(:right b))
+        (< (:top a)(:bottom b))
+        (< (:right a)(:left b))
+        (> (:bottom a)(:top b)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn undoTimer!
@@ -276,8 +302,7 @@
         (string? obj)
         (csize (sprite* obj))
         (bbox? obj)
-        (js/cc.size (oget-width obj)
-                    (oget-height obj))
+        (dissoc obj :x :y)
         (bbox4? obj)
         (csize (bbox4->bbox obj))
         :else (raise! "bad call csize")))
@@ -288,10 +313,10 @@
   (let [z (csize obj)]
     (applyScalarOp *
                    0.5
-                   (oget-width z) (oget-height z))))
+                   (:width z) (:height z))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getHeight "" [sprite] (oget-height (csize sprite)))
+(defn getHeight "" [sprite] (:height (csize sprite)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getScaledHeight
@@ -299,7 +324,7 @@
   [sprite] (* (ocall sprite "getScaleY") (getHeight sprite)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getWidth "" [sprite] (oget-width (csize sprite)))
+(defn getWidth "" [sprite] (:width (csize sprite)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getScaledWidth
@@ -308,7 +333,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getPos
-  "" [sprite] (ocall sprite "getPosition"))
+  "" [sprite] (p->point (ocall sprite "getPosition")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn spriteBBox4 "" [obj]
@@ -325,16 +350,16 @@
     (raise! "bad call spriteBBox")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getBottom "" [obj] (oget-bottom (spriteBBox4 obj)))
+(defn getBottom "" [obj] (:bottom (spriteBBox4 obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getLeft "" [obj] (oget-left (spriteBBox4 obj)))
+(defn getLeft "" [obj] (:left (spriteBBox4 obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getRight "" [obj] (oget-right (spriteBBox4 obj)))
+(defn getRight "" [obj] (:right (spriteBBox4 obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getTop "" [obj] (oget-top (spriteBBox4 obj)))
+(defn getTop "" [obj] (:top (spriteBBox4 obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn traceEnclosure
@@ -343,23 +368,23 @@
   [dt bbox4 rect vel]
   (let [[hw hh] (half-size* rect)
         pt (vboxMID rect)
-        vx (oget-x vel)
-        vy (oget-y vel)
-        y (+ (oget-y pt) (* dt vy))
-        x (+ (oget-x pt) (* dt vx))
+        vx (:x vel)
+        vy (:y vel)
+        y (+ (:y pt) (* dt vy))
+        x (+ (:x pt) (* dt vx))
         [x1 y1 vx1 vy1 t?]
         (cond
-          (> (+ y hh) (oget-top bbox4)) ;;hitting top wall
-          [x (- (oget-top bbox4) hh) vx (- vy) true]
-          (< (- y hh) (oget-bottom bbox4)) ;;hitting bottom wall
-          [x (+ (oget-bottom bbox4) hh) vx (- vy) true]
+          (> (+ y hh) (:top bbox4)) ;;hitting top wall
+          [x (- (:top bbox4) hh) vx (- vy) true]
+          (< (- y hh) (:bottom bbox4)) ;;hitting bottom wall
+          [x (+ (:bottom bbox4) hh) vx (- vy) true]
           :else [x y vx vy false])
         [x2 y2 vx2 vy2 t2?]
         (cond
-          (> (+ x hw) (oget-right bbox4)) ;;hitting right wall
-          [(- (oget-right bbox4) hw) y1 (- vx1) vy1 true]
-          (< (- x hw) (oget-left bbox4)) ;;hitting left wall
-          [(+ (oget-left bbox4) hw) y1 (- vx1) vy1 true]
+          (> (+ x hw) (:right bbox4)) ;;hitting right wall
+          [(- (:right bbox4) hw) y1 (- vx1) vy1 true]
+          (< (- x hw) (:left bbox4)) ;;hitting left wall
+          [(+ (:left bbox4) hw) y1 (- vx1) vy1 true]
           :else
           [x1 y1 vx1 vy1 t?])]
     [x2 y2 vx2 vy2 t2?]))
@@ -527,7 +552,8 @@
   (let [{:keys [scale color pos anchor show?] :or {show? true}} options]
     (if (some? anchor) (ocall! node "setAnchorPoint" (getAnchorPoint anchor)))
     (if (some? color) (ocall! node "setColor" color))
-    (if (some? pos) (ocall! node "setPosition" pos))
+    (if (some? pos)
+      (ocall! node "setPosition" (point->p pos)))
     (if-not show? (ocall! node "setVisible" false))
     (if (number? scale) (ocall! node "setScale" scale)) node))
 
@@ -744,7 +770,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn xliveGroup "" [hud img total x y direction]
-  (atom {::topLeft (js/cc.p x y)
+  (atom {::topLeft {:x x :y y}
          ::image img
          ::totalLives total
          ::icons [] ::parent hud ::curLives total ::dir direction}))
@@ -779,16 +805,17 @@
                  ::curLives ::dir ::image] :as root}]
       (let
         [sz (csize image)
-         h (oget-height sz)
-         w (oget-width sz)
+         h (:height sz)
+         w (:width sz)
          [hw hh] (half-size* sz)
          icons
          (loop [n 0 arr []
-                y (- (oget-y topLeft) hh)
-                x (+ (oget-x topLeft) hw)]
+                y (- (:y topLeft) hh)
+                x (+ (:x topLeft) hw)]
            (if-not (< n curLives)
              arr
-             (let [v (xliveIcon image {:pos (js/cc.p x y)})]
+             (let [v (xliveIcon image
+                                {:pos {:x x :y y}})]
                (addItem parent v)
                (recur (inc n) (conj arr v)
                       y (if (pos? dir) (+ x w) (- x w))))))]
@@ -831,21 +858,9 @@
   (let [sz (csize node)
         [hw hh] (half-size* sz)
         B (vbox4)]
-    (setXXX! node {:pos (js/cc.p (- (oget-right B) hw) 0)})))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn XgameLayer "" [options]
-  (do-with [y (new js/cc.Layer)]
-           (attr* y
-                   #js{:ebus (ebus/createEvBus)
-                       :keyboard []
-                       :players []
-                       :level 1
-                       :actor nil})
-           (set! *game-scene* y)))
+    (setXXX! node {:pos {:x (- (:right B) hw) :y 0}})))
 
 ;import Cookies from 'Cookies';
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mkScore
   "" [n v] {::value (js/Number (cs/trim v)) ::name (cs/trim n) })
@@ -1026,9 +1041,9 @@
     (ocall! pg "setType" js/cc.ProgressTimer.TYPE_BAR)
     (ocall! pg "setScaleX" 0.8)
     (ocall! pg "setScaleY" 0.3)
-    (setXXX! pg {:pos (js/cc.p (oget-x cp)
-                               (- (oget-y cp)
-                                  (* 0.6 (oget-height sz))))})
+    (setXXX! pg {:pos {:x (:x cp)
+                       :y (- (:y cp)
+                             (* 0.6 (:height sz)))}})
     (addItem scene pg "progress")
     (attr* scene #js{:update
                      (pkLoadMore scene (clj->js assets) state)})

@@ -11,7 +11,6 @@
 
   czlab.elmo.afx.ccsx)
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro sprite? "" [obj] `(instance? ~'js/cc.Sprite ~obj))
 
@@ -19,15 +18,15 @@
 (defmacro snode? "" [obj] `(goog.object/containsKey ~obj "piccy"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro bbox? "" [obj] `(goog.object/containsKey ~obj "width"))
+(defmacro bbox? "" [obj] `(contains? ~obj :width))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro bbox4? "" [obj] `(goog.object/containsKey ~obj "bottom"))
+(defmacro bbox4? "" [obj] `(contains? ~obj :bottom))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro zerort "" [] `(~'js/cc.rect 0 0 0 0))
-(defmacro zeropt "" [] `(~'js/cc.p 0 0))
-(defmacro zerosz "" [] `(~'js/cc.size 0 0))
+(defmacro zerort "" [] `{:x 0 :y 0 :width 0 :height 0})
+(defmacro zeropt "" [] `{:x 0 :y 0})
+(defmacro zerosz "" [] `{:width 0 :height 0})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro attr* "" [node attrs] `(oops.core/ocall! ~node "attr" ~attrs))
@@ -56,20 +55,16 @@
 (defmacro not-native? "" [] `(not ~'js/cc.sys.isNative))
 (defmacro native? "" [] `~'js/cc.sys.isNative)
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro sprite* "" [arg] `(new ~'js/cc.Sprite ~arg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro size* "" [obj]
-  `(vector (oget-width ~obj)(oget-height ~obj)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro newBBox4
-  "" [t r b l] `(js-obj :top ~t :right ~r :bottom ~b :left ~l))
+  "" [t r b l] `{:top ~t :right ~r :bottom ~b :left ~l})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro newBBox "" [x y w h] `(~'js/cc.rect ~x ~y ~w ~h))
+(defmacro newBBox
+  "" [x y w h] `{:x ~x :y ~y :width ~w :height ~h})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

@@ -34,33 +34,34 @@
           c (js/cc.color "#5e3178")
           title (cx/bmfLabel (str (_2 px) "/" (_2 py))
                              (cx/gfnt :title)
-                             {:pos (js/cc.p (oget-x cp) (oget-top wb))
+                             {:pos {:x (:x cp) :y (:top wb)}
                               :anchor *anchor-top*
                               :color c
                               :scale 0.6})
           score1 (cx/bmfLabel "0"
                               (cx/gfnt :label)
-                              {:pos (js/cc.p 0 (oget-top wb))
+                              {:pos {:x 0 :y (:top wb)}
                                :color (js/cc.color 255 255 255)
                                :scale 0.6
                                :anchor *anchor-top-left* })
           score2 (cx/bmfLabel "0"
                               (cx/gfnt :label)
-                              {:pos (js/cc.p (oget-right wb) (oget-top wb))
+                              {:pos {:x (:right wb) :y (:top wb)}
                                :color (js/cc.color 255 255 255)
                                :scale 0.6
                                :anchor *anchor-top-right* })
           status (cx/bmfLabel ""
                               (cx/gfnt :text)
-                              {:pos (js/cc.p (oget-x cp) (oget-bottom wb))
+                              {:pos {:x (:x cp) :y (:bottom wb)}
                                :color (js/cc.color 255 255 255)
                                :scale 0.3})
           result (cx/bmfLabel ""
                               (cx/gfnt :text)
-                              {:pos (js/cc.p (oget-x cp) (oget-bottom wb))
+                              {:pos {:x (:x cp) :y (:bottom wb)}
                                :color (js/cc.color 255 255 255)
                                :show? false
                                :scale 0.3})]
+      (cx/info* "hud called")
       (cx/addItem layer title)
       (cx/addItem layer score1)
       (cx/addItem layer score2)

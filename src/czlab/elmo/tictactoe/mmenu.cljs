@@ -55,8 +55,8 @@
           tt (cx/bmfLabel
                (cx/l10n "%mmenu")
                (cx/gfnt :title)
-               {:pos (js/cc.p (oget-x cp)
-                              (* 0.8 (oget-top wb)))
+               {:pos {:x (:x cp)
+                      :y (* 0.8 (:top wb))}
                 :color (js/cc.color "#F6B17F")})
           mnu (cx/gmenu
                 [{:nnn "#online.png" :cb onnetplay}

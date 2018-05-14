@@ -26,59 +26,46 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- click->cell "" [gridPos x y]
-  (cx/info* "grid pos === " gridPos)
+  ;(cx/info* "grid pos === " gridPos)
   (let [ret (some
               (fn [i]
                 (let [r (nth gridPos i)]
-                  (if (and (>= x (oget-left r))
-                           (<= x (oget-right r))
-                           (>= y (oget-bottom r))
-                           (<= y (oget-top r)))
-                    [i])))
+                  (if (cx/contains? r x y) [i])))
               (range (n# gridPos)))]
     (if (not-empty ret) (_1 ret) -1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- onClick "" [gridPos topic msgTopic & msgs]
-  (let [evt (_1 msgs)
-        e (ocall evt "getLocation")
-        [x y] [(oget-x e) (oget-y e)]
-        _ (js/console.log "clicked -> " x ", " y)
-        cell (click->cell gridPos x y)]
-    (if-not (neg? cell)
-      (cx/info* "cell==== " cell))))
+(defn- onClick "" [state topic msgTopic & msgs]
+  (let [{:keys [gmode gpos whoAmI whosTurn]} @state
+        e (ocall (_1 msgs) "getLocation")
+        cell (click->cell gpos (oget-x e) (oget-y e))]
+    (when-not (neg? cell))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- onTouch "" [gridPos topic msgTopic & msgs]
-  (let [evt (_1 msgs)
-        e (ocall evt "getLocation")
-        [x y] [(oget-x e) (oget-y e)]
-        _ (js/console.log "clicked -> " x ", " y)
-        cell (click->cell gridPos x y)]
-    (if-not (neg? cell)
-      (cx/info* "cell==== " cell))))
+(defn- onTouch "" [state topic msgTopic & msgs])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn motion "" [ecs dt]
   (let [scene (deref cx/*game-scene*)
         state (oget scene "?gstate")
-        {:keys [whoAreYou whosTurn evQ]} @state]))
+        {:keys [whoAmI whosTurn evQ]} @state]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" [scene]
   (let [state (oget scene "?gstate")
         {:keys [gpos ebus ecs evQ]} @state
         cb (fn [& xs] (.push evQ xs))]
-    (cx/info* "XXXgrid pos === " gpos)
+    (cx/info* "impl.init called")
+    ;(cx/info* "XXXgrid pos === " gpos)
     ;(swap! state #(assoc % :whosTurn (if (pos? (ec/randSign)) 1 2)))
     (if (cx/onMouse ebus)
       (ebus/sub+ ebus
                  "mouse.up"
-                 (fn [& xs] (apply onClick gpos xs))))
+                 (fn [& xs] (apply onClick state xs))))
     (if (cx/onTouchOne ebus)
       (ebus/sub+ ebus
                  "touch.one.end"
-                 (fn [& xs] (apply onTouch gpos xs))))
+                 (fn [& xs] (apply onTouch state xs))))
     (ecs/addSystem ecs motion)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
