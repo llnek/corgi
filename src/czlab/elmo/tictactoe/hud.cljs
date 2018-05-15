@@ -12,7 +12,7 @@
   czlab.elmo.tictactoe.hud
 
   (:require-macros [czlab.elmo.afx.core
-                    :as ec :refer [_1 _2 f#* do-with each-indexed]]
+                    :as ec :refer [_1 _2 f#* do-with each-indexed numStr]]
                    [czlab.elmo.afx.ccsx
                     :as cx :refer [sprite* oget-top oget-x oget-y
                                    oget-bottom oget-right oget-left]])
@@ -24,27 +24,25 @@
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn hudLayer "" [px py]
+(defn hudLayer "" [px py state score1' score2']
   (do-with [layer (new js/cc.Layer)]
-    (let [state (atom {:scores {:1 0 :2 0}
-                       (_1 px) {:id (_2 px) :name (last px)}
-                       (_1 py) {:id (_2 py) :name (last py)}})
-          cp (cx/centerPos)
+    (let [cp (cx/centerPos)
           wb (cx/vbox4)
           c (js/cc.color "#5e3178")
-          title (cx/bmfLabel (str (_2 px) "/" (_2 py))
+          title (cx/bmfLabel (str (get-in @state [px :pid]) "/"
+                                  (get-in @state [py :pid]))
                              (cx/gfnt :title)
                              {:pos {:x (:x cp) :y (:top wb)}
                               :anchor *anchor-top*
                               :color c
                               :scale 0.6})
-          score1 (cx/bmfLabel "0"
+          score1 (cx/bmfLabel (numStr score1')
                               (cx/gfnt :label)
                               {:pos {:x 0 :y (:top wb)}
                                :color (js/cc.color 255 255 255)
                                :scale 0.6
                                :anchor *anchor-top-left* })
-          score2 (cx/bmfLabel "0"
+          score2 (cx/bmfLabel (numStr score2')
                               (cx/gfnt :label)
                               {:pos {:x (:right wb) :y (:top wb)}
                                :color (js/cc.color 255 255 255)

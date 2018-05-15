@@ -13,7 +13,7 @@
 
   (:require-macros
     [czlab.elmo.afx.core
-     :as ec :refer [f#* do-with each-indexed]]
+     :as ec :refer [_1 _2 f#* do-with each-indexed]]
     [czlab.elmo.afx.ccsx :as cx :refer [sprite* attr*]])
   (:require [czlab.elmo.afx.ccsx :as cx :refer [*xcfg*]]
             [czlab.elmo.afx.core :as ec]
@@ -53,22 +53,28 @@
       (swap! state #(assoc % :cells cs)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn gameScene "" [px py & more]
+(defn- initOnce "" [state] (f#* (impl/init state)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn gameScene "" [mode px py & more]
   (do-with [scene (new js/cc.Scene)]
     (let [{:keys [GRID-SIZE CV-Z]} (:game @*xcfg*)
+          zmks [:ptype :pvalue :pcolor :pid :pname]
           sz (* GRID-SIZE GRID-SIZE)
           state (atom {:gspace (mc/mapGoalSpace GRID-SIZE)
                        :gpos (mc/mapGridPos GRID-SIZE 1)
                        :ebus (ebus/createEvBus)
                        :ecs (ecs/createECS)
                        :grid (ec/fillArray CV-Z sz)
-                       :gmode 2
+                       :gmode mode
                        :selected -1
                        :evQ (array)
-                       :whoAmI 1 :whosTurn 1 :cells nil})
+                       :whoAmI nil :whosTurn nil :cells nil
+                       (_1 px) (zipmap zmks (rest px))
+                       (_1 py) (zipmap zmks (rest py))})
           bl (bgLayer)
           gl (arenaLayer state)
-          hud (hud/hudLayer px py)]
+          hud (hud/hudLayer (_1 px) (_1 py) state 0 0)]
       (reset! cx/*game-scene* scene)
       (cx/addItem scene bl "bg" -1)
       (cx/addItem scene gl "arena" 1)
@@ -76,8 +82,7 @@
       (attr* scene
              #js{:gstate state
                  :update #(ecs/updateECS (:ecs @state) %)})
-      (impl/init scene)
-      (ocall! scene "scheduleUpdate"))))
+      (ocall! scene "scheduleOnce" (initOnce state) 0.1))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

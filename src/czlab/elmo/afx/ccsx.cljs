@@ -1093,10 +1093,12 @@
                 :size {:width 0 :height 0}
                 :resDir ""
                 :landscape? true
-                :CV-X (.charCodeAt "X" 0)
-                :CV-O (.charCodeAt "0" 0)
-                :P2-COLOR "O"
-                :P1-COLOR "X"
+                :CV-X 88 ;(.charCodeAt "X" 0)
+                :CV-O 79 ;(.charCodeAt "0" 0)
+                :CC-O "O"
+                :CC-X "X"
+                :CX :1
+                :CO :2
                 :NETP 3
                 :HUMAN 1
                 :BOT 2

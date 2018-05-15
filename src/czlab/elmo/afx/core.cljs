@@ -127,7 +127,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fillArray "" [value len]
   (let [arr (array)]
-    (dotimes [_ len] (.push arr value) arr)))
+    (dotimes [_ len] (.push arr value)) arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn isMobile?

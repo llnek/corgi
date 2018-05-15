@@ -13,13 +13,15 @@
 
   (:require-macros
     [czlab.elmo.afx.core
-     :as ec :refer [do->true each-indexed f#* n# _1 _2 do-with]]
+     :as ec :refer [do->true each-indexed
+                    nneg? f#* n# _1 _2 do-with]]
     [czlab.elmo.afx.ccsx
-     :as cx :refer [oget-bottom oget-right
+     :as cx :refer [oget-bottom oget-right gcbyn
                     oget-x oget-y oget-left oget-top]])
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
-    [czlab.elmo.afx.ccsx :as cx]
+    [czlab.elmo.afx.ccsx :as cx :refer [*game-scene* *xcfg*]]
+    [czlab.elmo.tictactoe.misc :as mc]
     [czlab.elmo.afx.ecs :as ecs]
     [czlab.elmo.afx.ebus :as ebus]
     [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
@@ -34,12 +36,42 @@
               (range (n# gridPos)))]
     (if (not-empty ret) (_1 ret) -1)))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- updateArena "" [state cell value]
+  (let [{:keys [whosTurn cells grid]} @state
+        {:keys [CX CO]} (:game @*xcfg*)
+        view (gcbyn @*game-scene* "arena")
+        [sp pt v] (nth cells cell)
+        sp' (mc/value->symbol value false)]
+    (if (some? sp) (cx/remove! sp))
+    (cx/setXXX! sp' {:pos pt})
+    (cx/addItem view sp')
+    (swap! state
+           (fn [root]
+             (aset grid cell value)
+             (-> (update-in root [:cells cell] (fn [_] [sp' pt value]))
+                 (assoc :whosTurn (if (= whosTurn CX)
+                                    CO
+                                    (if (= whosTurn CO) CX nil))))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onClick "" [state topic msgTopic & msgs]
-  (let [{:keys [gmode gpos whoAmI whosTurn]} @state
+  (let [{:keys [gmode gpos grid whoAmI whosTurn]} @state
         e (ocall (_1 msgs) "getLocation")
-        cell (click->cell gpos (oget-x e) (oget-y e))]
-    (when-not (neg? cell))))
+        cell (click->cell gpos (oget-x e) (oget-y e))
+        {:keys [CV-Z]} (:game @*xcfg*)
+        user (get @state whosTurn)
+        cat (get user :ptype)]
+    (cx/info* "grid= " grid)
+    (cx/info* "turn= " (name whosTurn))
+    (cx/info* "cat= " cat)
+    (when (and (number? cat)
+               (not= 2 cat)
+               (nneg? cell)
+               (= CV-Z (nth grid cell)))
+      (cx/info* "cell====== " cell)
+      (updateArena state cell (:pvalue user)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onTouch "" [state topic msgTopic & msgs])
@@ -51,21 +83,32 @@
         {:keys [whoAmI whosTurn evQ]} @state]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn init "" [scene]
-  (let [state (oget scene "?gstate")
-        {:keys [gpos ebus ecs evQ]} @state
+(defn init "" [state]
+  (let [{:keys [gmode gpos ebus ecs evQ]} @state
+        {:keys [CX CO]} (:game @*xcfg*)
         cb (fn [& xs] (.push evQ xs))]
     (cx/info* "impl.init called")
-    ;(cx/info* "XXXgrid pos === " gpos)
-    ;(swap! state #(assoc % :whosTurn (if (pos? (ec/randSign)) 1 2)))
     (if (cx/onMouse ebus)
       (ebus/sub+ ebus
                  "mouse.up"
-                 (fn [& xs] (apply onClick state xs))))
+                 (fn [& xs] (apply onClick (concat [state] xs)))))
     (if (cx/onTouchOne ebus)
       (ebus/sub+ ebus
                  "touch.one.end"
-                 (fn [& xs] (apply onTouch state xs))))
+                 (fn [& xs] (apply onTouch (concat [state] xs)))))
+
+    ;always player 1 for mode 1
+    (if (= 1 gmode)
+      (swap! state #(assoc % :whoAmI CX)))
+    ;unless online, randomly choose who starts first
+    (case gmode
+      (1 2)
+      (swap! state #(assoc %
+                           :whosTurn
+                           (if (pos? (ec/randSign)) CX CO)))
+      nil)
+
+
     (ecs/addSystem ecs motion)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
