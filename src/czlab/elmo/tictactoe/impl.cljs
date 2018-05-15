@@ -28,7 +28,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- click->cell "" [gridPos x y]
-  ;(cx/info* "grid pos === " gridPos)
   (let [ret (some
               (fn [i]
                 (let [r (nth gridPos i)]
@@ -36,6 +35,39 @@
               (range (n# gridPos)))]
     (if (not-empty ret) (_1 ret) -1)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- switchOver "" [state]
+  (let [{:keys [whosTurn]} @state
+        {:keys [CX CO]} (:game @*xcfg*)]
+    (swap! state
+           #(assoc %
+                   :whosTurn
+                   (if (= whosTurn CX)
+                     CO
+                     (if (= whosTurn CO) CX nil))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- tieGame "" [state] )
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- wonGame "" [state value]
+  (cx/info* "WIN!"))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- checkGameState "" [state value]
+  (let [{:keys [gspace whosTurn grid]} @state
+        {:keys [CV-Z]} (:game @*xcfg*)
+        combo (some (fn [c]
+                      (if (every? #(= % value)
+                                  (map #(nth grid %) c)) c nil)) gspace)]
+    (cond
+      (some? combo)
+      (wonGame state value)
+      (not-any? #(= CV-Z %) grid)
+      (tieGame state)
+      :else
+      (switchOver state))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- updateArena "" [state cell value]
@@ -50,10 +82,7 @@
     (swap! state
            (fn [root]
              (aset grid cell value)
-             (-> (update-in root [:cells cell] (fn [_] [sp' pt value]))
-                 (assoc :whosTurn (if (= whosTurn CX)
-                                    CO
-                                    (if (= whosTurn CO) CX nil))))))))
+             (update-in root [:cells cell] (fn [_] [sp' pt value]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onClick "" [state topic msgTopic & msgs]
@@ -71,7 +100,8 @@
                (nneg? cell)
                (= CV-Z (nth grid cell)))
       (cx/info* "cell====== " cell)
-      (updateArena state cell (:pvalue user)))))
+      (updateArena state cell (:pvalue user))
+      (checkGameState state (:pvalue user)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onTouch "" [state topic msgTopic & msgs])
