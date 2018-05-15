@@ -679,47 +679,6 @@
       (if (< deg 0)
         (- 360 (xmod (- deg) 360)) deg)))
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setSfx! "" [v]
-  (swap! *xcfg* #(assoc-in % [:sound :open?] v)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn toggleSfx! "" []
-  (swap! *xcfg*
-         #(update-in %
-                     [:sound :open?] (fn [b] (not b)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sfxOn? "" [] (getCfgXXX :sound :open?))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sfxMusicVol "" [vol]
-  (if (number? vol) (js/cc.audioEngine.setMusicVolume vol)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sfxPlayMusic "" [key & [options]]
-  (if (sfxOn?)
-    (let [{:keys [vol repeat?]} options]
-      (sfxMusicVol vol)
-      (js/cc.audioEngine.playMusic (getCfgXXX :sounds key) repeat?))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sfxPlayEffect "" [key & [options]]
-  (if (sfxOn?)
-    (let [{:keys [vol repeat?]} options]
-      (sfxMusicVol vol)
-      (js/cc.audioEngine.playEffect (getCfgXXX :sounds key) repeat?))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sfxCancel! "" []
-  (js/cc.audioEngine.stopMusic)
-  (js/cc.audioEngine.stopAllEffects))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sfxInit "" []
-  (sfxMusicVol (getCfgXXX :audio :volume)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sanitizeUrlForDevice "" [url] url)
 (defn sanitizeUrlForWeb "" [url] url)
@@ -755,6 +714,46 @@
   (->> (getCfgXXX :game :sfx)
        (name)
        (str "res/" (getCfgXXX :sounds key) ".")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn setSfx! "" [v]
+  (swap! *xcfg* #(assoc-in % [:audio :open?] v)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn toggleSfx! "" []
+  (swap! *xcfg*
+         #(update-in %
+                     [:audio :open?] (fn [b] (not b)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxOn? "" [] (getCfgXXX :audio :open?))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxMusicVol "" [vol]
+  (if (number? vol) (js/cc.audioEngine.setMusicVolume vol)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxPlayMusic "" [key & [options]]
+  (if (sfxOn?)
+    (let [{:keys [vol repeat?]} options]
+      (sfxMusicVol vol)
+      (js/cc.audioEngine.playMusic (gsfx key) repeat?))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxPlayEffect "" [key & [options]]
+  (if (sfxOn?)
+    (let [{:keys [vol repeat?]} options]
+      (sfxMusicVol vol)
+      (js/cc.audioEngine.playEffect (gsfx key) repeat?))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxCancel! "" []
+  (js/cc.audioEngine.stopMusic)
+  (js/cc.audioEngine.stopAllEffects))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxInit "" []
+  (sfxMusicVol (getCfgXXX :audio :volume)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- preCacheAtlases "" []
@@ -1102,7 +1101,6 @@
                 :NETP 3
                 :HUMAN 1
                 :BOT 2
-                :GAME-MODE 1
                 :TILE 8
                 :S-OFF 4
                 :GAME-ID ""
@@ -1134,7 +1132,7 @@
                           "%signinplay" "Please sign in to play."
                           "%quit?" "Continue and quit game?" }}
          :audio {:volume 0.5
-                 :open? false
+                 :open? true
                  :track nil }
          :runOnce (f#* (preCacheAtlases))
          :startScene (f#*  nil)})

@@ -15,10 +15,11 @@
                     :as ec :refer [_1 _2 f#* do-with each-indexed numStr]]
                    [czlab.elmo.afx.ccsx
                     :as cx :refer [sprite* oget-top oget-x oget-y
+                                   gcbyn
                                    oget-bottom oget-right oget-left]])
   (:require [czlab.elmo.afx.ccsx
              :as cx :refer [*anchor-top-right* *anchor-top-left*
-                            *xcfg* *anchor-top*]]
+                            *game-scene* *xcfg* *anchor-top*]]
             [czlab.elmo.afx.core :as ec]
             [czlab.elmo.tictactoe.misc :as mc]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
@@ -60,12 +61,29 @@
                                :show? false
                                :scale 0.3})]
       (cx/info* "hud called")
-      (cx/addItem layer title)
-      (cx/addItem layer score1)
-      (cx/addItem layer score2)
-      (cx/addItem layer status)
-      (cx/addItem layer result)
-      (oset! layer "!____state" state))))
+      (cx/addItem layer title "title")
+      (cx/addItem layer score1 "p1")
+      (cx/addItem layer score2 "p2")
+      (cx/addItem layer status "status")
+      (cx/addItem layer result "result"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn writeStatus "" [msg]
+  (let [hud (gcbyn @*game-scene* "hud")
+        status (gcbyn hud "status")]
+    (ocall! status "setString" msg)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn writeScore "" [who score]
+  (let [hud (gcbyn @*game-scene* "hud")
+        s (str "p" (name who))
+        obj (gcbyn hud s)]
+    (ocall! obj "setString" (numStr score))))
+
+
+
+
+
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

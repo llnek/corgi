@@ -32,9 +32,9 @@
           :sheets {:lang-pics "l10n/images.plist"
                    :game-pics "imgs/images.plist"}
           :sounds {:game-end "snds/MineExplosion"
-                   :x-pick "snds/ElevatorBeep"
-                   :o-pick "snds/MineBeep"
-                   :game-quit "snds/Death" }
+                   :1 "snds/ElevatorBeep"
+                   :2 "snds/MineBeep"
+                   :game-tie "snds/Death" }
           :fonts {:label "fnts/SmallTypeWriting.fnt"
                   :title "fnts/AutoMission.fnt"
                   :c "fnts/Subito.fnt"

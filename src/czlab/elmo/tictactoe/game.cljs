@@ -53,7 +53,9 @@
       (swap! state #(assoc % :cells cs)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- initOnce "" [state] (f#* (impl/init state)))
+(defn- initOnce "" [state]
+  (f#* (impl/init state)
+       (swap! state #(assoc % :running? true))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gameScene "" [mode px py & more]
@@ -66,10 +68,12 @@
                        :ebus (ebus/createEvBus)
                        :ecs (ecs/createECS)
                        :grid (ec/fillArray CV-Z sz)
+                       :running? false
                        :gmode mode
                        :selected -1
                        :evQ (array)
                        :whoAmI nil :whosTurn nil :cells nil
+                       :scores {(_1 px) 0 (_1 py) 0}
                        (_1 px) (zipmap zmks (rest px))
                        (_1 py) (zipmap zmks (rest py))})
           bl (bgLayer)

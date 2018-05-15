@@ -22,6 +22,7 @@
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
     [czlab.elmo.afx.ccsx :as cx :refer [*game-scene* *xcfg*]]
     [czlab.elmo.tictactoe.misc :as mc]
+    [czlab.elmo.tictactoe.hud :as hud]
     [czlab.elmo.afx.ecs :as ecs]
     [czlab.elmo.afx.ebus :as ebus]
     [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
@@ -36,6 +37,13 @@
     (if (not-empty ret) (_1 ret) -1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- syncStatus "" [state]
+  (let [{:keys [whosTurn]} @state
+        user (get @state whosTurn)
+        id (get user :pid)]
+    (hud/writeStatus (str id "'s move..."))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- switchOver "" [state]
   (let [{:keys [whosTurn]} @state
         {:keys [CX CO]} (:game @*xcfg*)]
@@ -44,38 +52,49 @@
                    :whosTurn
                    (if (= whosTurn CX)
                      CO
-                     (if (= whosTurn CO) CX nil))))))
+                     (if (= whosTurn CO) CX nil))))
+    (syncStatus state)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- tieGame "" [state]
+  (hud/writeStatus "It's a draw!")
+  (cx/sfxPlayEffect :game-tie)
+  (swap! state #(assoc % :running? false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- tieGame "" [state] )
+(defn- wonGame "" [state who player]
+  (let [s (get-in @state [:scores who])]
+    (cx/sfxPlayEffect :game-end)
+    (hud/writeScore who (inc s))
+    (hud/writeStatus (str (get player :pid) " wins!"))
+    (swap! state #(-> (assoc % :running? false)
+                      (update-in [:scores who] inc)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- wonGame "" [state value]
-  (cx/info* "WIN!"))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- checkGameState "" [state value]
+(defn- checkGameState "" [state player]
   (let [{:keys [gspace whosTurn grid]} @state
         {:keys [CV-Z]} (:game @*xcfg*)
+        value (get player :pvalue)
         combo (some (fn [c]
                       (if (every? #(= % value)
                                   (map #(nth grid %) c)) c nil)) gspace)]
     (cond
       (some? combo)
-      (wonGame state value)
+      (wonGame state whosTurn player)
       (not-any? #(= CV-Z %) grid)
       (tieGame state)
       :else
       (switchOver state))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- updateArena "" [state cell value]
+(defn- updateArena "" [state player cell]
   (let [{:keys [whosTurn cells grid]} @state
         {:keys [CX CO]} (:game @*xcfg*)
         view (gcbyn @*game-scene* "arena")
+        value (get player :pvalue)
         [sp pt v] (nth cells cell)
         sp' (mc/value->symbol value false)]
+    (cx/sfxPlayEffect whosTurn)
     (if (some? sp) (cx/remove! sp))
     (cx/setXXX! sp' {:pos pt})
     (cx/addItem view sp')
@@ -86,22 +105,20 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onClick "" [state topic msgTopic & msgs]
-  (let [{:keys [gmode gpos grid whoAmI whosTurn]} @state
-        e (ocall (_1 msgs) "getLocation")
-        cell (click->cell gpos (oget-x e) (oget-y e))
-        {:keys [CV-Z]} (:game @*xcfg*)
-        user (get @state whosTurn)
-        cat (get user :ptype)]
-    (cx/info* "grid= " grid)
-    (cx/info* "turn= " (name whosTurn))
-    (cx/info* "cat= " cat)
-    (when (and (number? cat)
-               (not= 2 cat)
-               (nneg? cell)
-               (= CV-Z (nth grid cell)))
-      (cx/info* "cell====== " cell)
-      (updateArena state cell (:pvalue user))
-      (checkGameState state (:pvalue user)))))
+  (let [{:keys [gmode gpos grid whoAmI whosTurn running?]} @state]
+    (when running?
+      (let [e (ocall (_1 msgs) "getLocation")
+            cell (click->cell gpos (oget-x e) (oget-y e))
+            {:keys [CV-Z]} (:game @*xcfg*)
+            player (get @state whosTurn)
+            cat (get player :ptype)]
+        (cx/info* "cell=>>>>>> " cell)
+        (when (and (number? cat)
+                   (not= 2 cat)
+                   (nneg? cell)
+                   (= CV-Z (nth grid cell)))
+          (updateArena state player cell)
+          (checkGameState state player))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onTouch "" [state topic msgTopic & msgs])
@@ -138,7 +155,7 @@
                            (if (pos? (ec/randSign)) CX CO)))
       nil)
 
-
+    (syncStatus state)
     (ecs/addSystem ecs motion)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
