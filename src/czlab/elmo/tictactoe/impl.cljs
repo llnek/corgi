@@ -21,11 +21,25 @@
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
     [czlab.elmo.afx.ccsx :as cx :refer [*game-scene* *xcfg*]]
+    [czlab.elmo.tictactoe.board :as bot]
     [czlab.elmo.tictactoe.misc :as mc]
     [czlab.elmo.tictactoe.hud :as hud]
+    [czlab.elmo.afx.algos :as ag]
     [czlab.elmo.afx.ecs :as ecs]
     [czlab.elmo.afx.ebus :as ebus]
     [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(declare processCell)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- runAI "" [state first?]
+  (f#* (let [{:keys [bot grid] whosTurn} @state
+             cur (if (= whosTurn CX) CV-X CV-O)
+             cell (if first?
+                    ((:firstMove bot))
+                    (ag/evalNegaMax bot grid cur))]
+         (when (neg? cell) (raise! "Ooops: " cell))
+         (processCell state cell))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- click->cell "" [gridPos x y]
@@ -53,6 +67,9 @@
                    (if (= whosTurn CX)
                      CO
                      (if (= whosTurn CO) CX nil))))
+    ;if bot, run it
+    (if (= 2 (get (get @state (get @state :whosTurn)) :ptype))
+      (ocall! @*game-scene* "scheduleOnce" (runAI state false) 0.3))
     (syncStatus state)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -104,21 +121,28 @@
              (update-in root [:cells cell] (fn [_] [sp' pt value]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- processCell "" [state cell]
+  (let [{:keys [grid whosTurn]} @state
+        {:keys [CV-Z]} (:game @*xcfg*)
+        player (get @state whosTurn)]
+    (cx/info* "cell=>>>>>> " cell)
+    (when (and (nneg? cell)
+               (= CV-Z (nth grid cell)))
+      (updateArena state player cell)
+      (checkGameState state player))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onClick "" [state topic msgTopic & msgs]
-  (let [{:keys [gmode gpos grid whoAmI whosTurn running?]} @state]
+  (let [{:keys [gpos whosTurn running?]} @state]
     (when running?
-      (let [e (ocall (_1 msgs) "getLocation")
-            cell (click->cell gpos (oget-x e) (oget-y e))
-            {:keys [CV-Z]} (:game @*xcfg*)
-            player (get @state whosTurn)
-            cat (get player :ptype)]
-        (cx/info* "cell=>>>>>> " cell)
+      (let [player (get @state whosTurn)
+            cat (get player :ptype)
+            e (ocall (_1 msgs) "getLocation")
+            cell (click->cell gpos (oget-x e) (oget-y e))]
         (when (and (number? cat)
                    (not= 2 cat)
-                   (nneg? cell)
-                   (= CV-Z (nth grid cell)))
-          (updateArena state player cell)
-          (checkGameState state player))))))
+                   (nneg? cell))
+          (processCell state cell))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onTouch "" [state topic msgTopic & msgs])
@@ -131,8 +155,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" [state]
-  (let [{:keys [gmode gpos ebus ecs evQ]} @state
-        {:keys [CX CO]} (:game @*xcfg*)
+  (let [{:keys [gspace gmode gpos ebus ecs evQ]} @state
+        {:keys [GRID-SIZE CV-Z CV-X CV-O CX CO]} (:game @*xcfg*)
         cb (fn [& xs] (.push evQ xs))]
     (cx/info* "impl.init called")
     (if (cx/onMouse ebus)
@@ -144,9 +168,6 @@
                  "touch.one.end"
                  (fn [& xs] (apply onTouch (concat [state] xs)))))
 
-    ;always player 1 for mode 1
-    (if (= 1 gmode)
-      (swap! state #(assoc % :whoAmI CX)))
     ;unless online, randomly choose who starts first
     (case gmode
       (1 2)
@@ -155,6 +176,15 @@
                            (if (pos? (ec/randSign)) CX CO)))
       nil)
 
+    ;always player 1 for mode 1, and create the bot
+    (when (= 1 gmode)
+      (swap! state #(assoc %
+                           :whoAmI CX
+                           :bot (bot/TTTBoard GRID-SIZE CV-Z CV-X CV-O gspace))))
+
+    ;if bot, run it
+    (if (= 2 (get (get @state (get @state :whosTurn)) :ptype))
+      (ocall! @*game-scene* "scheduleOnce" (runAI state true) 0.3))
     (syncStatus state)
     (ecs/addSystem ecs motion)))
 

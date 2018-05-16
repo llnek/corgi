@@ -59,8 +59,9 @@
     (negamax* board game maxDepth depth alpha beta)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn evalNegaMax "" [board]
-  (let [game ((:takeSnapshot board))]
+(defn evalNegaMax "" [board & args]
+  (let [_ (apply (:syncState board) args)
+        game ((:takeSnapshot board))]
     (negamax board game 10 10 (- PINF) PINF) (:lastBestMove @game)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
