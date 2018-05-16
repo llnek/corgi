@@ -130,6 +130,16 @@
     (dotimes [_ len] (.push arr value)) arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn copyArray "" [src des]
+  (let [s1 (n# src)
+        d1 (n# des) ]
+    (if (not= s1 d1)
+      (raise! "array len must be same to copy"))
+    (dotimes [n s1]
+      (aset des n (nth src n))) des))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn isMobile?
   "Test if the client is a mobile device."
   [navigator]

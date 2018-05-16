@@ -25,20 +25,10 @@
   (atom {:lastBestMove nil :other nil :cur nil :state nil}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defprotocol BoardGame
-  (isGameOver? [board game])
-  (evalScore [board game])
-  (nextMoves [board game] )
-  (makeMove [board game move] )
-  (switchPlayer [board game] )
-  (undoMove [board game move])
-  (takeSnapshot [board] ))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- negamax* "" [board game maxDepth depth alpha beta]
-  (let [attempts (nextMoves board game)
+  (let [attempts ((:nextMoves board) game)
         sz (n# attempts)
-        m1 (car attempts)]
+        m1 (_1 attempts)]
     (if (= depth maxDepth)
       (swap! game #(assoc % :lastBestMove m1)))
     (loop [n 0
@@ -49,14 +39,12 @@
       (if (or break? (>= n sz))
         bestValue'
         (let [move (nth attempts n)
-              _ (doto board
-                  (makeMove game move)
-                  (switchPlayer game))
+              _ ((:makeMove board) game move)
+              _ ((:switchPlayer board) game)
               rc (- (negamax board game maxDepth
                              (- depth 1) (- beta') (- alpha')))
-              _ (doto board
-                  (switchPlayer game)
-                  (undoMove game move))
+              _ ((:switchPlayer board) game)
+              _ ((:undoMove board) game move)
               bestValue'' (max bestValue' rc )]
           (if (< alpha' rc)
             (do (if (= depth maxDepth) (swap! game #(assoc % :lastBestMove move)))
@@ -66,13 +54,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- negamax "" [board game maxDepth depth alpha beta]
   (if (or (zero? depth)
-          (isGameOver? board game))
-    (evalScore board game)
+          ((:isOver? board) game))
+    ((:evalScore board) game)
     (negamax* board game maxDepth depth alpha beta)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn evalNegaMax "" [board]
-  (let [game (takeSnapshot board)]
+  (let [game ((:takeSnapshot board))]
     (negamax board game 10 10 (- PINF) PINF) (:lastBestMove @game)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
