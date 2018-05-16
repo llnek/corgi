@@ -12,11 +12,11 @@
   czlab.elmo.tictactoe.board
 
   (:require-macros
-    [czlab.elmo.afx.ccsx :as cx :refer []]
+    [czlab.elmo.afx.ccsx :as cx]
     [czlab.elmo.afx.core :as ec :refer [each-indexed _1 n#]])
   (:require [czlab.elmo.afx.ccsx :as cx :refer []]
             [czlab.elmo.afx.algos :as ag]
-            [czlab.elmo.afx.core :as ec :refer []]))
+            [czlab.elmo.afx.core :as ec :refer [raise!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- noWin?
@@ -40,9 +40,9 @@
                     (nth actors 2)
                     (= pv (nth actors 2))
                     (nth actors 1)))]
-    ;;;
-    {:firstMove (if (every? #(= CV-Z %) grid)
-                  (ec/randRange 0 (n# grid)) -1)
+    {:firstMove (fn []
+                  (if (every? #(= CV-Z %) grid)
+                    (ec/randRange 0 (n# grid)) -1))
      :syncState (fn [seed actor]
                   (ec/copyArray seed grid) (aset actors 0 actor))
      :nextMoves (fn [snap]
@@ -64,12 +64,13 @@
                                            :cur other :other cur))))
      :getOtherPlayer gop
      :takeSnapshot (fn []
-                     (swap! (ag/Snapshot)
-                            #(assoc %
-                                    :other (gop (nth actors 0))
-                                    :cur (nth actors 0)
-                                    :state (.slice grid 0)
-                                    :lastBestMove -1)))
+                     (let [snap (ag/Snapshot)]
+                       (swap! snap
+                              #(assoc %
+                                      :other (gop (nth actors 0))
+                                      :cur (nth actors 0)
+                                      :state (.slice grid 0)
+                                      :lastBestMove -1)) snap))
      :evalScore (fn [snap]
                   (let [{:keys [other state]} @snap]
                     ;;if we lose, return a nega value

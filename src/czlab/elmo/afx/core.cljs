@@ -11,7 +11,7 @@
 
   czlab.elmo.afx.core
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 car defmonad]])
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [n# _1 car defmonad]])
   (:require [clojure.string :as cs]
             [clojure.set :as cst]
             [goog.string :as gs]

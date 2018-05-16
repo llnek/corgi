@@ -13,7 +13,7 @@
 
   (:require-macros
     [czlab.elmo.afx.core
-     :as ec :refer [do->true each-indexed
+     :as ec :refer [do->true
                     nneg? f#* n# _1 _2 do-with]]
     [czlab.elmo.afx.ccsx
      :as cx :refer [oget-bottom oget-right gcbyn
@@ -33,7 +33,8 @@
 (declare processCell)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- runAI "" [state first?]
-  (f#* (let [{:keys [bot grid] whosTurn} @state
+  (f#* (let [{:keys [CX CO CV-X CV-O]} (:game @*xcfg*)
+             {:keys [bot grid whosTurn]} @state
              cur (if (= whosTurn CX) CV-X CV-O)
              cell (if first?
                     ((:firstMove bot))

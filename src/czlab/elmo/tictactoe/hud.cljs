@@ -12,7 +12,7 @@
   czlab.elmo.tictactoe.hud
 
   (:require-macros [czlab.elmo.afx.core
-                    :as ec :refer [_1 _2 f#* do-with each-indexed numStr]]
+                    :as ec :refer [_1 _2 f#* do-with numStr]]
                    [czlab.elmo.afx.ccsx
                     :as cx :refer [sprite* oget-top oget-x oget-y
                                    gcbyn

@@ -13,7 +13,7 @@
 
   (:require-macros
     [czlab.elmo.afx.core
-     :as ec :refer [_1 _2 f#* do-with each-indexed]]
+     :as ec :refer [_1 _2 f#* do-with]]
     [czlab.elmo.afx.ccsx :as cx :refer [sprite* attr*]])
   (:require [czlab.elmo.afx.ccsx :as cx :refer [*xcfg*]]
             [czlab.elmo.afx.core :as ec]
