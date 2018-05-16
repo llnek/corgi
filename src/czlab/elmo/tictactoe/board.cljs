@@ -34,7 +34,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn TTTBoard "" [size CV-Z CV-X CV-O gspace]
   (let [grid (ec/fillArray CV-Z (* size size))
-        actors (array 0 0 0)
+        actors (array 0 CV-X CV-O)
         gop (fn [pv]
               (cond (= pv (nth actors 1))
                     (nth actors 2)
@@ -42,7 +42,7 @@
                     (nth actors 1)))]
     {:firstMove (fn []
                   (if (every? #(= CV-Z %) grid)
-                    (ec/randRange 0 (n# grid)) -1))
+                    (ec/randRange 0 (dec (n# grid))) -1))
      :syncState (fn [seed actor]
                   (ec/copyArray seed grid) (aset actors 0 actor))
      :nextMoves (fn [snap]

@@ -36,6 +36,7 @@
   (f#* (let [{:keys [CX CO CV-X CV-O]} (:game @*xcfg*)
              {:keys [bot grid whosTurn]} @state
              cur (if (= whosTurn CX) CV-X CV-O)
+             _ (cx/info* "runAI === " first?)
              cell (if first?
                     ((:firstMove bot))
                     (ag/evalNegaMax bot grid cur))]
