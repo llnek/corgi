@@ -12,7 +12,7 @@
   czlab.elmo.tictactoe.hud
 
   (:require-macros [czlab.elmo.afx.core
-                    :as ec :refer [_1 _2 f#* do-with numStr]]
+                    :as ec :refer [half* _1 _2 f#* do-with numStr]]
                    [czlab.elmo.afx.ccsx
                     :as cx :refer [sprite* oget-top oget-x oget-y
                                    gcbyn
@@ -27,11 +27,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onReplay "" [& xs])
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- onPause "" [& xs])
+
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hudLayer "" [px py state score1' score2']
   (do-with [layer (new js/cc.Layer)]
-    (let [cp (cx/centerPos)
-          wb (cx/vbox4)
+    (let [{:keys [gpos]} @state
+          gend (:bottom (ec/minBy #(get % :bottom) gpos))
+          cp (cx/centerPos)
+          {:keys [bottom] :as wb} (cx/vbox4)
           c (js/cc.color "#5e3178")
           title (cx/bmfLabel (str (get-in @state [px :pid]) "/"
                                   (get-in @state [py :pid]))
@@ -54,20 +62,24 @@
                                :anchor *anchor-top-right* })
           status (cx/bmfLabel ""
                               (cx/gfnt :text)
-                              {:pos {:x (:x cp) :y (:bottom wb)}
+                              {:pos {:x (:x cp) :y (+ bottom (half* (- gend bottom)))}
                                :color (js/cc.color 255 255 255)
                                :scale 0.3})
-          replay (cx/gmenu [{:nnn "#icon_replay.png" :cb onReplay}
-                            {:nnn "#icon_menu.png" :cb onReplay}
-                            ]
-                           {;:anchor cx/*anchor-bottom-right*
-                            :show? false})]
-      (cx/pegToAnchor replay cx/*anchor-bottom-right*)
+          audio (cx/audioIcon "#sound_on.png"
+                              "#sound_off.png"
+                              {:anchor cx/*anchor-bottom-left*})
+          pmenu (cx/gmenu [{:nnn "#icon_menu.png" :cb onPause}]
+                          {:anchor cx/*anchor-bottom-right*})
+          replay (cx/gmenu [{:nnn "#icon_replay.png" :cb onReplay}]
+                           {:anchor cx/*anchor-bottom* :show? false})]
       (cx/info* "hud called")
+      (cx/pegToAnchor audio cx/*anchor-bottom-left*)
       (cx/addItem layer title "title")
       (cx/addItem layer score1 "p1")
       (cx/addItem layer score2 "p2")
       (cx/addItem layer status "status")
+      (cx/addItem layer audio "audio")
+      (cx/addItem layer pmenu "pause")
       (cx/addItem layer replay "replay"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

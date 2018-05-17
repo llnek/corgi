@@ -15,8 +15,8 @@
 
   (:require-macros
     [czlab.elmo.afx.core
-     :as ec :refer [applyScalarOp half*
-                    f#* n# _1 _2 do-with numStr]]
+     :as ec :refer [each-indexed applyScalarOp
+                    half* f#* n# _1 _2 do-with numStr]]
     [czlab.elmo.afx.ccsx
      :as cx :refer [oget-x oget-y oget-piccy
                     oget-bottom oget-right
@@ -292,30 +292,37 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn csize
+  "Find content-size of this thing."
+  [obj]
+  (if-some [z (ocall obj "getContentSize")]
+    {:width (oget-width z) :height (oget-height z)}))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn bsize
   "Find size of this thing."
   [obj]
   (cond (ccnode? obj)
-        (csize (bbox obj))
+        (bsize (bbox obj))
         (snode? obj)
-        (csize (oget-piccy obj))
+        (bsize (oget-piccy obj))
         (string? obj)
-        (csize (sprite* obj))
+        (bsize (sprite* obj))
         (bbox? obj)
         (dissoc obj :x :y)
         (bbox4? obj)
-        (csize (bbox4->bbox obj))
-        :else (raise! "bad call csize")))
+        (bsize (bbox4->bbox obj))
+        :else (raise! "bad call bsize")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn half-size*
   "Calculate halves of width and height." [obj]
-  (let [z (csize obj)]
+  (let [z (bsize obj)]
     (applyScalarOp *
                    0.5
                    (:width z) (:height z))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getHeight "" [sprite] (:height (csize sprite)))
+(defn getHeight "" [sprite] (:height (bsize sprite)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getScaledHeight
@@ -323,7 +330,7 @@
   [sprite] (* (ocall sprite "getScaleY") (getHeight sprite)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getWidth "" [sprite] (:width (csize sprite)))
+(defn getWidth "" [sprite] (:width (bsize sprite)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getScaledWidth
@@ -566,40 +573,82 @@
 (defn mitoggle* "" [on off cb] (new js/cc.MenuItemToggle on off cb))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- pegMenu?? "" [menu tag anchor total padding flat?]
+  (if (some? anchor)
+    (let [{:keys [top left bottom right]} (vbox4)
+          {:keys [width height]}
+          (bsize (gcbyt menu tag))
+          t (+ (* padding (dec total))
+               (* total (if flat? width height)))
+          [w h] (if flat? [t height] [width t])
+          cx (centerX)
+          cy (centerY)
+          hw (half* w)
+          hh (half* h)
+          pt
+          (condp = anchor
+            *anchor-top-left* {:x (+ left hw) :y (- top hh)}
+            *anchor-top* {:x cx :y (- top hh)}
+            *anchor-top-right* {:x (- right hw) :y (- top hh)}
+
+            *anchor-left*  {:x (+ left hw) :y cy}
+            *anchor-center* (centerPos)
+            *anchor-right* {:x (- right hw) :y cy}
+
+            *anchor-bottom-left* {:x (+ left hw) :y (+ bottom hh)}
+            *anchor-bottom* {:x cx :y (+ bottom hh)}
+            *anchor-bottom-right* {:x (- right hw) :y (+ bottom hh)}
+            nil)]
+      (setXXX! menu {:pos pt}))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tmenu
   "Create a text menu containing this set of items."
   [items & [options]]
 
-  (let [{:keys [flat? color]} options]
+  (let [{:keys [anchor flat?
+                color padding]
+         :or {padding 10}}
+        options
+        tag 911]
     (do-with
       [menu (new js/cc.Menu)]
-      (doseq [{:keys [text font cb ctx]} items
-              :let [mi (new js/cc.MenuItemLabel
-                            (bmfText* text font) cb ctx)]]
-        (if (some? color) (ocall mi "setColor" color))
-        (addItem menu mi))
+      (each-indexed
+        (fn [obj pos]
+          (let [{:keys [text font cb ctx]} obj
+                mi (new js/cc.MenuItemLabel
+                        (bmfText* text font) cb ctx)]
+            (setXXX! mi {:color color})
+            (addItem menu mi (+ pos tag))))
+        items)
       (setXXX! menu options)
       (if flat?
-        (ocall menu "alignItemsHorizontally")
-        (ocall menu "alignItemsVertically")))))
+        (ocall menu "alignItemsHorizontallyWithPadding" padding)
+        (ocall menu "alignItemsVerticallyWithPadding" padding))
+      (pegMenu?? menu tag anchor (n# items) padding flat?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gmenu
   "Create a menu with graphic buttons."
   [items & [options]]
 
-  (let [{:keys [anchor padding flat?] :or {padding 10}} options]
+  (let [{:keys [anchor padding flat?]
+         :or {padding 10}}
+        options
+        tag 911]
     (do-with
       [menu (new js/cc.Menu)]
-      (doseq [{:keys [cb ctx
-                      nnn sss ddd]} items
-              :let [mi (misprite* nnn cb sss ddd ctx)]]
-        ;(setXXX! mi {:anchor anchor})
-        (addItem menu mi))
+      (each-indexed
+        (fn [obj pos]
+          (let [{:keys [cb ctx nnn sss ddd]} obj
+                mi (misprite* nnn cb sss ddd ctx)]
+            (addItem menu mi (+ pos tag))))
+        items)
       (setXXX! menu options)
       (if flat?
         (ocall menu "alignItemsHorizontallyWithPadding" padding)
-        (ocall menu "alignItemsVerticallyWithPadding" padding)))))
+        (ocall menu "alignItemsVerticallyWithPadding" padding))
+      (pegMenu?? menu tag anchor (n# items) padding flat?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bmfLabel
@@ -803,7 +852,7 @@
     (fn [{:keys [::parent ::topLeft
                  ::curLives ::dir ::image] :as root}]
       (let
-        [sz (csize image)
+        [sz (bsize image)
          h (:height sz)
          w (:width sz)
          [hw hh] (half-size* sz)
@@ -821,7 +870,7 @@
         (merge root {::icons icons})))) g)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addAudioIcon! "" [node yes no & [options]]
+(defn audioIcon "" [yes no & [options]]
   (let
     [cb #(setSfx!
            (zero? (ocall % "getSelectedIndex")))
@@ -830,9 +879,8 @@
      audio (mitoggle* on off cb)]
     (ocall! audio
             "setSelectedIndex" (if (sfxOn?) 0 1))
-    (do-with
-      [menu (new js/cc.Menu audio)]
-      (setXXX! menu options) (addItem node menu))))
+    (setXXX! audio options)
+    (new js/cc.Menu audio)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn quit! "" [ctor]
@@ -1041,7 +1089,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pkLoad "" [scene assets state]
   (let [logo (sprite* (gldr->logo))
-        sz (csize logo)
+        sz (bsize logo)
         cp (centerPos)
         pg (new js/cc.ProgressTimer
                 (sprite* (gldr->pbar)))]

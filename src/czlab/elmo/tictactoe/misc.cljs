@@ -17,7 +17,7 @@
     [czlab.elmo.afx.ccsx
      :as cx :refer [oget-height oget-width
                     oget-x oget-y oget-top sprite* ]])
-  (:require [czlab.elmo.afx.ccsx :as cx :refer [csize]]
+  (:require [czlab.elmo.afx.ccsx :as cx :refer [bsize]]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
@@ -29,7 +29,7 @@
         ro (* (/ 8 72) scale)
         cp (cx/centerPos)
         cells (* gsz gsz)
-        sz (csize sp)
+        sz (bsize sp)
         gridMap (transient [])
         [W H] (applyScalarOp *
                              scale

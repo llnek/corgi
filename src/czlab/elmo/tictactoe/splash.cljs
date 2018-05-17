@@ -16,7 +16,7 @@
                     :as cx :refer [oget-height oget-width
                                    oget-x oget-y
                                    oget-top sprite* ]])
-  (:require [czlab.elmo.afx.ccsx :as cx :refer [csize *xcfg*]]
+  (:require [czlab.elmo.afx.ccsx :as cx :refer [bsize *xcfg*]]
             [czlab.elmo.tictactoe.mmenu :as mu]
             [czlab.elmo.tictactoe.misc :as mc]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
