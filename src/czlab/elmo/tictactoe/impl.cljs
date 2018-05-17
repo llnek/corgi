@@ -62,7 +62,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- switchOver "" [state]
   (let [{:keys [whosTurn]} @state
-        {:keys [CX CO]} (:game @*xcfg*)]
+        {:keys [BOT-THINK-TIME CX CO]} (:game @*xcfg*)]
     (swap! state
            #(assoc %
                    :whosTurn
@@ -71,13 +71,18 @@
                      (if (= whosTurn CO) CX nil))))
     ;if bot, run it
     (if (= 2 (get (get @state (get @state :whosTurn)) :ptype))
-      (ocall! @*game-scene* "scheduleOnce" (runAI state false) 0.3))
+      (ocall! @*game-scene* "scheduleOnce" (runAI state false) BOT-THINK-TIME))
     (syncStatus state)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- onEnd "" [state]
+  (hud/enableReplay state))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- tieGame "" [state]
   (hud/writeStatus "It's a draw!")
   (cx/sfxPlayEffect :game-tie)
+  (onEnd state)
   (swap! state #(assoc % :running? false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -86,6 +91,7 @@
     (cx/sfxPlayEffect :game-end)
     (hud/writeScore who (inc s))
     (hud/writeStatus (str (get player :pid) " wins!"))
+    (onEnd state)
     (swap! state #(-> (assoc % :running? false)
                       (update-in [:scores who] inc)))))
 
@@ -158,7 +164,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" [state]
   (let [{:keys [gspace gmode gpos ebus ecs evQ]} @state
-        {:keys [GRID-SIZE CV-Z CV-X CV-O CX CO]} (:game @*xcfg*)
+        {:keys [BOT-THINK-TIME GRID-SIZE CV-Z CV-X CV-O CX CO]} (:game @*xcfg*)
         cb (fn [& xs] (.push evQ xs))]
     (cx/info* "impl.init called")
     (if (cx/onMouse ebus)
@@ -186,7 +192,7 @@
 
     ;if bot, run it
     (if (= 2 (get (get @state (get @state :whosTurn)) :ptype))
-      (ocall! @*game-scene* "scheduleOnce" (runAI state true) 0.3))
+      (ocall! @*game-scene* "scheduleOnce" (runAI state true) BOT-THINK-TIME))
     (syncStatus state)
     (ecs/addSystem ecs motion)))
 

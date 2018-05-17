@@ -20,14 +20,13 @@
     [czlab.elmo.afx.ccsx
      :as cx :refer [oget-x oget-y oget-piccy
                     oget-bottom oget-right
+                    sprite* attr* ccmenu?
                     not-native? native?
-                    gcbyn gcbyt
-                    zeropt
-                    sprite* attr*
+                    gcbyn gcbyt zeropt
                     newBBox newBBox4
-                    oget-left oget-top oget-id
                     oget-width oget-height
-                    snode? bbox? bbox4? sprite?]])
+                    oget-left oget-top oget-id
+                    snode? bbox? bbox4? ccnode? sprite?]])
   (:require [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
             [czlab.elmo.afx.ebus :as ebus]
             [clojure.string :as cs]
@@ -123,7 +122,7 @@
 (defn bbox4
   "Create a 4 point rectangle."
   [obj]
-  (cond (sprite? obj)
+  (cond (ccnode? obj)
         (bbox4 (bbox obj))
         (snode? obj)
         (bbox4 (oget-piccy obj))
@@ -162,7 +161,7 @@
   "Create a rectangle."
   [obj]
   (cond
-    (sprite? obj)
+    (ccnode? obj)
     (rect->box (ocall obj "getBoundingBox"))
     (snode? obj)
     (bbox (oget-piccy obj))
@@ -176,7 +175,7 @@
 (defn collide?
   "Test collision of 2 entities using cc-rects."
   [a b]
-  (cond (and (sprite? a) (sprite? b))
+  (cond (and (ccnode? a) (ccnode? b))
         (collide? (bbox a) (bbox b))
 
         (and (snode? a) (snode? b))
@@ -295,7 +294,7 @@
 (defn csize
   "Find size of this thing."
   [obj]
-  (cond (sprite? obj)
+  (cond (ccnode? obj)
         (csize (bbox obj))
         (snode? obj)
         (csize (oget-piccy obj))
@@ -337,14 +336,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn spriteBBox4 "" [obj]
-  (if (or (sprite? obj)
+  (if (or (ccnode? obj)
           (snode? obj))
     (bbox4 obj)
     (raise! "bad call spriteBBox4")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn spriteBBox "" [obj]
-  (if (or (sprite? obj)
+  (if (or (ccnode? obj)
           (snode? obj))
     (bbox obj)
     (raise! "bad call spriteBBox")))
@@ -589,12 +588,13 @@
   "Create a menu with graphic buttons."
   [items & [options]]
 
-  (let [{:keys [padding flat?] :or {padding 10}} options]
+  (let [{:keys [anchor padding flat?] :or {padding 10}} options]
     (do-with
       [menu (new js/cc.Menu)]
       (doseq [{:keys [cb ctx
                       nnn sss ddd]} items
               :let [mi (misprite* nnn cb sss ddd ctx)]]
+        ;(setXXX! mi {:anchor anchor})
         (addItem menu mi))
       (setXXX! menu options)
       (if flat?
@@ -853,11 +853,21 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pegToAnchor "" [node where]
-  ;;TODO
-  (let [sz (csize node)
-        [hw hh] (half-size* sz)
-        B (vbox4)]
-    (setXXX! node {:pos {:x (- (:right B) hw) :y 0}})))
+  (let [{:keys [top right bottom left]} (vbox4)
+        {:keys [x y] :as cp} (centerPos)
+        pt
+        (condp = where
+          *anchor-top-left* {:x left :y top}
+          *anchor-top* {:x x  :y top}
+          *anchor-top-right* {:x right :y top}
+          *anchor-left* {:x left :y y}
+          *anchor-center* cp
+          *anchor-right* {:x right :y y}
+          *anchor-bottom-left* {:x left :y bottom}
+          *anchor-bottom* {:x x :y bottom}
+          *anchor-bottom-right* {:x right :y bottom}
+          (raise! "pegToAnchor bad where = " where))]
+    (setXXX! node {:pos pt})))
 
 ;import Cookies from 'Cookies';
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
