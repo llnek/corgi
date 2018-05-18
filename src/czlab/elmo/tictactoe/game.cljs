@@ -80,6 +80,7 @@
           gl (arenaLayer state)
           hud (hud/hudLayer (_1 px) (_1 py) state 0 0)]
       (reset! cx/*game-scene* scene)
+      (reset! cx/*game-arena* gl)
       (cx/addItem scene bl "bg" -1)
       (cx/addItem scene gl "arena" 1)
       (cx/addItem scene hud "hud" 2)

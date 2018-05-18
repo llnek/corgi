@@ -20,7 +20,9 @@
                     oget-x oget-y oget-left oget-top]])
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
-    [czlab.elmo.afx.ccsx :as cx :refer [*game-scene* *xcfg*]]
+    [czlab.elmo.afx.ccsx
+     :as cx :refer [*game-arena* *game-scene* *xcfg*]]
+    [czlab.elmo.afx.dialog :as dlg]
     [czlab.elmo.tictactoe.board :as bot]
     [czlab.elmo.tictactoe.misc :as mc]
     [czlab.elmo.tictactoe.hud :as hud]
@@ -75,8 +77,18 @@
     (syncStatus state)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- XonEnd "" [state] (hud/enableReplay state))
+
 (defn- onEnd "" [state]
-  (hud/enableReplay state))
+  (let [scene @*game-scene*
+        arena @*game-arena*
+        hud (gcbyn scene "hud")
+        dlg (dlg/popDlg "poo")]
+    (js/cc.eventManager.pauseTarget arena true)
+    (js/cc.eventManager.pauseTarget hud true)
+    (cx/addItem scene dlg "dlg" 999)
+    nil))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- tieGame "" [state]

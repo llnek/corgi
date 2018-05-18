@@ -24,7 +24,7 @@
                  :landscape? false
                  :size {:width 1536 :height 2048}
                  :PLAYER-THINK-TIME 7
-                 :BOT-THINK-TIME 1
+                 :BOT-THINK-TIME 0.5
                  :GRID-SIZE 3 :CV-Z 0}
           :images {:lang-pics "l10n/images.png"
                    :game-pics "imgs/images.png"

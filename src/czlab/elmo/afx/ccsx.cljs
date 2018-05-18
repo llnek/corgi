@@ -400,6 +400,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def *ws-uri* "/network/odin/websocket")
 (def *game-scene* (atom nil))
+(def *game-arena* (atom nil))
 (def *online-game* 3)
 (def *game-2* 2)
 (def *game-1* 1)
@@ -415,7 +416,7 @@
 (defn- subEvent
   "" [e obj]
   (js/cc.eventManager.addListener (oset! obj "!event" e)
-                                  (deref *game-scene*)))
+                                  (deref *game-arena*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hasKeyPad? "" []
@@ -690,7 +691,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fire! "" [topic & args]
-  (if-some [g (deref *game-scene*)]
+  (if-some [g (deref *game-arena*)]
     (if-some [bus (oget g "?ebus")]
       (apply ebus/pub bus (concat [topic] args)))))
 
