@@ -607,9 +607,9 @@
   "Create a text menu containing this set of items."
   [items & [options]]
 
-  (let [{:keys [anchor flat?
-                color padding]
-         :or {padding 10}}
+  (let [{:keys [scale anchor flat?
+                align? color padding]
+         :or {align? true padding 10}}
         options
         tag 911]
     (do-with
@@ -619,13 +619,14 @@
           (let [{:keys [text font cb ctx]} obj
                 mi (new js/cc.MenuItemLabel
                         (bmfText* text font) cb ctx)]
-            (setXXX! mi {:color color})
+            (setXXX! mi {:scale scale :color color})
             (addItem menu mi (+ pos tag))))
         items)
-      (setXXX! menu options)
-      (if flat?
-        (ocall menu "alignItemsHorizontallyWithPadding" padding)
-        (ocall menu "alignItemsVerticallyWithPadding" padding))
+      (setXXX! menu (dissoc options :scale :color))
+      (if align?
+        (if flat?
+          (ocall menu "alignItemsHorizontallyWithPadding" padding)
+          (ocall menu "alignItemsVerticallyWithPadding" padding)))
       (pegMenu?? menu tag anchor (n# items) padding flat?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -633,8 +634,8 @@
   "Create a menu with graphic buttons."
   [items & [options]]
 
-  (let [{:keys [anchor padding flat?]
-         :or {padding 10}}
+  (let [{:keys [scale align? anchor padding flat?]
+         :or {align? true padding 10}}
         options
         tag 911]
     (do-with
@@ -643,12 +644,14 @@
         (fn [obj pos]
           (let [{:keys [cb ctx nnn sss ddd]} obj
                 mi (misprite* nnn cb sss ddd ctx)]
+            (setXXX! mi {:scale scale})
             (addItem menu mi (+ pos tag))))
         items)
-      (setXXX! menu options)
-      (if flat?
-        (ocall menu "alignItemsHorizontallyWithPadding" padding)
-        (ocall menu "alignItemsVerticallyWithPadding" padding))
+      (setXXX! menu (dissoc options :scale))
+      (if align?
+        (if flat?
+          (ocall menu "alignItemsHorizontallyWithPadding" padding)
+          (ocall menu "alignItemsVerticallyWithPadding" padding)))
       (pegMenu?? menu tag anchor (n# items) padding flat?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

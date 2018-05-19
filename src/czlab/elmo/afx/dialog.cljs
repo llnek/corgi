@@ -30,28 +30,55 @@
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- onNO "" [& xs]
+(defn- undoDlg "" []
   (js/cc.director.popScene))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- onOK "" [& xs]
-  (js/alert "xxx"))
+(defn- onNO "" [finz no]
+  (f#* (finz)
+       (if (fn? no) (no))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn popDlg "" [msg']
+(defn- onOK "" [finz yes]
+  (f#* (finz)
+       (if (fn? yes) (yes))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- popDlgBg "" []
   (let [{:keys [width height]} (cx/vbox)
+        pt {:x (half* (* width (- 1 0.6)))
+            :y (half* (* height (- 1 0.6)))}
+        cp (cx/centerPos)
+        c (js/cc.color 123 123 123)
+        dlg (new js/cc.LayerColor c (* 0.6 width) (* 0.6 height))]
+    (cx/setXXX! dlg {:pos pt})
+    dlg))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- popDlg* "" [d0 options]
+  (let [{:keys [msg yes no cleanup]} options
         cp (cx/centerPos)
         dlg (new js/cc.Layer)
-        _ (cx/setXXX! dlg {:pos cp})
-        msg (cx/bmfLabel msg'
-                         (cx/gfnt :text)
-                         {:pos cp})
-        mnu (cx/gmenu [{:nnn "#ok.png" :cb onOK}
-                       {:nnn "#cancel.png" :cb onNO}]
-                      {:anchor cx/*anchor-bottom* :flat? true})]
-    (cx/pegToAnchor mnu cx/*anchor-bottom*)
-    (cx/addItem dlg msg)
-    (cx/addItem dlg mnu) dlg))
+        mnu (new js/cc.Menu)
+        finz #(do (cx/remove! d0)
+                  (cx/remove! dlg) (if (fn? cleanup) (cleanup)))
+        mnu (cx/tmenu [{:text msg :font (cx/gfnt :text) :cb noopy }
+                       {:text "Cancel"
+                        :font (cx/gfnt :text) :cb (onNO finz no) }
+                       {:text "OK" :font (cx/gfnt :text) :cb (onOK finz yes) }]
+                      {:color (js/cc.color 0 0 0)
+                       :scale 0.3 :align? false})]
+    (ocall! mnu "alignItemsInColumns" 1 2)
+    (cx/addItem dlg mnu "mnu")
+    dlg))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn popDlg "" [par options]
+  (let [d0 (popDlgBg )
+        d1 (popDlg* d0 options)]
+    (cx/addItem par d0 "dlg0" 999)
+    (cx/addItem par d1 "dlg1" 1000)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
