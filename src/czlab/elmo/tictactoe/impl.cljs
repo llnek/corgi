@@ -80,13 +80,14 @@
 (defn- XonEnd "" [state] (hud/enableReplay state))
 
 (defn- onEnd "" [state]
-  (let [scene @*game-scene*
+  (let [{:keys [startScene]} @*xcfg*
+        scene @*game-scene*
         arena @*game-arena*
         hud (gcbyn scene "hud")]
     (js/cc.eventManager.pauseTarget arena true)
     (js/cc.eventManager.pauseTarget hud true)
     (->> {:msg "Play Again?"
-          ;:yes #(cx/run* (sp/splashScene))
+          :yes #(cx/run* (startScene))
           :cleanup #(do (js/cc.eventManager.resumeTarget arena true)
                         (js/cc.eventManager.resumeTarget hud true))}
          (dlg/popDlg scene ))))
