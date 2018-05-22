@@ -9,7 +9,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.tictactoe.splash
+  czlab.elmo.pong.splash
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [do-with each-indexed f#*]]
                    [czlab.elmo.afx.ccsx
@@ -17,54 +17,31 @@
                                    oget-x oget-y
                                    oget-top sprite* ]])
   (:require [czlab.elmo.afx.ccsx :as cx :refer [bsize *xcfg*]]
-            [czlab.elmo.tictactoe.mmenu :as mu]
-            [czlab.elmo.tictactoe.misc :as mc]
+            [czlab.elmo.pong.mmenu :as mu]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- onplay "" [& xs]
-  (f#* (cx/run* (mu/mmenuScene))))
+(defn-  onPlay "" [] (f#* (cx/run* (mu/mmenuScene))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn splashScene "" []
   (do-with [scene (new js/cc.Scene)]
-    (let [{:keys [GRID-SIZE]} (:game @*xcfg*)
-          bg (sprite* (cx/gimg :game-bg))
-          t (sprite* "#title.png")
+    (let [{:keys [x y] :as cp} (cx/centerPos)
+          {:keys [top bottom left right]} (cx/vbox4)
           layer (new js/cc.Layer)
           _ (cx/addItem scene layer)
-          scale 0.75
-          cp (cx/centerPos)
-          {:keys [top] :as B} (cx/vbox4)
-          pmu (cx/gmenu [{:cb (onplay scene) :nnn "#play.png"}]
-                        {:pos {:x (:x cp)
-                               :y (* 0.1 top)}})]
-      ;;background
-      (cx/setXXX! bg {:pos cp})
-      (cx/addItem layer bg "bkgd" -1)
-      ;;title
-      (cx/setXXX! t {:pos {:x (:x cp)
-                           :y (* 0.8 top)}})
-      (cx/addItem layer t)
-      ;;play button
-      (cx/addItem layer pmu)
-      ;;draw demo
-      ;; we scale down the icons to make it look nicer
-      (each-indexed
-        (fn [mp pos]
-          (let [sp (->> (case pos
-                          (1  5  6  7) "#x.png"
-                          (0  4) "#z.png"
-                          "#o.png")
-                        (sprite* ))]
-            (cx/setXXX! sp {:pos (cx/vbox4MID mp) :scale scale})
-            (cx/addItem layer sp)))
-        (mc/mapGridPos B GRID-SIZE scale)))))
+          bg (-> (sprite* (cx/gimg :game-bg))
+                 (cx/setXXX! {:pos cp}))
+          tt (-> (sprite* "#title.png")
+                 (cx/setXXX! {:pos {:x x :y (* 0.85 top)}}))
+          play (cx/gmenu [{:nnn "#play.png" :cb (onPlay)}]
+                         {:pos {:x x :y (* 0.1 top)}})]
+      (cx/addItem layer bg "bg" -1)
+      (cx/addItem layer tt )
+      (cx/addItem layer play))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
-
 
 

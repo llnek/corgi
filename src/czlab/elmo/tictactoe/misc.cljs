@@ -22,12 +22,12 @@
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn mapGridPos "" [gsz scale]
+(defn mapGridPos "" [B gsz scale]
   ;;memorize the co-ordinates of each cell on the board, so
   ;;we know which cell the user has clicked on.
   (let [sp (sprite* "#z.png")
         ro (* (/ 8 72) scale)
-        cp (cx/centerPos)
+        cp (cx/vbox4MID B)
         cells (* gsz gsz)
         sz (bsize sp)
         gridMap (transient [])

@@ -32,8 +32,9 @@
                     (cx/setXXX! {:pos (cx/centerPos)})))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- showGrid "" [layer]
-  (let [{:keys [GRID-SIZE CV-Z]} (:game @*xcfg*)]
+(defn- showGrid "" [state layer]
+  (let [{:keys [GRID-SIZE CV-Z]} (:game @*xcfg*)
+        {:keys [gpos]} @state]
     (->
       (reduce
         (fn [acc mp]
@@ -43,13 +44,13 @@
             (cx/addItem layer sp)
             (conj! acc [sp pt CV-Z])))
         (transient [])
-        (mc/mapGridPos GRID-SIZE 1))
+        gpos)
       (persistent! ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- arenaLayer "" [state]
   (do-with [layer (new js/cc.Layer)]
-    (let [cs (showGrid layer)]
+    (let [cs (showGrid state layer)]
       (swap! state #(assoc % :cells cs)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -61,10 +62,12 @@
 (defn gameScene "" [mode px py & more]
   (do-with [scene (new js/cc.Scene)]
     (let [{:keys [GRID-SIZE CV-Z]} (:game @*xcfg*)
+          adon? (get-in @*xcfg* [:AD :on?])
+          B (if adon? (cx/ebox4) (cx/vbox4))
           zmks [:ptype :pvalue :pcolor :pid :pname]
           sz (* GRID-SIZE GRID-SIZE)
           state (atom {:gspace (mc/mapGoalSpace GRID-SIZE)
-                       :gpos (mc/mapGridPos GRID-SIZE 1)
+                       :gpos (mc/mapGridPos B GRID-SIZE 1)
                        :ebus (ebus/createEvBus)
                        :ecs (ecs/createECS)
                        :grid (ec/fillArray CV-Z sz)
@@ -87,6 +90,9 @@
       (attr* scene
              #js{:gstate state
                  :update #(ecs/updateECS (:ecs @state) %)})
+      (when adon?
+        (let [a (cx/enableAD! scene)]
+          (cx/addItem hud a)))
       (ocall! scene "scheduleOnce" (initOnce state) 0.1))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

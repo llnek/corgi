@@ -208,12 +208,36 @@
   "Get the visible screen box." [] (bbox->bbox4 (vbox)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn ebox "" []
+  (let [{:keys [htPerc anchor]} (:AD @*xcfg*)
+        vo (js/cc.view.getVisibleOrigin)
+        wz (js/cc.view.getVisibleSize)
+        h (* (oget-height wz) htPerc)]
+    (newBBox (oget-x vo)
+             (+ h (oget-y vo))
+             (oget-width wz)
+             (- (oget-height wz) h))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn ebox4
+  "Get the visible screen box minus ad-space." [] (bbox->bbox4 (ebox)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vboxMID "" [box]
   {:x (+ (:x box) (half* (:width box)))
    :y (+ (:y box) (half* (:height box)))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vbox4MID "" [box4] (vboxMID (bbox4->bbox box4)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn eboxCPoint "" [] (vboxMID (ebox)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn eboxCX "" [] (:x (eboxCPoint)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn eboxCY "" [] (:y (eboxCPoint)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn centerPos "" [] (vboxMID (vbox)))
@@ -574,16 +598,17 @@
 (defn mitoggle* "" [on off cb] (new js/cc.MenuItemToggle on off cb))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- pegMenu?? "" [menu tag anchor total padding flat?]
+(defn- pegMenu?? "" [menu tag region anchor total padding flat?]
   (if (some? anchor)
-    (let [{:keys [top left bottom right]} (vbox4)
+    (let [{:keys [top left bottom right] :as B} (or region (vbox4))
           {:keys [width height]}
           (bsize (gcbyt menu tag))
           t (+ (* padding (dec total))
                (* total (if flat? width height)))
           [w h] (if flat? [t height] [width t])
-          cx (centerX)
-          cy (centerY)
+          cp (vbox4MID B)
+          cx (:x cp)
+          cy (:y cp)
           hw (half* w)
           hh (half* h)
           pt
@@ -593,7 +618,7 @@
             *anchor-top-right* {:x (- right hw) :y (- top hh)}
 
             *anchor-left*  {:x (+ left hw) :y cy}
-            *anchor-center* (centerPos)
+            *anchor-center* cp
             *anchor-right* {:x (- right hw) :y cy}
 
             *anchor-bottom-left* {:x (+ left hw) :y (+ bottom hh)}
@@ -607,7 +632,7 @@
   "Create a text menu containing this set of items."
   [items & [options]]
 
-  (let [{:keys [scale anchor flat?
+  (let [{:keys [scale region anchor flat?
                 align? color padding]
          :or {align? true padding 10}}
         options
@@ -627,14 +652,14 @@
         (if flat?
           (ocall menu "alignItemsHorizontallyWithPadding" padding)
           (ocall menu "alignItemsVerticallyWithPadding" padding)))
-      (pegMenu?? menu tag anchor (n# items) padding flat?))))
+      (pegMenu?? menu tag region anchor (n# items) padding flat?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gmenu
   "Create a menu with graphic buttons."
   [items & [options]]
 
-  (let [{:keys [scale align? anchor padding flat?]
+  (let [{:keys [scale align? region anchor padding flat?]
          :or {align? true padding 10}}
         options
         tag 911]
@@ -652,7 +677,7 @@
         (if flat?
           (ocall menu "alignItemsHorizontallyWithPadding" padding)
           (ocall menu "alignItemsVerticallyWithPadding" padding)))
-      (pegMenu?? menu tag anchor (n# items) padding flat?))))
+      (pegMenu?? menu tag region anchor (n# items) padding flat?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bmfLabel
@@ -904,9 +929,9 @@
   (ocall! node "setString" (numStr score)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn pegToAnchor "" [node where]
-  (let [{:keys [top right bottom left]} (vbox4)
-        {:keys [x y] :as cp} (centerPos)
+(defn pegToAnchor "" [node where B]
+  (let [{:keys [top right bottom left]} B
+        {:keys [x y] :as cp} (vbox4MID B)
         pt
         (condp = where
           *anchor-top-left* {:x left :y top}
@@ -1132,6 +1157,25 @@
 (defn preloader "" []
   (f#* (info* "start to run asset preloader.") (run* (loaderScene*))))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn enableAD! "" [scene]
+  (let [{:keys [htPerc anchor]} (:AD @*xcfg*)
+        {:keys [height width]} (vbox)
+        {:keys [right left bottom]} (vbox4)
+        h (* height htPerc)
+        n (new js/cc.DrawNode)]
+    (ocall! n
+            "drawRect"
+            (js/cc.p left bottom)
+            (js/cc.p right (+ bottom h))
+            (js/cc.color 123 222 187)
+            nil
+            (js/cc.color 255 255 255))
+    n))
+
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; patch the config object!!!
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1149,6 +1193,9 @@
          :tiles {}
          :sounds {}
          :fonts {}
+         :AD {:anchor *anchor-bottom*
+              :on? true
+              :htPerc 0.09 }
          :game {:policy js/cc.ResolutionPolicy.SHOW_ALL
                 :preloadLevels? true
                 :size {:width 0 :height 0}

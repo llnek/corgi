@@ -36,10 +36,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hudLayer "" [px py state score1' score2']
   (do-with [layer (new js/cc.Layer)]
-    (let [{:keys [gpos]} @state
+    (let [adon? (get-in @*xcfg* [:AD :on?])
+          B (if adon? (cx/ebox4) (cx/vbox4))
+          {:keys [gpos]} @state
           gend (:bottom (ec/minBy #(get % :bottom) gpos))
-          cp (cx/centerPos)
-          {:keys [bottom] :as wb} (cx/vbox4)
+          cp (cx/vbox4MID B)
+          {:keys [bottom] :as wb} B
           c (js/cc.color "#5e3178")
           title (cx/bmfLabel (str (get-in @state [px :pid]) "/"
                                   (get-in @state [py :pid]))
@@ -69,11 +71,11 @@
                               "#sound_off.png"
                               {:anchor cx/*anchor-bottom-left*})
           pmenu (cx/gmenu [{:nnn "#icon_menu.png" :cb onPause}]
-                          {:anchor cx/*anchor-bottom-right*})
+                          {:region B :anchor cx/*anchor-bottom-right*})
           replay (cx/gmenu [{:nnn "#icon_replay.png" :cb onReplay}]
                            {:anchor cx/*anchor-bottom* :show? false})]
       (cx/info* "hud called")
-      (cx/pegToAnchor audio cx/*anchor-bottom-left*)
+      (cx/pegToAnchor audio cx/*anchor-bottom-left* B)
       (cx/addItem layer title "title")
       (cx/addItem layer score1 "p1")
       (cx/addItem layer score2 "p2")

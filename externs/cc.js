@@ -62,6 +62,7 @@ cc.Node.prototype.setScale=function(){};
 cc.Node.prototype.addChild=function(){};
 cc.Node.prototype.setAnchorPoint=function(){};
 
+cc.DrawNode=function(){};
 cc.Sequence=function(){};
 cc.Sequence.create=function(){};
 cc.FadeOut=function(){};
