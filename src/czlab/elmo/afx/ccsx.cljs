@@ -1220,6 +1220,7 @@
                 :CV-O 79 ;(.charCodeAt "0" 0)
                 :CC-O "O"
                 :CC-X "X"
+                :CC-Z "?"
                 :CX :1
                 :CO :2
                 :NETP 3

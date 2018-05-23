@@ -23,10 +23,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onFirstMoveToggle "" [node]
   (let [n (ocall node "getSelectedIndex")
-        {:keys [CC-X CC-O]} (:game @*xcfg*)]
+        {:keys [CC-X CC-O CC-Z]} (:game @*xcfg*)]
     (swap! *xcfg*
            #(assoc-in % [:game :BEGIN-WITH]
-                      (if (zero? n) CC-X CC-O)))))
+                      (cond
+                        (= 0 n) CC-X
+                        (= 1 n) CC-O
+                        :else CC-Z)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onSoundToggle "" [node]
@@ -45,9 +48,16 @@
   (js/cc.director.popScene))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn optionsScene "" []
+(defn- onQuit "" [node]
+  (let [{:keys [startScene]} @*xcfg*]
+    (js/cc.director.popToRootScene)
+    (cx/run* (startScene))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn optionsScene "" [& [options]]
   (do-with [scene (new js/cc.Scene)]
     (let [{:keys [P1-ICON BEGIN-WITH CC-X]} (:game @*xcfg*)
+          {:keys [quit?] :or {quit? true}} options
           bg (sprite* (cx/gimg :game-bg))
           layer (new js/cc.Layer)
           _ (cx/addItem scene layer)
@@ -74,13 +84,23 @@
 
             t3  (cx/miFontLabel* "First Move" 18)
             i3 (new js/cc.MenuItemToggle
-                       (cx/miFontItem* "X" 26) (cx/miFontItem* "O" 26) onFirstMoveToggle nil)
+                       (cx/miFontItem* "X" 26)
+                       (cx/miFontItem* "O" 26)
+                       (cx/miFontItem* "?" 26)
+                       onFirstMoveToggle nil)
             _ (ocall! i3 "setSelectedIndex" (if (= BEGIN-WITH CC-X) 0 1))
 
             back (new js/cc.MenuItemLabel
                       (new js/cc.LabelTTF  "Go back" "Arial" 20) onGoBack nil)
-            menu  (new js/cc.Menu t1 i1 t2 i2 t3 i3 back)
-            _ (ocall! menu "alignItemsInColumns" 2 2 2 1)]
+
+            quit (new js/cc.MenuItemLabel
+                      (new js/cc.LabelTTF  "Quit" "Arial" 20) onQuit nil)
+            menu (if-not quit?
+                   (new js/cc.Menu t1 i1 t2 i2 t3 i3 back)
+                   (new js/cc.Menu t1 i1 t2 i2 t3 i3 back quit))]
+        (if-not quit?
+          (ocall! menu "alignItemsInColumns" 2 2 2 1)
+          (ocall! menu "alignItemsInColumns" 2 2 2 1 1))
         (cx/addItem layer menu)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

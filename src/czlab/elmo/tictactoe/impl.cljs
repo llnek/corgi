@@ -178,7 +178,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" [state]
   (let [{:keys [gspace gmode gpos ebus ecs evQ]} @state
-        {:keys [BOT-THINK-TIME GRID-SIZE CV-Z CV-X CV-O CX CO]} (:game @*xcfg*)
+        {:keys [BOT-THINK-TIME GRID-SIZE
+                CV-Z CV-X CV-O CX CO
+                CC-X CC-O CC-Z BEGIN-WITH]} (:game @*xcfg*)
         cb (fn [& xs] (.push evQ xs))]
     (cx/info* "impl.init called")
     (if (cx/onMouse ebus)
@@ -190,13 +192,15 @@
                  "touch.one.end"
                  (fn [& xs] (apply onTouch (concat [state] xs)))))
 
-    ;unless online, randomly choose who starts first
-    (case gmode
-      (1 2)
+    ;unless online choose who starts first
+    ;who starts?
+    (when (not= 3 gmode)
       (swap! state #(assoc %
                            :whosTurn
-                           (if (pos? (ec/randSign)) CX CO)))
-      nil)
+                           (condp = BEGIN-WITH
+                             CC-X CX
+                             CC-O CO
+                             (if (pos? (ec/randSign)) CX CO)))))
 
     ;always player 1 for mode 1, and create the bot
     (when (= 1 gmode)
@@ -207,6 +211,9 @@
     ;if bot, run it
     (if (= 2 (get (get @state (get @state :whosTurn)) :ptype))
       (ocall! @*game-scene* "scheduleOnce" (runAI state true) BOT-THINK-TIME))
+
+    (cx/info* "game cfg= " (prn-str (:game @*xcfg*)))
+
     (syncStatus state)
     (ecs/addSystem ecs motion)))
 
