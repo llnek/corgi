@@ -1234,6 +1234,7 @@
                           "%back" "Back"
                           "%ok" "OK"
                           "%mmenu" "Main Menu"
+                          "%options" "Options"
                           "%replay" "REPLAY"
                           "%play" "PLAY"
                           "%waitothers" "Waiting...\nfor other players."
