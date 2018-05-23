@@ -50,12 +50,24 @@
                               :anchor *anchor-top*
                               :color c
                               :scale 0.6})
+          p1 (cx/bmfLabel (str (get-in @state [px :pid]))
+                          (cx/gfnt :title)
+                          {:pos {:x 0 :y (:top wb)}
+                           :color (js/cc.color 255 255 255)
+                           :scale 0.6
+                           :anchor *anchor-top-left* })
           score1 (cx/bmfLabel (numStr score1')
                               (cx/gfnt :label)
                               {:pos {:x 0 :y (:top wb)}
                                :color (js/cc.color 255 255 255)
                                :scale 0.6
                                :anchor *anchor-top-left* })
+          p2 (cx/bmfLabel (str (get-in @state [py :pid]))
+                          (cx/gfnt :title)
+                          {:pos {:x (:right wb) :y (:top wb)}
+                           :color (js/cc.color 255 255 255)
+                           :scale 0.6
+                           :anchor *anchor-top-right* })
           score2 (cx/bmfLabel (numStr score2')
                               (cx/gfnt :label)
                               {:pos {:x (:right wb) :y (:top wb)}
@@ -70,19 +82,21 @@
           audio (cx/audioIcon "#sound_on.png"
                               "#sound_off.png"
                               {:anchor cx/*anchor-bottom-left*})
+
           pmenu (cx/gmenu [{:nnn "#icon_menu.png" :cb onPause}]
-                          {:region B :anchor cx/*anchor-bottom-right*})
+                          {:region B :anchor cx/*anchor-top*})
+
           replay (cx/gmenu [{:nnn "#icon_replay.png" :cb onReplay}]
                            {:anchor cx/*anchor-bottom* :show? false})]
       (cx/info* "hud called")
-      (cx/pegToAnchor audio cx/*anchor-bottom-left* B)
-      (cx/addItem layer title "title")
-      (cx/addItem layer score1 "p1")
-      (cx/addItem layer score2 "p2")
+      ;(cx/pegToAnchor audio cx/*anchor-bottom-left* B)
+      ;(cx/addItem layer title "title")
+      (cx/addItem layer p1 "p1")
+      (cx/addItem layer p2 "p2")
       (cx/addItem layer status "status")
-      (cx/addItem layer audio "audio")
-      (cx/addItem layer pmenu "pause")
-      (cx/addItem layer replay "replay"))))
+      ;(cx/addItem layer audio "audio")
+      (cx/addItem layer pmenu "pause"))))
+      ;(cx/addItem layer replay "replay"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn writeStatus "" [msg]
