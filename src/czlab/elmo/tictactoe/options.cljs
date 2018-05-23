@@ -18,13 +18,37 @@
                                    oget-top sprite* ]])
   (:require [czlab.elmo.afx.ccsx :as cx :refer [bsize *xcfg*]]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
-            [czlab.elmo.tictactoe.game :as ga]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- onFirstMoveToggle "" [node]
+  (let [n (ocall node "getSelectedIndex")
+        {:keys [CC-X CC-O]} (:game @*xcfg*)]
+    (swap! *xcfg*
+           #(assoc-in % [:game :BEGIN-WITH]
+                      (if (zero? n) CC-X CC-O)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- onSoundToggle "" [node]
+  (let [n (ocall node "getSelectedIndex")] (cx/setSfx! (zero? n))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- onP1Toggle "" [node]
+  (let [n (ocall node "getSelectedIndex")
+        {:keys [CC-X CC-O]} (:game @*xcfg*)]
+    (swap! *xcfg*
+           #(assoc-in % [:game :P1-ICON]
+                      (if (zero? n) CC-X CC-O)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- onGoBack "" [node]
+  (js/cc.director.popScene))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn optionsScene "" []
   (do-with [scene (new js/cc.Scene)]
-    (let [bg (sprite* (cx/gimg :game-bg))
+    (let [{:keys [P1-ICON BEGIN-WITH CC-X]} (:game @*xcfg*)
+          bg (sprite* (cx/gimg :game-bg))
           layer (new js/cc.Layer)
           _ (cx/addItem scene layer)
           {:keys [top] :as B} (cx/vbox4)
@@ -34,15 +58,30 @@
                (cx/gfnt :title)
                {:pos {:x (:x cp)
                       :y (* 0.8 top)}
-                :color (js/cc.color "#F6B17F")})
-          mnu (cx/gmenu
-                [{:nnn "#online.png" :cb onnetplay}
-                 {:nnn "#player2.png" :cb (onplayXXX 2)}
-                 {:nnn "#player1.png" :cb (onplayXXX 1)}] {:pos cp})]
+                :color (js/cc.color "#F6B17F")})]
       (cx/setXXX! bg {:pos cp})
       (cx/addItem layer bg "bg" -1)
       (cx/addItem layer tt)
-      (cx/addItem layer mnu))))
+      (let [t1  (cx/miFontLabel* "Sound" 18)
+            i1 (new js/cc.MenuItemToggle
+                       (cx/miFontItem* "On" 26) (cx/miFontItem* "Off" 26) onSoundToggle nil)
+            _ (ocall! i1 "setSelectedIndex" (if (cx/sfxOn?) 0 1))
+
+            t2  (cx/miFontLabel* "Player 1" 18)
+            i2 (new js/cc.MenuItemToggle
+                       (cx/miFontItem* "X" 26) (cx/miFontItem* "O" 26) onP1Toggle nil)
+            _ (ocall! i2 "setSelectedIndex" (if (= P1-ICON CC-X) 0 1))
+
+            t3  (cx/miFontLabel* "First Move" 18)
+            i3 (new js/cc.MenuItemToggle
+                       (cx/miFontItem* "X" 26) (cx/miFontItem* "O" 26) onFirstMoveToggle nil)
+            _ (ocall! i3 "setSelectedIndex" (if (= BEGIN-WITH CC-X) 0 1))
+
+            back (new js/cc.MenuItemLabel
+                      (new js/cc.LabelTTF  "Go back" "Arial" 20) onGoBack nil)
+            menu  (new js/cc.Menu t1 i1 t2 i2 t3 i3 back)
+            _ (ocall! menu "alignItemsInColumns" 2 2 2 1)]
+        (cx/addItem layer menu)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

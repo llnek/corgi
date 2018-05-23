@@ -23,6 +23,8 @@
           :game {;:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
                  :landscape? false
                  :size {:width 1536 :height 2048}
+                 :P1-ICON "X"
+                 :BEGIN-WITH "X"
                  :PLAYER-THINK-TIME 7
                  :BOT-THINK-TIME 0.5
                  :GRID-SIZE 3 :CV-Z 0}

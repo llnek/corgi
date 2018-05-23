@@ -70,6 +70,11 @@ cc.FadeOut.create=function(){};
 cc.CallFunc=function(){};
 cc.CallFunc.create=function(){};
 
+cc.MenuItemFont=function(){};
+cc.MenuItemFont.setFontName=function() {};
+cc.MenuItemFont.setFontSize=function(){};
+
+
 cc.Director=function(){};
 cc.Director.PROJECTION_2D={};
 

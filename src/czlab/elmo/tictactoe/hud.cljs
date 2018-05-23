@@ -21,6 +21,7 @@
              :as cx :refer [*anchor-top-right* *anchor-top-left*
                             *game-scene* *xcfg* *anchor-top*]]
             [czlab.elmo.afx.core :as ec]
+            [czlab.elmo.tictactoe.options :as opt]
             [czlab.elmo.tictactoe.misc :as mc]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
@@ -29,9 +30,8 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- onPause "" [& xs])
-
-
+(defn- onPause "" [& xs]
+  (js/cc.director.pushScene (opt/optionsScene)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hudLayer "" [px py state score1' score2']

@@ -430,6 +430,21 @@
 (def *game-1* 1)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn setMIFont "" [size & [name]]
+  (js/cc.MenuItemFont.setFontName (or name "Arial"))
+  (js/cc.MenuItemFont.setFontSize size))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn miFontLabel* "" [name size & [font]]
+  (setMIFont size font)
+  (doto (new js/cc.MenuItemFont name) (ocall! "setEnabled" false)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn miFontItem* "" [name size & [font]]
+  (setMIFont size font)
+  (new js/cc.MenuItemFont name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getCachedSprite
   "Get the sprite from the frame cache using
   its id (e.g. #ship)."
