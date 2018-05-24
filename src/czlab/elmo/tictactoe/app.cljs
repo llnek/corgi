@@ -28,12 +28,12 @@
                  :PLAYER-THINK-TIME 7
                  :BOT-THINK-TIME 0.5
                  :GRID-SIZE 3 :CV-Z 0}
-          :images {:lang-pics "l10n/images.png"
-                   :game-pics "imgs/images.png"
+          :images {:lang-pics "tictactoe/l10n/images.png"
+                   :game-pics "tictactoe/imgs/images.png"
                    :gui-edit-orange "core/orange_edit.png"
-                   :game-bg "imgs/bg.png" }
-          :sheets {:lang-pics "l10n/images.plist"
-                   :game-pics "imgs/images.plist"}
+                   :game-bg "tictactoe/imgs/bg.png" }
+          :sheets {:lang-pics "tictactoe/l10n/images.plist"
+                   :game-pics "tictactoe/imgs/images.plist"}
           :sounds {:game-end "snds/MineExplosion"
                    :1 "snds/ElevatorBeep"
                    :2 "snds/MineBeep"

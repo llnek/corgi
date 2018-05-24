@@ -27,6 +27,8 @@
                  :size {:width 1536 :height 2048}
                  :BALL-SPEED 150 ;; 25 incremental
                  :PADDLE-SPEED 200 ;; 300
+                 :P1-ICON "X"
+                 :BEGIN-WITH "X"
                  :NUM-POINTS 4
                  :GRID-W 40
                  :GRID-H 60}
