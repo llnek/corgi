@@ -55,11 +55,15 @@
     (if (not-empty ret) (_1 ret) -1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- syncStatus "" [state]
+(defn- startMsg "" [state]
   (let [{:keys [whosTurn]} @state
         user (get @state whosTurn)
-        id (get user :pid)]
-    (hud/writeStatus (str id "'s move..."))))
+        pname (get user :pname)]
+    (hud/writeStatus (str pname " starts."))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- syncStatus "" [state]
+  (hud/writeStatus ""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- switchOver "" [state]
@@ -212,9 +216,9 @@
     (if (= 2 (get (get @state (get @state :whosTurn)) :ptype))
       (ocall! @*game-scene* "scheduleOnce" (runAI state true) BOT-THINK-TIME))
 
-    (cx/info* "game cfg= " (prn-str (:game @*xcfg*)))
+    (cx/info* "game cfg= " (ec/clj->json (:game @*xcfg*)))
 
-    (syncStatus state)
+    (startMsg state)
     (ecs/addSystem ecs motion)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

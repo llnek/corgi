@@ -61,8 +61,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gameScene "" [mode px py & more]
   (do-with [scene (new js/cc.Scene)]
-    (cx/info* "player 1 = " (prn-str px))
-    (cx/info* "player 2 = " (prn-str py))
+    (cx/info* "player 1 = " (ec/clj->json px))
+    (cx/info* "player 2 = " (ec/clj->json py))
     (let [{:keys [GRID-SIZE CV-Z]} (:game @*xcfg*)
           adon? (get-in @*xcfg* [:AD :on?])
           B (if adon? (cx/ebox4) (cx/vbox4))

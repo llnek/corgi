@@ -36,7 +36,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hudLayer "" [px py state score1' score2']
   (do-with [layer (new js/cc.Layer)]
-    (let [adon? (get-in @*xcfg* [:AD :on?])
+    (let [{:keys [P1-ICON CC-X CC-O]} (:game @*xcfg*)
+          adon? (get-in @*xcfg* [:AD :on?])
           B (if adon? (cx/ebox4) (cx/vbox4))
           {:keys [gpos]} @state
           gend (:bottom (ec/minBy #(get % :bottom) gpos))
@@ -50,7 +51,9 @@
                               :anchor *anchor-top*
                               :color c
                               :scale 0.6})
-          p1 (cx/bmfLabel (str (get-in @state [px :pid]))
+          p1 (cx/bmfLabel (str (get-in @state
+                                       [px :pid])
+                               "[" P1-ICON "]")
                           (cx/gfnt :title)
                           {:pos {:x 0 :y (:top wb)}
                            :color (js/cc.color 255 255 255)
@@ -62,7 +65,8 @@
                                :color (js/cc.color 255 255 255)
                                :scale 0.6
                                :anchor *anchor-top-left* })
-          p2 (cx/bmfLabel (str (get-in @state [py :pid]))
+          p2 (cx/bmfLabel (str "["  (if (= P1-ICON CC-X) CC-O CC-X) "]"
+                               (get-in @state [py :pid]))
                           (cx/gfnt :title)
                           {:pos {:x (:right wb) :y (:top wb)}
                            :color (js/cc.color 255 255 255)
