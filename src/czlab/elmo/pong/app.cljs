@@ -32,12 +32,12 @@
                  :NUM-POINTS 4
                  :GRID-W 40
                  :GRID-H 60}
-          :images {:lang-pics "l10n/images.png"
-                   :game-pics "imgs/images.png"
+          :images {:lang-pics "pong/l10n/images.png"
+                   :game-pics "pong/imgs/images.png"
                    :gui-edit-orange "core/orange_edit.png"
-                   :game-bg "imgs/bg.png" }
-          :sheets {:lang-pics "l10n/images.plist"
-                   :game-pics "imgs/images.plist"}
+                   :game-bg "pong/imgs/bg.png" }
+          :sheets {:lang-pics "pong/l10n/images.plist"
+                   :game-pics "pong/imgs/images.plist"}
           :sounds {:game-end "snds/MineExplosion"
                    :1 "snds/ElevatorBeep"
                    :2 "snds/MineBeep"

@@ -68,7 +68,7 @@
                (cx/gfnt :title)
                {:pos {:x (:x cp)
                       :y (* 0.8 top)}
-                :color (js/cc.color "#F6B17F")})]
+                :color (js/cc.color "#EDFF90")})]
       (cx/setXXX! bg {:pos cp})
       (cx/addItem layer bg "bg" -1)
       (cx/addItem layer tt)

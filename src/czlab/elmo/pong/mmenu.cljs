@@ -74,7 +74,7 @@
                (cx/gfnt :title)
                {:pos {:x (:x cp)
                       :y (* 0.8 (:top wb))}
-                :color (js/cc.color "#F6B17F")})
+                :color (js/cc.color "#EDFF90")})
           mnu (cx/gmenu
                 [{:nnn "#player1.png" :cb (onplayXXX 1)}
                  {:nnn "#player2.png" :cb (onplayXXX 2)}
