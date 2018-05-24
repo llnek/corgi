@@ -9,7 +9,7 @@
 (ns ^{:doc ""
       :author ""}
 
-  czlab.elmo.tictactoe.game
+  czlab.elmo.pong.game
 
   (:require-macros
     [czlab.elmo.afx.core
@@ -19,9 +19,8 @@
             [czlab.elmo.afx.core :as ec]
             [czlab.elmo.afx.ecs :as ecs]
             [czlab.elmo.afx.ebus :as ebus]
-            [czlab.elmo.tictactoe.impl :as impl]
-            [czlab.elmo.tictactoe.misc :as mc]
-            [czlab.elmo.tictactoe.hud :as hud]
+            [czlab.elmo.pong.hud :as hud]
+            [czlab.elmo.pong.impl :as impl]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -32,26 +31,10 @@
                     (cx/setXXX! {:pos (cx/centerPos)})))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- showGrid "" [state layer]
-  (let [{:keys [GRID-SIZE CV-Z]} (:game @*xcfg*)
-        {:keys [gpos]} @state]
-    (->
-      (reduce
-        (fn [acc mp]
-          (let [pt (cx/vbox4MID mp)
-                sp (-> (sprite* "#z.png")
-                       (cx/setXXX! {:pos pt}))]
-            (cx/addItem layer sp)
-            (conj! acc [sp pt CV-Z])))
-        (transient [])
-        gpos)
-      (persistent! ))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- arenaLayer "" [state]
   (do-with [layer (new js/cc.Layer)]
-    (let [cs (showGrid state layer)]
-      (swap! state #(assoc % :cells cs)))))
+
+           ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- initOnce "" [state]
@@ -61,23 +44,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gameScene "" [mode px py & more]
   (do-with [scene (new js/cc.Scene)]
-    (cx/info* "player 1 = " (ec/clj->json px))
-    (cx/info* "player 2 = " (ec/clj->json py))
-    (let [{:keys [GRID-SIZE CV-Z]} (:game @*xcfg*)
+    (let [{:keys []} (:game @*xcfg*)
           adon? (get-in @*xcfg* [:AD :on?])
           B (if adon? (cx/ebox4) (cx/vbox4))
           zmks [:ptype :pvalue :pcolor :pid :pname]
-          sz (* GRID-SIZE GRID-SIZE)
-          state (atom {:gspace (mc/mapGoalSpace GRID-SIZE)
-                       :gpos (mc/mapGridPos B GRID-SIZE 1)
-                       :ebus (ebus/createEvBus)
+          state (atom {:ebus (ebus/createEvBus)
                        :ecs (ecs/createECS)
-                       :grid (ec/fillArray CV-Z sz)
                        :running? false
                        :gmode mode
-                       :selected -1
                        :evQ (array)
-                       :whoAmI nil :whosTurn nil :cells nil
+                       :whoAmI nil
                        :scores {(_1 px) 0 (_1 py) 0}
                        (_1 px) (zipmap zmks (rest px))
                        (_1 py) (zipmap zmks (rest py))})
