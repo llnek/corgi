@@ -32,6 +32,7 @@ var cc = {
   director : { getRunningScene: function(){},
                setProjection:function(){},
                setAnimationInterval:function(){},
+               getAnimationInterval:function(){},
                setDisplayStats:function(){},
                getWinSize:function(){},
                pushScene:function(){},
