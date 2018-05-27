@@ -94,4 +94,41 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
 
+Here you go:
 
+//Add the Chipmunk Physics space
+var space = new cp.Space();
+space.gravity = cp.v(0, -10);
+
+//Optionally add the debug layer that shows the shapes in the space moving:
+/*var debugNode = new cc.PhysicsDebugNode(space);
+debugNode.visible = true;
+this.addChild(debugNode);*/
+
+//add a floor:
+var floor = new cp.SegmentShape(this.space.staticBody, cp.v(-1000, 10), cp.v(1000, 0), 10);
+//floor.setElasticity(1);
+//floor.setFriction(0);
+space.addStaticShape(floor);
+
+//add a square to bounce
+//the Sprite
+var mySprite = cc.PhysicsSprite.create("res/something.png");
+gameLayer.addChild(mySprite);
+
+//the Body
+var size = mySprite.getContentSize();
+var innertialMomentum = 1; //Use Infinity if you want to avoid the body from rotating
+var myBody = new cp.Body(innertialMomentum , cp.momentForBox(innertialMomentum , size.width, size.height));
+mySprite.setBody(myBody);
+space.addBody(myBody);
+//myBody.p = cc.p(xxx, yyy); //To alter the position of the sprite you have to manipulate the body directly, otherwise it won't have the desired effect. You can also access it by mySprite.body
+
+//the Shape
+var myShape = new cp.BoxShape(myBody, size.width, size.height);
+//myShape.setElasticity(1);
+//myShape.setFriction(0);
+space.addShape(myShape);
+
+//Apply your desired impulse
+//mySprite.body.applyImpulse(cp.v(ix,iy), cp.v(rx,ry)); // Where the first vector is for the impulse strength and direction and the second is for the offset between the center of the object and where you want the impulse to be applied.

@@ -17,6 +17,7 @@
                     nneg? f#* n# _1 _2 do-with]]
     [czlab.elmo.afx.ccsx
      :as cx :refer [oget-bottom oget-right gcbyn
+                    sprite*
                     oget-x oget-y oget-left oget-top]])
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
@@ -88,6 +89,20 @@
 (defn- onTouch "" [state topic msgTopic & msgs])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- addBody "" [world x y width height dyna? img type]
+  (let [body (if dyna?
+               (new js/cp.Body
+                    1 (js/cp.momentForBox 1 width height))
+               (new js/cp.Body js/Infinity js/Infinity))
+        _ (ocall! body "setPos" (js/cp.v x y))
+        _ (if dyna? (ocall! world "addBody" body))
+        shape (new js/cp.BoxShape body width height)]
+    (ocall! shape "setElasticity" 0)
+    (ocall! shape "setFriction" 1)
+    (ocall! shape "name" type)
+    (ocall! world "addShape" shape)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" [state]
   (let [{:keys [gmode ebus ecs evQ]} @state
         {:keys [CV-Z CV-X CV-O CX CO CC-X CC-O CC-Z]} (:game @*xcfg*)
@@ -111,39 +126,6 @@
     ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
-(defn- xxx "" [gmode B]
-  (let [{:keys [PADDLE-SPEED BALL-SPEED]} (:game @*xcfg*)
-        {:keys [height width]} (cx/box4->box B)
-        {:keys [top bottom right left]} B
-        ps (csize "#red_paddle.png")
-        bs (csize "#pongball.png")
-        cp (cx/vbox4MID B)
-        ;;position of paddles
-        ;;portrait
-        p1y (js/Math.floor (+ (* 0.1 top) (half* (:height ps))))
-        p2y (js/Math.floor (- (* 0.9 top) (half* (:height ps))))
-        ;;landscape
-        p1x (js/Math.floor (+ left (half* (:width ps))))
-        p2x (js/Math.floor (- right (half* (:width ps))))
-        state {:FPS (js/cc.director.getAnimationInterval)
-               :syncMillis 3000
-               :paddle (assoc ps :speed PADDLE-SPEED)
-               :ball (merge bs cp {:speed BALL-SPEED})
-               :p1 (if (cx/isPortrait?)
-                     (assoc cp :y p1y)
-                     (assoc cp :x p1x))
-               :p2 (if (cx/isPortrait?)
-                     (assoc cp :y p2y)
-                     (assoc cp :x p2x))}]
-    (createPaddles state)
-    (createBall state)
-    ;; mouse only for 1p or netplay
-    (if (not= gmode 2) (onMouse state))
-    (cx/onTouchOne state)
-    (cx/onKeys state)))
-
-
 (defn- createPaddles "" [layer state]
   (let [{:keys [P1-ICON CC-X CC-O]} (:game @*xcfg*)
         {:keys [p1 p2]} @state
@@ -155,8 +137,10 @@
     (cx/addItem layer sp1)
     (cx/addItem layer sp2)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- createBall "" [layer state]
   (let [{:keys [BALL-SPEED]} (:game @*xcfg*)
+        {:keys [ball gmode]} @state
         [vx vy] (if (= gmode 3)
                   [0 0]
                   [(* BALL-SPEED (ec/randSign))
@@ -164,3 +148,38 @@
         sp (cx/setXXX! (sprite* "#pongball.png") {:pos ball})]
     (cx/addItem layer sp)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- xxx "" [gmode B]
+  (let [{:keys [PADDLE-SPEED BALL-SPEED]} (:game @*xcfg*)
+        {:keys [height width]} (cx/bbox4->bbox B)
+        {:keys [top bottom right left]} B
+        ebus (ebus/createEvBus)
+        ps (csize "#red_paddle.png")
+        bs (csize "#pongball.png")
+        cp (cx/vbox4MID B)
+        ;;position of paddles
+        ;;portrait
+        p1y (js/Math.floor (+ (* 0.1 top) (half* (:height ps))))
+        p2y (js/Math.floor (- (* 0.9 top) (half* (:height ps))))
+        ;;landscape
+        p1x (js/Math.floor (+ left (half* (:width ps))))
+        p2x (js/Math.floor (- right (half* (:width ps))))
+        state (atom {:FPS (js/cc.director.getAnimationInterval)
+               :syncMillis 3000
+               :paddle (assoc ps :speed PADDLE-SPEED)
+               :ball (merge bs cp {:speed BALL-SPEED})
+               :p1 (if (cx/isPortrait?)
+                     (assoc cp :y p1y)
+                     (assoc cp :x p1x))
+               :p2 (if (cx/isPortrait?)
+                     (assoc cp :y p2y)
+                     (assoc cp :x p2x))})]
+    (createPaddles @*game-arena* state)
+    (createBall @*game-arena* state)
+    ;; mouse only for 1p or netplay
+    (if (not= gmode 2) (cx/onMouse ebus))
+    (cx/onTouchOne ebus)
+    (cx/onKeys ebus)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF

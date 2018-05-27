@@ -3,6 +3,13 @@
 //cocos2dx internally creates.  so need to do this so goog won't
 //touch the name gl
 var gl={};
+var cp={
+  BoxShape: function(){},
+  Space: function(){},
+  Body: function(){},
+  v: function(){},
+  momentForBox: function(){}
+};
 var cc = {
   rectIntersectsRect: function() {},
   size :function(){},

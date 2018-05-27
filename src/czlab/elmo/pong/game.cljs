@@ -15,7 +15,8 @@
     [czlab.elmo.afx.core
      :as ec :refer [_1 _2 f#* do-with]]
     [czlab.elmo.afx.ccsx :as cx :refer [sprite* attr*]])
-  (:require [czlab.elmo.afx.ccsx :as cx :refer [*xcfg*]]
+  (:require [czlab.elmo.afx.ccsx
+             :as cx :refer [*xcfg* *game-scene* *game-arena*]]
             [czlab.elmo.afx.core :as ec]
             [czlab.elmo.afx.ecs :as ecs]
             [czlab.elmo.afx.ebus :as ebus]
@@ -37,9 +38,18 @@
            ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- updateFunc "" [state]
+  (let [{:keys [world]} @state]
+    (fn [dt]
+      (ocall! world "step" dt)
+      (cx/info* "step " dt)
+      (ecs/updateECS (:ecs @state) dt))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- initOnce "" [state]
   (f#* (impl/init state)
-       (swap! state #(assoc % :running? true))))
+       (swap! state #(assoc % :running? true))
+       (ocall! @*game-scene* "scheduleUpdate")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gameScene "" [mode px py & more]
@@ -50,6 +60,7 @@
           zmks [:ptype :pvalue :pcolor :pid :pname]
           state (atom {:ebus (ebus/createEvBus)
                        :ecs (ecs/createECS)
+                       :world (new js/cp.Space)
                        :running? false
                        :gmode mode
                        :evQ (array)
@@ -60,14 +71,14 @@
           bl (bgLayer)
           gl (arenaLayer state)
           hud (hud/hudLayer (_1 px) (_1 py) state 0 0)]
-      (reset! cx/*game-scene* scene)
-      (reset! cx/*game-arena* gl)
+      (reset! *game-scene* scene)
+      (reset! *game-arena* gl)
       (cx/addItem scene bl "bg" -1)
       (cx/addItem scene gl "arena" 1)
       (cx/addItem scene hud "hud" 2)
       (attr* scene
              #js{:gstate state
-                 :update #(ecs/updateECS (:ecs @state) %)})
+                 :update (updateFunc state)})
       (when adon?
         (let [a (cx/enableAD! scene)]
           (cx/addItem hud a)))
