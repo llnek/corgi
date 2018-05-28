@@ -34,15 +34,23 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- arenaLayer "" [state]
   (do-with [layer (new js/cc.Layer)]
+    (let [WHITE (js/cc.color 255 255 255)
+          {:keys [world]} @state
+          {:keys [top left right bottom]} world
+          {:keys [x y] :as cp } (cx/vbox4MID world)
+          r (new js/cc.DrawNode)]
+      (ocall! r
+              "drawRect"
+              (js/cc.p left bottom) (js/cc.p right top) nil 64 WHITE)
+      (ocall! r "drawSegment" (js/cc.p left y ) (js/cc.p right y) 16 WHITE)
+      (cx/addItem layer r)
 
-           ))
+           )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- updateFunc "" [state]
   (let [{:keys [world]} @state]
     (fn [dt]
-      (ocall! world "step" dt)
-      (cx/info* "step " dt)
       (ecs/updateECS (:ecs @state) dt))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -60,7 +68,7 @@
           zmks [:ptype :pvalue :pcolor :pid :pname]
           state (atom {:ebus (ebus/createEvBus)
                        :ecs (ecs/createECS)
-                       :world (new js/cp.Space)
+                       :world B
                        :running? false
                        :gmode mode
                        :evQ (array)
