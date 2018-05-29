@@ -17,6 +17,8 @@ var cc = {
   p:function(){},
   rect:function(){},
 
+  KEY: { left : {}, right : {}, down: {}, up : {}, a : {}, d : {}, s : {}, w : {} },
+
   loaderScene: {},
 
   capabilities: {},

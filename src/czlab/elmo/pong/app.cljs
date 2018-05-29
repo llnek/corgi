@@ -25,7 +25,7 @@
           :game { ;:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
                  :landscape? false
                  :size {:width 1536 :height 2048}
-                 :BALL-SPEED 150 ;; 25 incremental
+                 :BALL-SPEED 250;;150 ;; 25 incremental
                  :PADDLE-SPEED 200 ;; 300
                  :P1-ICON "X"
                  :BEGIN-WITH "X"

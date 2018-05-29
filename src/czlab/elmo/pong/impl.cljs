@@ -139,6 +139,7 @@
         ps (bsize "#red_paddle.png")
         bs (bsize "#pongball.png")
         cp (cx/vbox4MID arena)
+        kb (array)
         ;;position of paddles
         ;;portrait
         p1y (js/Math.floor (+ (* 0.1 top) (half* (:height ps))))
@@ -150,11 +151,15 @@
     (swap! state
            #(merge % {:FPS (js/cc.director.getAnimationInterval)
                       :syncMillis 3000
+                      :keyboard kb
                       :paddle (assoc ps :speed PADDLE-SPEED)
                       :ball (merge bs cp {:speed BALL-SPEED})
+                      :p1Keys (if (cx/isPortrait?) [js/cc.KEY.left js/cc.KEY.right] [js/cc.KEY.down js/cc.KEY.up])
+                      :p2Keys (if (cx/isPortrait?) [js/cc.KEY.a js/cc.KEY.d] [js/cc.KEY.s js/cc.KEY.w])
                       :p1 (if (cx/isPortrait?) (assoc cp :y p1y) (assoc cp :x p1x))
                       :p2 (if (cx/isPortrait?) (assoc cp :y p2y) (assoc cp :x p2x))}))
     (cx/info* "impl.init called")
+    (cx/onKeyPolls kb)
     (if (cx/onMouse ebus)
       (ebus/sub+ ebus
                  "mouse.up"
@@ -173,10 +178,20 @@
     (createBall state)
     (createPaddles state)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- motionPads "" [state dt]
+  (let [{:keys [keyboard p1Keys p2Keys]} @state]
+    (if (aget keyword (aget p1Keys 0)
 
+    (aget p1Keys 1)
+
+    (aget p2Keys 0)
+    (aget p2Keys 1)
+
+  ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- motion "" [state dt]
+(defn- motionBall "" [state dt]
   (let [{:keys [BALL-SPEED arena]} @state
         {:keys [top right bottom left]} arena
         layer @*game-arena*
@@ -202,9 +217,10 @@
     (oset! sp "!vel_y" vy')
     (cx/setXXX! sp {:pos {:x x' :y y'}})))
 
-
-
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- motion "" [state dt]
+  (motionBall state dt)
+  (motionPads state dt))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateECS "" [dt]
