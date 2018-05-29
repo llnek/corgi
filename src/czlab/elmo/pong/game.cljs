@@ -35,23 +35,17 @@
 (defn- arenaLayer "" [state]
   (do-with [layer (new js/cc.Layer)]
     (let [WHITE (js/cc.color 255 255 255)
-          {:keys [world]} @state
-          {:keys [top left right bottom]} world
-          {:keys [x y] :as cp } (cx/vbox4MID world)
+          {:keys [arena]} @state
+          {:keys [top left right bottom]} arena
+          {:keys [x y] :as cp } (cx/vbox4MID arena)
           r (new js/cc.DrawNode)]
       (ocall! r
               "drawRect"
               (js/cc.p left bottom) (js/cc.p right top) nil 64 WHITE)
       (ocall! r "drawSegment" (js/cc.p left y ) (js/cc.p right y) 16 WHITE)
-      (cx/addItem layer r)
+      (cx/addItem layer r "border" -1)
 
            )))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- updateFunc "" [state]
-  (let [{:keys [world]} @state]
-    (fn [dt]
-      (ecs/updateECS (:ecs @state) dt))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- initOnce "" [state]
@@ -68,7 +62,7 @@
           zmks [:ptype :pvalue :pcolor :pid :pname]
           state (atom {:ebus (ebus/createEvBus)
                        :ecs (ecs/createECS)
-                       :world B
+                       :arena B
                        :running? false
                        :gmode mode
                        :evQ (array)
@@ -86,7 +80,7 @@
       (cx/addItem scene hud "hud" 2)
       (attr* scene
              #js{:gstate state
-                 :update (updateFunc state)})
+                 :update impl/updateECS})
       (when adon?
         (let [a (cx/enableAD! scene)]
           (cx/addItem hud a)))

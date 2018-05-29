@@ -17,12 +17,12 @@
                     nneg? f#* n# _1 _2 do-with]]
     [czlab.elmo.afx.ccsx
      :as cx :refer [oget-bottom oget-right gcbyn
-                    sprite*
+                    sprite* attr*
                     oget-x oget-y oget-left oget-top]])
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
     [czlab.elmo.afx.ccsx
-     :as cx :refer [*game-arena* *game-scene* *xcfg* csize]]
+     :as cx :refer [half-size* *game-arena* *game-scene* *xcfg* bsize csize]]
     [czlab.elmo.afx.dialog :as dlg]
     [czlab.elmo.pong.hud :as hud]
     [czlab.elmo.afx.ecs :as ecs]
@@ -103,10 +103,57 @@
     (ocall! world "addShape" shape)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn init "" [state]
-  (let [{:keys [gmode ebus ecs evQ]} @state
-        {:keys [CV-Z CV-X CV-O CX CO CC-X CC-O CC-Z]} (:game @*xcfg*)
+(defn- createBall "" [state]
+  (let [{:keys [BALL-SPEED]} (:game @*xcfg*)
+        {:keys [ball gmode]} @state
+        layer @*game-arena*
+        [vx vy] (if (= gmode 3)
+                  [0 0]
+                  [(* BALL-SPEED (ec/randSign))
+                   (* BALL-SPEED (ec/randSign))])
+        sp (cx/setXXX! (sprite* "#pongball.png") {:pos ball})]
+    (attr* sp #js{:vel_x vx :vel_y vy})
+    (cx/addItem layer sp "ball")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- createPaddles "" [state]
+  (let [{:keys [P1-ICON CC-X CC-O]} (:game @*xcfg*)
+        {:keys [p1 p2]} @state
+        layer @*game-arena*
+        [r1 r2] (if (= P1-ICON CC-X)
+                  ["#red_paddle.png" "#green_paddle.png"]
+                  ["#green_paddle.png" "#red_paddle.png"])
+        sp1 (cx/setXXX! (sprite* r1) {:pos p1})
+        sp2 (cx/setXXX! (sprite* r2) {:pos p2})]
+    (cx/addItem layer sp1 "pad1")
+    (cx/addItem layer sp2 "pad2")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- init "" [state]
+  (let [{:keys [arena gmode ebus ecs evQ]} @state
+        {:keys [PADDLE-SPEED BALL-SPEED
+                CV-Z CV-X CV-O
+                CX CO CC-X CC-O CC-Z]} (:game @*xcfg*)
+        {:keys [height width]} (cx/bbox4->bbox arena)
+        {:keys [top bottom right left]} arena
+        ps (bsize "#red_paddle.png")
+        bs (bsize "#pongball.png")
+        cp (cx/vbox4MID arena)
+        ;;position of paddles
+        ;;portrait
+        p1y (js/Math.floor (+ (* 0.1 top) (half* (:height ps))))
+        p2y (js/Math.floor (- (* 0.9 top) (half* (:height ps))))
+        ;;landscape
+        p1x (js/Math.floor (+ left (half* (:width ps))))
+        p2x (js/Math.floor (- right (half* (:width ps))))
         cb (fn [& xs] (.push evQ xs))]
+    (swap! state
+           #(merge % {:FPS (js/cc.director.getAnimationInterval)
+                      :syncMillis 3000
+                      :paddle (assoc ps :speed PADDLE-SPEED)
+                      :ball (merge bs cp {:speed BALL-SPEED})
+                      :p1 (if (cx/isPortrait?) (assoc cp :y p1y) (assoc cp :x p1x))
+                      :p2 (if (cx/isPortrait?) (assoc cp :y p2y) (assoc cp :x p2x))}))
     (cx/info* "impl.init called")
     (if (cx/onMouse ebus)
       (ebus/sub+ ebus
@@ -123,63 +170,53 @@
                            :whoAmI CX
                            :bot nil)))
 
+    (createBall state)
+    (createPaddles state)))
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- motion "" [state dt]
+  (let [{:keys [BALL-SPEED arena]} @state
+        {:keys [top right bottom left]} arena
+        layer @*game-arena*
+        sp (gcbyn layer "ball")
+        sz (bsize sp)
+        [hw hh] (half-size* sz)
+        pt (ocall sp "getPosition")
+        vx (oget sp "?vel_x")
+        vy (oget sp "?vel_y")
+        px (+ (* dt vx) (oget pt "x"))
+        py (+ (* dt vy) (oget pt "y"))
+        [x' vx']
+        (cond
+          (<= (- px hw) left) [(+ left hw) (- vx)]
+          (>= (+ px hw) right) [(- right hw) (- vx)]
+          :else [px vx])
+        [y' vy']
+        (cond
+          (>= (+ py hh) top) [(- top hh) (- vy)]
+          (<= (- py hh) bottom) [(+ bottom hh) (- vy)]
+          :else [py vy])]
+    (oset! sp "!vel_x" vx')
+    (oset! sp "!vel_y" vy')
+    (cx/setXXX! sp {:pos {:x x' :y y'}})))
+
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn updateECS "" [dt]
+  (let [state (oget @*game-scene* "gstate")]
+
+    (motion state dt)
+
     ))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- createPaddles "" [layer state]
-  (let [{:keys [P1-ICON CC-X CC-O]} (:game @*xcfg*)
-        {:keys [p1 p2]} @state
-        [r1 r2] (if (= P1-ICON CC-X)
-                  ["#red_paddle.png" "#green_paddle.png"]
-                  ["#green_paddle.png" "#red_paddle.png"])
-        sp1 (cx/setXXX! (sprite* r1) {:pos p1})
-        sp2 (cx/setXXX! (sprite* r2) {:pos p2})]
-    (cx/addItem layer sp1)
-    (cx/addItem layer sp2)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- createBall "" [layer state]
-  (let [{:keys [BALL-SPEED]} (:game @*xcfg*)
-        {:keys [ball gmode]} @state
-        [vx vy] (if (= gmode 3)
-                  [0 0]
-                  [(* BALL-SPEED (ec/randSign))
-                   (* BALL-SPEED (ec/randSign))])
-        sp (cx/setXXX! (sprite* "#pongball.png") {:pos ball})]
-    (cx/addItem layer sp)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- xxx "" [gmode B]
-  (let [{:keys [PADDLE-SPEED BALL-SPEED]} (:game @*xcfg*)
-        {:keys [height width]} (cx/bbox4->bbox B)
-        {:keys [top bottom right left]} B
-        ebus (ebus/createEvBus)
-        ps (csize "#red_paddle.png")
-        bs (csize "#pongball.png")
-        cp (cx/vbox4MID B)
-        ;;position of paddles
-        ;;portrait
-        p1y (js/Math.floor (+ (* 0.1 top) (half* (:height ps))))
-        p2y (js/Math.floor (- (* 0.9 top) (half* (:height ps))))
-        ;;landscape
-        p1x (js/Math.floor (+ left (half* (:width ps))))
-        p2x (js/Math.floor (- right (half* (:width ps))))
-        state (atom {:FPS (js/cc.director.getAnimationInterval)
-               :syncMillis 3000
-               :paddle (assoc ps :speed PADDLE-SPEED)
-               :ball (merge bs cp {:speed BALL-SPEED})
-               :p1 (if (cx/isPortrait?)
-                     (assoc cp :y p1y)
-                     (assoc cp :x p1x))
-               :p2 (if (cx/isPortrait?)
-                     (assoc cp :y p2y)
-                     (assoc cp :x p2x))})]
-    (createPaddles @*game-arena* state)
-    (createBall @*game-arena* state)
-    ;; mouse only for 1p or netplay
-    (if (not= gmode 2) (cx/onMouse ebus))
-    (cx/onTouchOne ebus)
-    (cx/onKeys ebus)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+;; PreUpdate:  100, NetPlay:    200, Select:     300, Motion:     400, Move:       500, Logic:   600, Collide:  700, Resolve:    800, Render:     900
+
+

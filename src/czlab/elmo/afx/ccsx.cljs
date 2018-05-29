@@ -325,12 +325,12 @@
 (defn bsize
   "Find size of this thing."
   [obj]
-  (cond (ccnode? obj)
+  (cond (string? obj)
+        (bsize (sprite* obj))
+        (ccnode? obj)
         (bsize (bbox obj))
         (snode? obj)
         (bsize (oget-piccy obj))
-        (string? obj)
-        (bsize (sprite* obj))
         (bbox? obj)
         (dissoc obj :x :y)
         (bbox4? obj)
