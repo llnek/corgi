@@ -21,15 +21,16 @@
             [czlab.elmo.afx.ecs :as ecs]
             [czlab.elmo.afx.ebus :as ebus]
             [czlab.elmo.pong.hud :as hud]
+            [czlab.elmo.pong.misc :as mc]
             [czlab.elmo.pong.impl :as impl]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- bgLayer "" []
   (do-with [layer (new js/cc.Layer)]
-    (cx/addItem layer
-                (-> (sprite* (cx/gimg :game-bg))
-                    (cx/setXXX! {:pos (cx/centerPos)})))))
+    (let [bg (mc/rotFlat?? (sprite* (cx/gimg :game-bg)))]
+      (cx/addItem layer
+                  (cx/setXXX! bg {:pos (cx/centerPos)})))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- arenaLayer "" [state]
@@ -42,7 +43,9 @@
       (ocall! r
               "drawRect"
               (js/cc.p left bottom) (js/cc.p right top) nil 64 WHITE)
-      (ocall! r "drawSegment" (js/cc.p left y ) (js/cc.p right y) 16 WHITE)
+      (if (cx/isPortrait?)
+        (ocall! r "drawSegment" (js/cc.p left y ) (js/cc.p right y) 16 WHITE)
+        (ocall! r "drawSegment" (js/cc.p x bottom) (js/cc.p x top) 16 WHITE))
       (cx/addItem layer r "border" -1)
 
            )))

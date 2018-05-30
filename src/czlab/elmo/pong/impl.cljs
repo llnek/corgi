@@ -25,6 +25,7 @@
      :as cx :refer [half-size* *game-arena* *game-scene* *xcfg* bsize csize]]
     [czlab.elmo.afx.dialog :as dlg]
     [czlab.elmo.pong.hud :as hud]
+    [czlab.elmo.pong.misc :as mc]
     [czlab.elmo.afx.ecs :as ecs]
     [czlab.elmo.afx.ebus :as ebus]
     [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
@@ -105,59 +106,62 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- createBall "" [state]
   (let [{:keys [BALL-SPEED]} (:game @*xcfg*)
-        {:keys [ball gmode]} @state
+        {:keys [arena gmode]} @state
+        cp (cx/vbox4MID arena)
+        sp (sprite* "#pongball.png")
+        bs (bsize sp)
         layer @*game-arena*
         [vx vy] (if (= gmode 3)
                   [0 0]
                   [(* BALL-SPEED (ec/randSign))
-                   (* BALL-SPEED (ec/randSign))])
-        sp (cx/setXXX! (sprite* "#pongball.png") {:pos ball})]
+                   (* BALL-SPEED (ec/randSign))])]
     (attr* sp #js{:vel_x vx :vel_y vy})
-    (cx/addItem layer sp "ball")))
+    (cx/addItem layer
+                (cx/setXXX! sp {:pos cp}) "ball")
+    (swap! state
+           #(merge % {:ball (merge bs cp {:speed BALL-SPEED})}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- createPaddles "" [state]
-  (let [{:keys [P1-ICON CC-X CC-O]} (:game @*xcfg*)
-        {:keys [p1 p2]} @state
+  (let [{:keys [PADDLE-SPEED P1-ICON CC-X CC-O]} (:game @*xcfg*)
+        {:keys [arena]} @state
+        {:keys [top left bottom right]} arena
+        cp (cx/vbox4MID arena)
         layer @*game-arena*
         [r1 r2] (if (= P1-ICON CC-X)
                   ["#red_paddle.png" "#green_paddle.png"]
                   ["#green_paddle.png" "#red_paddle.png"])
-        sp1 (cx/setXXX! (sprite* r1) {:pos p1})
-        sp2 (cx/setXXX! (sprite* r2) {:pos p2})]
-    (cx/addItem layer sp1 "pad1")
-    (cx/addItem layer sp2 "pad2")))
+        sp1 (mc/rotFlat?? (sprite* r1))
+        sp2 (mc/rotFlat?? (sprite* r2))
+        ps (bsize sp1)
+        ;;position of paddles, portrait
+        p1y (js/Math.floor (+ bottom (half* (:height ps))))
+        p2y (js/Math.floor (- top (half* (:height ps))))
+        ;;landscape
+        p1x (js/Math.floor (+ left (half* (:width ps))))
+        p2x (js/Math.floor (- right (half* (:width ps))))
+        p1 (if (cx/isPortrait?)
+             (assoc cp :y p1y) (assoc cp :x p1x))
+        p2 (if (cx/isPortrait?)
+             (assoc cp :y p2y) (assoc cp :x p2x))]
+    (cx/addItem layer (cx/setXXX! sp1 {:pos p1}) "pad1")
+    (cx/addItem layer (cx/setXXX! sp2 {:pos p2}) "pad2")
+    (swap! state
+           #(merge % {:p1 p1 :p2 p2
+                      :paddle (assoc ps :speed PADDLE-SPEED)}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- init "" [state]
   (let [{:keys [arena gmode ebus ecs evQ]} @state
-        {:keys [PADDLE-SPEED BALL-SPEED
-                CV-Z CV-X CV-O
-                CX CO CC-X CC-O CC-Z]} (:game @*xcfg*)
-        {:keys [height width]} (cx/bbox4->bbox arena)
-        {:keys [top bottom right left]} arena
-        ps (bsize "#red_paddle.png")
-        bs (bsize "#pongball.png")
-        cp (cx/vbox4MID arena)
+        {:keys [CX]} (:game @*xcfg*)
         kb (array)
-        ;;position of paddles
-        ;;portrait
-        p1y (js/Math.floor (+ (* 0.1 top) (half* (:height ps))))
-        p2y (js/Math.floor (- (* 0.9 top) (half* (:height ps))))
-        ;;landscape
-        p1x (js/Math.floor (+ left (half* (:width ps))))
-        p2x (js/Math.floor (- right (half* (:width ps))))
         cb (fn [& xs] (.push evQ xs))]
     (swap! state
            #(merge % {:FPS (js/cc.director.getAnimationInterval)
                       :syncMillis 3000
                       :keyboard kb
-                      :paddle (assoc ps :speed PADDLE-SPEED)
-                      :ball (merge bs cp {:speed BALL-SPEED})
                       :p1Keys (if (cx/isPortrait?) [js/cc.KEY.left js/cc.KEY.right] [js/cc.KEY.down js/cc.KEY.up])
-                      :p2Keys (if (cx/isPortrait?) [js/cc.KEY.a js/cc.KEY.d] [js/cc.KEY.s js/cc.KEY.w])
-                      :p1 (if (cx/isPortrait?) (assoc cp :y p1y) (assoc cp :x p1x))
-                      :p2 (if (cx/isPortrait?) (assoc cp :y p2y) (assoc cp :x p2x))}))
+                      :p2Keys (if (cx/isPortrait?) [js/cc.KEY.a js/cc.KEY.d] [js/cc.KEY.s js/cc.KEY.w])}))
     (cx/info* "impl.init called")
     (cx/onKeyPolls kb)
     (if (cx/onMouse ebus)
@@ -179,16 +183,36 @@
     (createPaddles state)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- movePad "" [arena pad func p?]
+  (let [{:keys [top right bottom left]} arena
+        pt (ocall pad "getPosition")
+        sz (bsize pad)
+        [hw hh] (half-size* sz)
+        [x y] (func (oget-x pt) (oget-y pt))
+        [x' y']
+        (if p?
+          (cond (< (- x hw) left) [(+ left hw) y]
+                (> (+ x hw) right) [(- right hw) y] :else [x y])
+          (cond (< (- y hh) bottom) [x (+ bottom hh)]
+                (> (+ y hh) top) [x (- top hh)] :else [x y]))]
+    (cx/setXXX! pad {:pos {:x x' :y y'}})))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- motionPads "" [state dt]
-  (let [{:keys [keyboard p1Keys p2Keys]} @state]
-    (if (aget keyword (aget p1Keys 0)
+  (let [{:keys [arena keyboard p1Keys p2Keys]} @state
+        {:keys [PADDLE-SPEED]} (:game @*xcfg*)
+        dv (* dt PADDLE-SPEED)
+        layer @*game-arena*
+        p2 (gcbyn layer "pad2")
+        p1 (gcbyn layer "pad1")
+        p? (cx/isPortrait?)
+        deltaRight #(if p? [(+ %1 dv) %2] [%1 (+ %2 dv)])
+        deltaLeft #(if p? [(- %1 dv) %2] [%1 (- %2 dv)])]
+    (if (aget keyboard (nth p1Keys 1)) (movePad arena p1 deltaRight p?))
+    (if (aget keyboard (nth p1Keys 0)) (movePad arena p1 deltaLeft p?))
 
-    (aget p1Keys 1)
-
-    (aget p2Keys 0)
-    (aget p2Keys 1)
-
-  ))
+    (if (aget keyboard (nth p2Keys 1)) (movePad arena p2 deltaRight p?))
+    (if (aget keyboard (nth p2Keys 0)) (movePad arena p2 deltaLeft p?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- motionBall "" [state dt]

@@ -18,6 +18,7 @@
                                    oget-top sprite* ]])
   (:require [czlab.elmo.afx.ccsx :as cx :refer [bsize *xcfg*]]
             [czlab.elmo.pong.mmenu :as mu]
+            [czlab.elmo.pong.misc :as mc]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
@@ -31,8 +32,8 @@
           {:keys [top bottom left right]} (cx/vbox4)
           layer (new js/cc.Layer)
           _ (cx/addItem scene layer)
-          bg (-> (sprite* (cx/gimg :game-bg))
-                 (cx/setXXX! {:pos cp}))
+          bg (mc/rotFlat?? (sprite* (cx/gimg :game-bg)))
+          _ (cx/setXXX! bg {:pos cp})
           tt (-> (sprite* "#title.png")
                  (cx/setXXX! {:pos {:x x :y (* 0.85 top)}}))
           play (cx/gmenu [{:nnn "#play.png" :cb (onPlay)}]

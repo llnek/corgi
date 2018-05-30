@@ -23,10 +23,12 @@
 (def cfg {:appKey "fa0860f9-76dc-4135-8bc7-bd5af3147d55",
           :appid "pong"
           :game { ;:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
-                 :landscape? false
-                 :size {:width 1536 :height 2048}
-                 :BALL-SPEED 250;;150 ;; 25 incremental
-                 :PADDLE-SPEED 200 ;; 300
+                 :landscape? true
+                 :size {:height 1536 :width 2048}
+                 ;:landscape? false
+                 ;:size {:width 1536 :height 2048}
+                 :BALL-SPEED 500;;150 ;; 25 incremental
+                 :PADDLE-SPEED 300 ;; 300
                  :P1-ICON "X"
                  :BEGIN-WITH "X"
                  :NUM-POINTS 4

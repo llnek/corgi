@@ -18,6 +18,7 @@
                                    oget-top sprite* ]])
   (:require [czlab.elmo.afx.ccsx :as cx :refer [bsize *xcfg*]]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
+            [czlab.elmo.pong.misc :as mc]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -58,7 +59,7 @@
   (do-with [scene (new js/cc.Scene)]
     (let [{:keys [P1-ICON BEGIN-WITH CC-X]} (:game @*xcfg*)
           {:keys [quit?] :or {quit? true}} options
-          bg (sprite* (cx/gimg :game-bg))
+          bg (mc/rotFlat?? (sprite* (cx/gimg :game-bg)))
           layer (new js/cc.Layer)
           _ (cx/addItem scene layer)
           {:keys [top] :as B} (cx/vbox4)

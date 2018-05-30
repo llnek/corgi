@@ -19,6 +19,7 @@
   (:require [czlab.elmo.afx.ccsx :as cx :refer [bsize *xcfg*]]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
             [czlab.elmo.pong.options :as opt]
+            [czlab.elmo.pong.misc :as mc]
             [czlab.elmo.pong.game :as ga]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
@@ -63,8 +64,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mmenuScene "" []
   (do-with [scene (new js/cc.Scene)]
-    (let [
-          bg (sprite* (cx/gimg :game-bg))
+    (let [bg (mc/rotFlat?? (sprite* (cx/gimg :game-bg)))
           layer (new js/cc.Layer)
           _ (cx/addItem scene layer)
           cp (cx/centerPos)

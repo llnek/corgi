@@ -464,14 +464,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn onKeyPolls "" [kb]
-  (if (hasKeyPad?)
+  (when (hasKeyPad?)
+    (info* "about to listen to key events")
     (subEvent js/cc.EventListener.KEYBOARD
               #js{:onKeyPressed (fn [key e] (aset kb key true))
                   :onKeyReleased (fn [key e] (aset kb key false))})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn onKeys "" [bus]
-  (if (hasKeyPad?)
+  (when (hasKeyPad?)
+    (info* "about to listen to key events")
     (subEvent js/cc.EventListener.KEYBOARD
               #js{:onKeyPressed (fn [key e]
                                   (ebus/pub bus "key.down" key e))
