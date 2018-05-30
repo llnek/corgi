@@ -83,8 +83,11 @@
       )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- onClick "" [state topic msgTopic & msgs]
-          )
+(defn- onClick "" [state topic msgTopic evt]
+  (cond
+    (= msgTopic "mouse.down")
+
+          ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onTouch "" [state topic msgTopic & msgs])
@@ -166,7 +169,7 @@
     (cx/onKeyPolls kb)
     (if (cx/onMouse ebus)
       (ebus/sub+ ebus
-                 "mouse.up"
+                 "mouse.>"
                  (fn [& xs] (apply onClick (concat [state] xs)))))
     (if (cx/onTouchOne ebus)
       (ebus/sub+ ebus

@@ -63,7 +63,7 @@
           adon? (get-in @*xcfg* [:AD :on?])
           B (if adon? (cx/ebox4) (cx/vbox4))
           zmks [:ptype :pvalue :pcolor :pid :pname]
-          state (atom {:ebus (ebus/createEvBus)
+          state (atom {:ebus (ebus/createRvBus)
                        :ecs (ecs/createECS)
                        :arena B
                        :running? false
