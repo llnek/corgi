@@ -17,7 +17,9 @@
     [czlab.elmo.afx.ccsx
      :as cx :refer [oget-height oget-width
                     oget-x oget-y oget-top sprite* ]])
-  (:require [czlab.elmo.afx.ccsx :as cx :refer [bsize]]
+  (:require [czlab.elmo.afx.ccsx
+             :as cx :refer [*game-arena* *xcfg*
+                            *game-scene* bsize half-size*]]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
@@ -26,8 +28,30 @@
   (if-not (cx/isPortrait?)
     (ocall! obj "setRotation" 90)) obj)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn clampBall "" [sp]
+  (let [state (oget @*game-scene* "?gstate")
+        {:keys [ball arena]} @state
+        {:keys [top right bottom left]} arena
+        [hw hh] (half-size* ball)
+        pt (ocall sp "getPosition")]
+    (if (> (+ (oget-y pt) hh) top) (ocall! sp "setPositionY" (- top hh)))
+    (if (< (- (oget-x pt) hw) left) (ocall! sp "setPositionX" (+ left hw)))
+    (if (> (+ (oget-x pt) hw) right) (ocall! sp "setPositionX" (- right hw)))
+    (if (< (- (oget-y pt) hh) bottom) (ocall! sp "setPositionY" (+ bottom hh)))))
 
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn clampPaddle "" [pad]
+  (let [state (oget @*game-scene* "?gstate")
+        {:keys [paddle arena]} @state
+        {:keys [top right bottom left]} arena
+        [hw hh] (half-size* paddle)
+        pt (ocall pad "getPosition")]
+    (if (cx/isPortrait?)
+      (do (if (< (- (oget-x pt) hw) left) (ocall! pad "setPositionX" (+ left hw)))
+          (if (> (+ (oget-x pt) hw) right) (ocall! pad "setPositionX" (- right hw))))
+      (do (if (< (- (oget-y pt) hh) bottom) (ocall! pad "setPositionY" (+ bottom hh)))
+          (if (> (+ (oget-y pt) hh) top) (ocall! pad "setPositionY" (- top hh)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

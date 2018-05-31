@@ -12,6 +12,8 @@ var cp={
 };
 var cc = {
   rectIntersectsRect: function() {},
+  rectContainsPoint: function() {},
+  rectContainsRect: function() {},
   size :function(){},
   color:function(){},
   p:function(){},

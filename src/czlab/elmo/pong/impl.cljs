@@ -84,10 +84,35 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onClick "" [state topic msgTopic evt]
-  (cond
-    (= msgTopic "mouse.down")
-
-          ))
+  (let [{:keys [p2Grabbed? p1Grabbed? paddle ball]} @state
+        {:keys []} (:game @*xcfg*)
+        loc (ocall evt "getLocation")
+        dt (ocall evt "getDelta")
+        p? (cx/isPortrait?)
+        layer @*game-arena*
+        sp2 (gcbyn layer "pad2")
+        pt2 (ocall sp2 "getPosition")
+        sp1 (gcbyn layer "pad1")
+        pt1 (ocall sp1 "getPosition")
+        r2 (ocall sp2 "getBoundingBox")
+        r1 (ocall sp1 "getBoundingBox")]
+    (cond
+      (= msgTopic "mouse.down")
+      (do (if (js/cc.rectContainsPoint r2 loc)
+            (swap! state #(assoc % :p2Grabbed? true)))
+          (if (js/cc.rectContainsPoint r1 loc)
+            (swap! state #(assoc % :p1Grabbed? true))))
+      (= msgTopic "mouse.up")
+      (swap! state #(assoc % :p1Grabbed? false :p2Grabbed? false))
+      (= msgTopic "mouse.move")
+      (do (when p2Grabbed?
+            (cx/setXXX! sp2 {:pos {:x (if p? (+ (oget-x pt2) (oget-x dt)) (oget-x pt2))
+                                   :y (if p? (oget-y pt2) (+ (oget-y pt2) (oget-y dt)))}}))
+          (when p1Grabbed?
+            (cx/setXXX! sp1 {:pos {:x (if p? (+ (oget-x pt1) (oget-x dt)) (oget-x pt1))
+                                   :y (if p? (oget-y pt1) (+ (oget-y pt1) (oget-y dt)))}}))))
+    (mc/clampPaddle sp2)
+    (mc/clampPaddle sp1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onTouch "" [state topic msgTopic & msgs])
