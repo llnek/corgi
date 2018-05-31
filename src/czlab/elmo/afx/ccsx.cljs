@@ -568,6 +568,11 @@
 ;(defn gcbyt "" [p t] (ocall p "getChildByTag" t))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn cpos "" [node]
+  (let [pt (ocall node "getPosition")]
+    {:x (oget-x pt) :y (oget-y pt)}))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn colorLayer*
   "" [r b g & [a]] (new js/cc.LayerColor (js/cc.color r b g a)))
 

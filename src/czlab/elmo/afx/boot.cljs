@@ -88,6 +88,8 @@
       (js/cc.director.setAnimationInterval (/ 1 frameRate)))
     (if debug?
       (js/cc.director.setDisplayStats true))
+    (swap! *xcfg*
+           #(assoc-in % [:game :vert?] (cx/isPortrait?)))
     ;;hack to suppress the showing of cocos2d's logo
     ;;and instead, show our own!
     (cx/run* (preloadLogoScene))))

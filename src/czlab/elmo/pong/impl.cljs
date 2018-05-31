@@ -22,7 +22,9 @@
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
     [czlab.elmo.afx.ccsx
-     :as cx :refer [half-size* *game-arena* *game-scene* *xcfg* bsize csize]]
+     :as cx :refer [half-size* *game-arena*
+                    cpos
+                    *game-scene* *xcfg* bsize csize]]
     [czlab.elmo.afx.dialog :as dlg]
     [czlab.elmo.pong.hud :as hud]
     [czlab.elmo.pong.misc :as mc]
@@ -181,15 +183,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- init "" [state]
   (let [{:keys [arena gmode ebus ecs evQ]} @state
-        {:keys [CX]} (:game @*xcfg*)
+        {:keys [CX vert?]} (:game @*xcfg*)
         kb (array)
         cb (fn [& xs] (.push evQ xs))]
     (swap! state
            #(merge % {:FPS (js/cc.director.getAnimationInterval)
                       :syncMillis 3000
                       :keyboard kb
-                      :p1Keys (if (cx/isPortrait?) [js/cc.KEY.left js/cc.KEY.right] [js/cc.KEY.down js/cc.KEY.up])
-                      :p2Keys (if (cx/isPortrait?) [js/cc.KEY.a js/cc.KEY.d] [js/cc.KEY.s js/cc.KEY.w])}))
+                      :p1Keys (if vert?
+                                [js/cc.KEY.left js/cc.KEY.right]
+                                [js/cc.KEY.down js/cc.KEY.up])
+                      :p2Keys (if vert?
+                                [js/cc.KEY.a js/cc.KEY.d]
+                                [js/cc.KEY.s js/cc.KEY.w])}))
     (cx/info* "impl.init called")
     (cx/onKeyPolls kb)
     (if (cx/onMouse ebus)
@@ -275,10 +281,27 @@
   (motionPads state dt))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- collide "" [state]
+  (let [{:keys [walls]} @state
+        {:keys []} (:game @*xcfg*)
+        layer @*game-arena*
+        sp1 (gcbyn layer "pad1")
+        b1 (ocall sp1 "getBoundingBox")
+        sp2 (gcbyn layer "pad2")
+        b2 (ocall sp2 "getBoundingBox")
+        spb (gcbyn layer "ball")
+        bb (ocall spb "getBoundingBox")]
+    (doseq [w walls]
+      (if (js/cc.rectIntersectsRect w b1)
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateECS "" [dt]
   (let [state (oget @*game-scene* "gstate")]
 
     (motion state dt)
+    (collide state)
 
     ))
 

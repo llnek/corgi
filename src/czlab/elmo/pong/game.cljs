@@ -36,14 +36,22 @@
 (defn- arenaLayer "" [state]
   (do-with [layer (new js/cc.Layer)]
     (let [WHITE (js/cc.color 255 255 255)
+          {:keys [vert?]} (:game @*xcfg*)
           {:keys [arena]} @state
           {:keys [top left right bottom]} arena
           {:keys [x y] :as cp } (cx/vbox4MID arena)
+          {:keys [width height] } (cx/bbox4->bbox arena)
           r (new js/cc.DrawNode)]
+      ;create 4 invisible static walls
+      (swap! state
+             #(assoc % :walls {:w (js/cc.rect left bottom 1 height)
+                               :e (js/cc.rect (dec right) bottom 1 height)
+                               :n (js/cc.rect left (dec top) width 1)
+                               :s (js/cc.rect left bottom width 1)}))
       (ocall! r
               "drawRect"
               (js/cc.p left bottom) (js/cc.p right top) nil 64 WHITE)
-      (if (cx/isPortrait?)
+      (if vert?
         (ocall! r "drawSegment" (js/cc.p left y ) (js/cc.p right y) 16 WHITE)
         (ocall! r "drawSegment" (js/cc.p x bottom) (js/cc.p x top) 16 WHITE))
       (cx/addItem layer r "border" -1)
