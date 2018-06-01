@@ -17,7 +17,7 @@
                     nneg? f#* n# _1 _2 do-with]]
     [czlab.elmo.afx.ccsx
      :as cx :refer [oget-bottom oget-right gcbyn
-                    sprite* attr*
+                    sprite* attr* pos* pos! posX! posY!
                     oget-x oget-y oget-left oget-top]])
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
@@ -247,31 +247,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- motionBall "" [state dt]
-  (let [{:keys [BALL-SPEED arena]} @state
-        {:keys [top right bottom left]} arena
-        layer @*game-arena*
-        sp (gcbyn layer "ball")
-        sz (bsize sp)
-        [hw hh] (half-size* sz)
-        pt (ocall sp "getPosition")
+  (let [sp (gcbyn @*game-arena* "ball")
         vx (oget sp "?vel_x")
         vy (oget sp "?vel_y")
-        px (+ (* dt vx) (oget pt "x"))
-        py (+ (* dt vy) (oget pt "y"))
-        [x' vx']
-        (cond
-          (<= (- px hw) left) [(+ left hw) (- vx)]
-          (>= (+ px hw) right) [(- right hw) (- vx)]
-          :else [px vx])
-        [y' vy']
-        (cond
-          (>= (+ py hh) top) [(- top hh) (- vy)]
-          (<= (- py hh) bottom) [(+ bottom hh) (- vy)]
-          :else [py vy])]
-    (cx/setXXX! sp {:pos {:x px :y py}})))
-    ;(oset! sp "!vel_x" vx')
-    ;(oset! sp "!vel_y" vy')
-    ;(cx/setXXX! sp {:pos {:x x' :y y'}})))
+        pt (pos* sp)]
+    (pos! sp
+          (+ (* dt vx) (oget-x pt))
+          (+ (* dt vy) (oget-y pt)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- motion "" [state dt]

@@ -36,8 +36,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro attr* "" [node attrs] `(oops.core/ocall! ~node "attr" ~attrs))
+(defmacro pos* "" [node] `(oops.core/ocall ~node "getPosition"))
 (defmacro gcbyn "" [p n] `(oops.core/ocall ~p "getChildByName" ~n))
 (defmacro gcbyt "" [p t] `(oops.core/ocall ~p "getChildByTag" ~t))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro pos! "" [node x y] `(oops.core/ocall! ~node "setPosition" ~x ~y))
+(defmacro posX! "" [node x] `(oops.core/ocall! ~node "setPositionX" ~x))
+(defmacro posY! "" [node y] `(oops.core/ocall! ~node "setPositionY" ~y))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro oget-x "" [obj] `(oops.core/oget ~obj "x"))
