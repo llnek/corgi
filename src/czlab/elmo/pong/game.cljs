@@ -44,10 +44,12 @@
           r (new js/cc.DrawNode)]
       ;create 4 invisible static walls
       (swap! state
-             #(assoc % :walls {:w (js/cc.rect left bottom 1 height)
-                               :e (js/cc.rect (dec right) bottom 1 height)
-                               :n (js/cc.rect left (dec top) width 1)
-                               :s (js/cc.rect left bottom width 1)}))
+             #(assoc %
+                     :walls
+                     {:w (cx/bbox->bbox4 {:x left :y bottom :width 1 :height height})
+                      :e (cx/bbox->bbox4 {:x (dec right) :y bottom :width 1 :height height})
+                      :n (cx/bbox->bbox4 {:x left :y (dec top) :width width :height 1})
+                      :s (cx/bbox->bbox4 {:x left :y bottom :width width :height 1})}))
       (ocall! r
               "drawRect"
               (js/cc.p left bottom) (js/cc.p right top) nil 64 WHITE)

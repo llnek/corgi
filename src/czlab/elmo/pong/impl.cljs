@@ -23,7 +23,7 @@
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
     [czlab.elmo.afx.ccsx
      :as cx :refer [half-size* *game-arena*
-                    cpos
+                    cpos bbox4
                     *game-scene* *xcfg* bsize csize]]
     [czlab.elmo.afx.dialog :as dlg]
     [czlab.elmo.pong.hud :as hud]
@@ -87,10 +87,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onClick "" [state topic msgTopic evt]
   (let [{:keys [p2Grabbed? p1Grabbed? paddle ball]} @state
-        {:keys []} (:game @*xcfg*)
+        {:keys [vert?]} (:game @*xcfg*)
         loc (ocall evt "getLocation")
         dt (ocall evt "getDelta")
-        p? (cx/isPortrait?)
         layer @*game-arena*
         sp2 (gcbyn layer "pad2")
         pt2 (ocall sp2 "getPosition")
@@ -108,13 +107,12 @@
       (swap! state #(assoc % :p1Grabbed? false :p2Grabbed? false))
       (= msgTopic "mouse.move")
       (do (when p2Grabbed?
-            (cx/setXXX! sp2 {:pos {:x (if p? (+ (oget-x pt2) (oget-x dt)) (oget-x pt2))
-                                   :y (if p? (oget-y pt2) (+ (oget-y pt2) (oget-y dt)))}}))
+            (cx/setXXX! sp2 {:pos {:x (if vert? (+ (oget-x pt2) (oget-x dt)) (oget-x pt2))
+                                   :y (if vert? (oget-y pt2) (+ (oget-y pt2) (oget-y dt)))}}))
           (when p1Grabbed?
-            (cx/setXXX! sp1 {:pos {:x (if p? (+ (oget-x pt1) (oget-x dt)) (oget-x pt1))
-                                   :y (if p? (oget-y pt1) (+ (oget-y pt1) (oget-y dt)))}}))))
-    (mc/clampPaddle sp2)
-    (mc/clampPaddle sp1)))
+            (cx/setXXX! sp1 {:pos {:x (if vert? (+ (oget-x pt1) (oget-x dt)) (oget-x pt1))
+                                   :y (if vert? (oget-y pt1) (+ (oget-y pt1) (oget-y dt)))}}))))))
+    ;(mc/clampPaddle sp2) (mc/clampPaddle sp1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onTouch "" [state topic msgTopic & msgs])
@@ -229,24 +227,23 @@
                 (> (+ x hw) right) [(- right hw) y] :else [x y])
           (cond (< (- y hh) bottom) [x (+ bottom hh)]
                 (> (+ y hh) top) [x (- top hh)] :else [x y]))]
-    (cx/setXXX! pad {:pos {:x x' :y y'}})))
+    (cx/setXXX! pad {:pos {:x x :y y}})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- motionPads "" [state dt]
   (let [{:keys [arena keyboard p1Keys p2Keys]} @state
-        {:keys [PADDLE-SPEED]} (:game @*xcfg*)
+        {:keys [vert? PADDLE-SPEED]} (:game @*xcfg*)
         dv (* dt PADDLE-SPEED)
         layer @*game-arena*
         p2 (gcbyn layer "pad2")
         p1 (gcbyn layer "pad1")
-        p? (cx/isPortrait?)
-        deltaRight #(if p? [(+ %1 dv) %2] [%1 (+ %2 dv)])
-        deltaLeft #(if p? [(- %1 dv) %2] [%1 (- %2 dv)])]
-    (if (aget keyboard (nth p1Keys 1)) (movePad arena p1 deltaRight p?))
-    (if (aget keyboard (nth p1Keys 0)) (movePad arena p1 deltaLeft p?))
+        deltaRight #(if vert? [(+ %1 dv) %2] [%1 (+ %2 dv)])
+        deltaLeft #(if vert? [(- %1 dv) %2] [%1 (- %2 dv)])]
+    (if (aget keyboard (nth p1Keys 1)) (movePad arena p1 deltaRight vert?))
+    (if (aget keyboard (nth p1Keys 0)) (movePad arena p1 deltaLeft vert?))
 
-    (if (aget keyboard (nth p2Keys 1)) (movePad arena p2 deltaRight p?))
-    (if (aget keyboard (nth p2Keys 0)) (movePad arena p2 deltaLeft p?))))
+    (if (aget keyboard (nth p2Keys 1)) (movePad arena p2 deltaRight vert?))
+    (if (aget keyboard (nth p2Keys 0)) (movePad arena p2 deltaLeft vert?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- motionBall "" [state dt]
@@ -271,9 +268,10 @@
           (>= (+ py hh) top) [(- top hh) (- vy)]
           (<= (- py hh) bottom) [(+ bottom hh) (- vy)]
           :else [py vy])]
-    (oset! sp "!vel_x" vx')
-    (oset! sp "!vel_y" vy')
-    (cx/setXXX! sp {:pos {:x x' :y y'}})))
+    (cx/setXXX! sp {:pos {:x px :y py}})))
+    ;(oset! sp "!vel_x" vx')
+    ;(oset! sp "!vel_y" vy')
+    ;(cx/setXXX! sp {:pos {:x x' :y y'}})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- motion "" [state dt]
@@ -282,19 +280,52 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- collide "" [state]
-  (let [{:keys [walls]} @state
-        {:keys []} (:game @*xcfg*)
+  (let [{:keys [paddle ball walls]} @state
+        {:keys [n w e s]} walls
+        {:keys [vert?]} (:game @*xcfg*)
+        [hw hh] (half-size* paddle)
         layer @*game-arena*
         sp1 (gcbyn layer "pad1")
-        b1 (ocall sp1 "getBoundingBox")
+        b1 (bbox4 sp1)
         sp2 (gcbyn layer "pad2")
-        b2 (ocall sp2 "getBoundingBox")
+        b2 (bbox4 sp2)
         spb (gcbyn layer "ball")
-        bb (ocall spb "getBoundingBox")]
-    (doseq [w walls]
-      (if (js/cc.rectIntersectsRect w b1)
-
-
+        vx (oget spb "?vel_x")
+        vy (oget spb "?vel_y")
+        bb (bbox4 spb)]
+    ;;clamp pads
+    (if vert?
+      (do
+        (if (cx/isIntersect? w b1)
+          (ocall sp1 "setPositionX" (+ hw (:left w))))
+        (if (cx/isIntersect? e b1)
+          (ocall sp1 "setPositionX" (- (:right e) hw)))
+        (if (cx/isIntersect? w b2)
+          (ocall sp2 "setPositionX" (+ hw (:left w))))
+        (if (cx/isIntersect? e b2)
+          (ocall sp2 "setPositionX" (- (:right e) hw))))
+      (do
+        (if (cx/isIntersect? n b1)
+          (ocall sp1 "setPositionY" (- (:bottom n) hh)))
+        (if (cx/isIntersect? s b1)
+          (ocall sp1 "setPositionY" (+ hh (:top s))))
+        (if (cx/isIntersect? n b2)
+          (ocall sp2 "setPositionY" (- (:bottom n) hh)))
+        (if (cx/isIntersect? s b2)
+          (ocall sp2 "setPositionY" (+ hh (:top s))))))
+    ;ball & pads
+    (if (or (cx/isIntersect? bb b1)
+            (cx/isIntersect? bb b2))
+      (if vert?
+        (oset! spb "!vel_y" (- vy))
+        (oset! spb "!vel_x" (- vx))))
+    ;ball & walls
+    (if (or (cx/isIntersect? bb n)
+            (cx/isIntersect? bb s))
+      (oset! spb "!vel_y" (- vy)))
+    (if (or (cx/isIntersect? bb e)
+            (cx/isIntersect? bb w))
+      (oset! spb "!vel_x" (- vx)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateECS "" [dt]
