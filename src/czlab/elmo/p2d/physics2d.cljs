@@ -9,78 +9,88 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.p2d.lib)
+  czlab.elmo.p2d.physics2d)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- inv! "" [x] (if-not (zero? x) (/ 1 x) x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec2 "" [x y] {:x x :y y})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec2Length
-  "" [{:keys [x y] :as v2}] (js/Math.sqrt (* x x) (* y y)))
+(def *gravity* (vec2 0 20))
+(def *v2-zero* (vec2 0 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec2Add "" [v1 v2]
-  (vec2 (+ (:x v1) (:x v2)) (+ (:y v1) (:y v2))))
+(defn vec2LenSQ
+  "" [{:keys [x y] :as v2}] (+ (* x x) (* y y)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec2Sub "" [v1 v2]
-  (vec2 (- (:x v1) (:x v2)) (- (:y v1) (:y v2))))
+(defn vec2Len "" [v2] (js/Math.sqrt (vec2LenSQ v2)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vec2Add
+  "" [v1 v2] (vec2 (+ (:x v1) (:x v2)) (+ (:y v1) (:y v2))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vec2Sub
+  "" [v1 v2] (vec2 (- (:x v1) (:x v2)) (- (:y v1) (:y v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec2Scale
   "" [v n] (vec2 (* n (:x v)) (* n (:y v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec2Dot "" [v1 v2]
-  (+ (* (:x v1) (:x v2)) (* (:y v1) (:y v2))))
+(defn vec2Dot
+  "" [v1 v2] (+ (* (:x v1) (:x v2)) (* (:y v1) (:y v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec2Cross "" [v1 v2]
-  (- (* (:x v1)(:y v2)) (* (:y v1)(:x v2))))
+(defn vec2Cross
+  "" [v1 v2] (- (* (:x v1)(:y v2)) (* (:y v1)(:x v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec2Rotate
   "Rotate in radian" [v center angle]
-  (let [x (- (:x v) (:x center))
-        y (- (:y v) (:y center))
-        r0 (- (* x (js/Math.cos angle))
-              (* y (js/Math.sin angle)))
-        r1 (+ (* x (js/Math.sin angle))
-              (* y (js/Math.cos angle)))]
-    (vec2 (+ r0 (:x center))
-          (+ r1 (:y center)))))
+  (let [{cx :x cy :y} center
+        {:keys [x y]} v
+        xx (- x cx)
+        yy (- y cy)
+        r0 (- (* xx (js/Math.cos angle))
+              (* yy (js/Math.sin angle)))
+        r1 (+ (* xx (js/Math.sin angle))
+              (* yy (js/Math.cos angle)))]
+    (vec2 (+ r0 cx) (+ r1 cy))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec2Normalize "" [v]
-  (let [vl (vec2Length v)
-        len (if (pos? vl)(/ 1 vl) vl)]
-    (vec2 (* len (:x v)) (* len (:y v)))))
+(defn vec2Normal "" [v]
+  (let [{:keys [x y]} v
+        n (inv! (vec2Len v))] (vec2 (* n x) (* n y))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec2Distance "" [v1 v2]
+(defn vec2Dist "" [v1 v2]
   (let [x (- (:x v1)(:x v2))
         y (- (:y v1)(:y v2))]
-    (js/Math.sqrt (+ (* x x)(* y y)))))
+    (js/Math.sqrt (+ (* x x) (* y y)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collisionInfo "" []
   (atom {:depth 0
-         :normal (vec2 0 0) :start (vec2 0 0) :end (vec2 0 0)}))
+         :normal *v2-zero*  :start *v2-zero*  :end *v2-zero* }))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setCollisionDepth! "" [c d]
-  (swap! c #(assoc % :depth d)) c)
+(defn setCollisionDepth!
+  "" [c d] (swap! c #(assoc % :depth d)) c)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setCollisionNormal! "" [c v2]
-  (swap! c #(assoc % :normal v2)) c)
+(defn setCollisionNormal!
+  "" [c n] (swap! c #(assoc % :normal n)) c)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setCollisionInfo! "" [c depth normal start]
   (swap! c
          #(assoc %
-                 :depth depth
                  :normal normal
+                 :depth depth
                  :start start
                  :end (vec2Add start
                                (vec2Scale normal depth)))) c)
@@ -95,227 +105,196 @@
                    :normal (vec2Scale normal -1))) c))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;physics
-(def *positional-correction-flag* true)
-(def relaxation-count 15)
-;;percentage of separation to project objects
-(def pos-correction-rate 0.8)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- positionalCorrection "" [s1 s2 ci]
-  (let [s1InvMass s1.mInvMass
-        s2InvMass s2.mInvMass
-        {:keys [depth normal]} @ci
-        n (* (/ depth (+ s1InvMass s2InvMass)) pos-correction-rate)
-        correctionAmount (vec2Scale normal n)]
-    (shapeMove s1 (vec2Scale correctionAmount (- s1InvMass)))
-    (shapeMove s2 (vec2Scale correctionAmount s2InvMass))))
+(defn updateInertia!  "" [s] ((:updateInertia @s) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- resolveCollision "" [s1 s2 ci]
-  (if-not (and (zero? s1.mInvMass)
-               (zero? s2.mInvMass))
-    (resolveCollision* s1 s2 ci)))
+(defn move!  "" [s p] ((:move @s) s p))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn rotate!  "" [s angle] ((:rotate @s) angle))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn collisionTest?? "" [s other ci] ((:collisionTest s) s other ci))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def *positional-correction-flag* true)
+(def relaxation-count 15)
+(def relaxation-range (range relaxation-count))
+;;percentage of separation to project objects
+(def pos-correction-rate 0.8)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- positionalCorrection "" [s1 s2 ci]
+  (let [{m1 :invMass} @s1
+        {m2 :invMass} @s2
+        {:keys [depth normal]} @ci
+        correction (->> (+ m1 m2)
+                        (/ depth)
+                        (* pos-correction-rate) (vec2Scale normal))]
+    (move! s1 (vec2Scale correction (- m1)))
+    (move! s2 (vec2Scale correction m2))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- resolveCollision** "" [s1 s2 r1 r2
+                              relativeVelocity rVelocityInNormal ci]
+  ;;compute and apply response impulses for each object
+  (let [{b1 :bounce f1 :sticky m1 :invMass in1 :inertia} @s1
+        {b2 :bounce f2 :sticky m2 :invMass in2 :inertia} @s2
+        {:keys [normal]} @ci
+        bounce' (js/Math.min b1 b2)
+        sticky' (js/Math.min f1 f2)
+        r1xn (vec2Cross r1 normal)
+        r2xn (vec2Cross r2 normal)
+        ;;find impulse, the formula of jN www.myphysicslab.com/collision.html
+        jN (/ (* (- (+ 1 bounce')) rVelocityInNormal)
+              (+ m1 m2 (* r1xn r1xn in1) (* r2xn r2xn in2)))
+        ;;impulse is in direction of normal (from s1 to s2)
+        ;;impulse = F dt = m * ?v
+        impulse (vec2Scale normal jN)]
+    (swap! s1
+           (fn [root]
+             (assoc root
+                    :vel (vec2Sub (:vel root)
+                                  (vec2Scale impulse (:invMass root)))
+                    :angVel (- (:angVel root) (* r1xn jN (:inertia root))))))
+    (swap! s2
+           (fn [root]
+             (assoc root
+                    :vel (vec2Add (:vel root)
+                                  (vec2Scale impulse (:invMass root)))
+                    :angVel (+ (:angVel root) (* r2xn jN (:inertia root))))))
+    (let [tangent' (vec2Sub relativeVelocity
+                            (vec2Scale normal
+                                       (vec2Dot relativeVelocity normal)))
+          tangent (vec2Scale (vec2Normal tangent') -1)
+          {in1 :inertia m1 :invMass} @s1
+          {in2 :inertia m2 :invMass} @s2
+          r1xt (vec2Cross r1 tangent)
+          r2xt (vec2Cross r2 tangent)
+          jT' (/ (* (- (+ 1 bounce'))
+                    (* (vec2Dot relativeVelocity tangent) sticky'))
+                 (+ m1 m2 (+ (* r1xt r1xt in1) (* r2xt r2xt in2))))
+          ;;friction should less than force in normal direction
+          jT (if (> jT' jN) jN jT')
+          ;;impulse is from s1 to s2 (in opposite direction of velocity)
+          impulse (vec2Scale tangent jT)]
+      (swap! s1
+             (fn [root]
+               (assoc root
+                      :vel (vec2Sub (:vel root)
+                                    (vec2Scale impulse (:invMass root)))
+                      :angVel (- (:angVel root) (* r1xt jT (:inertia root))))))
+      (swap! s2
+             (fn [root]
+               (assoc root
+                      :vel (vec2Add (:vel root)
+                                    (vec2Scale impulse (:invMass root)))
+                      :angVel (+ (:angVel root) (* r2xt jT (:inertia root)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- resolveCollision* "" [s1 s2 ci]
   (if *positional-correction-flag* (positionalCorrection s1 s2 ci))
   (let [{:keys [normal start end]} @ci
+        {m1 :invMass c1 :center vv1 :vel av1 :angVel} @s1
+        {m2 :invMass c2 :center vv2 :vel av2 :angVel} @s2
         ;;the dir of ci is always s1 -> s2
         ;;but the mass is inversed, so scale start with s2 and scale end with s1
-        start' (vec2Scale start
-                          (/ s2.mInvMass (+ s1.mInvMass s2.mInvMass)))
-        end' (vec2Scale end
-                        (/ s1.mInvMass (+ s1.mInvMass s2.mInvMass)))
+        start' (vec2Scale start (/ m2 (+ m1 m2)))
+        end' (vec2Scale end (/ m1 (+ m1 m2)))
         p (vec2Add start' end')
-        r1 (vec2Sub p s1.mCenter)
-        r2 (vec2Sub p s2.mCenter)
-        v1 (vec2Add s1.mVelocity
-                    (vec2 (* (- 1) s1.mAngularVelocity (:y r1))
-                          (* s1.mAngularVelocity (:x r1))))
-        v2 (vec2Add s2.mVelocity
-                    (vec2 (* (- 1) s2.mAngularVelocity (:y r2))
-                          (* s2.mAngularVelocity (:x r2))))
+        r1 (vec2Sub p c1)
+        r2 (vec2Sub p c2)
+        v1 (vec2Add vv1 (vec2 (* -1 av1 (:y r1)) (* av1 (:x r1))))
+        v2 (vec2Add vv2 (vec2 (* -1 av2 (:y r2)) (* av2 (:x r2))))
         relativeVelocity (vec2Sub v2 v1)
-        ;;relative velocity in normal direction
         rVelocityInNormal (vec2Dot relativeVelocity normal)]
-    ;;if objects moving apart ignore
+    ;;ignore if objects are moving apart
     (if-not (pos? rVelocityInNormal)
-      (resolveCollision** s1 s2 r1 r2 ci relativeVelocity rVelocityInNormal))))
+      (resolveCollision** s1 s2 r1 r2 relativeVelocity rVelocityInNormal ci))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- resolveCollision** "" [s1 s2 r1 r2 ci
-                              relativeVelocity
-                              rVelocityInNormal]
-  ;;compute and apply response impulses for each object
-  (let [newRestituion (js/Math.min s1.mRestitution s2.mRestitution)
-        newFriction (js/Math.min s1.mFriction s2.mFriction)
-        {:keys [normal]} @ci
-        ;;R cross N
-        R1crossN (vec2Cross r1 normal)
-        R2crossN (vec2Cross r2 normal)
-        ;;Calc impulse scalar
-        ;;the formula of jN can be found in
-        ;;http://www.myphysicslab.com/collision.html
-        jN (* (- (+ 1 newRestituion)) rVelocityInNormal)
-        jN (/ jN
-              (+ s1.mInvMass s2.mInvMass
-                 (* R1crossN R1crossN s1.mInertia)
-                 (* R2crossN R2crossN s2.mInertia)))
-        ;;impulse is in direction of normal (from s1 to s2)
-        ;;impulse = F dt = m * ?v
-        ;;?v = impulse / m
-        impulse (vec2Scale normal jN)]
-    (swap! s1
-           #(assoc %
-                   :velocity
-                   (vec2Sub s1.mVelocity (vec2Scale impulse s1.mInvMass))
-                   :angularVelocity
-                   (- s1.mAngularVelocity
-                      (* R1crossN jN s1.mInertia))))
-    (swap! s2
-           #(assoc %
-                   :velocity
-                   (vec2Add s2.mVelocity (vec2Scale impulse s2.mInvMass))
-                   :angularVelocity
-                   (+ s2.mAngularVelocity
-                      (* R2crossN jN s2.mInertia))))
-    (let [tangent (vec2Sub relativeVelocity
-                           (vec2Scale normal
-                                      (vec2Dot relativeVelocity normal)))
-          tangent (vec2Scale (vec2Normalize tangent) -1)
-          R1crossT (vec2Cross r1 tangent)
-          R2crossT (vec2Cross r2 tangent)
-          jT (* (- (+ 1 newRestituion))
-                (* (vec2Dot relativeVelocity tangent) newFriction))
-          jT (/ jT
-                (+ s1.mInvMass
-                   s2.mInvMass
-                   (+ (* R1crossT R1crossT s1.mInertia)
-                      (* R2crossT R2crossT s2.mInertia))))
-          ;;friction should less than force in normal direction
-          jT (if (> jT jN) jN jT)
-          ;;impulse is from s1 to s2 (in opposite direction of velocity)
-          impulse (vec2Scale tangent jT)]
-      (swap! s1
-             #(assoc %
-                     :velocity
-                     (vec2Sub s1.mVelocity
-                              (vec2Scale impulse s1.mInvMass))
-                     :angularVelocity
-                     (- s1.mAngularVelocity
-                        (* R1crossT jT s1.mInertia))))
-      (swap! s2
-             #(assoc %
-                     :velocity
-                     (vec2Add s2.mVelocity
-                              (vec2Scale impulse s2.mInvMass))
-                     :angularVelocity
-                     (+ s2.mAngularVelocity
-                        (* R2crossT jT s2.mInertia)))))))
+(defn- resolveCollision "" [s1 s2 ci]
+  (if-not (and (zero? (:invMass @s1))
+               (zero? (:invMass @s2))) (resolveCollision* s1 s2 ci)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- drawCollisionInfo "" [ci ctx] )
+(defn- boundTest "" [s1 s2]
+  (let [{c1 :center r1 :boundRadius} @s1
+        {c2 :center r2 :boundRadius} @s2
+        v1to2 (vec2Sub c2 c1)
+        rSum  (+ r1 r2)
+        dist (vec2Len v1to2)] (not (> dist rSum))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn collision "" [objects]
+(defn collision?? "" [samples]
   (let [ci (collisionInfo)
-        len (count objects)]
-    (dotimes [k (range relaxation-count)]
-      (dotimes [i (range len)]
+        len (count samples)]
+    (dotimes [k relaxation-range]
+      (dotimes [i (range len)
+                :let [si (nth samples i)]]
         (loop [j (+ 1 i)]
           (when (< j len)
-            (when (boundTest (nth objects i)
-                             (nth objects j))
-              (when (collisionTest (nth objects i)
-                                   (nth objects j ci))
-                ;;make sure the normal is always
-                ;;from object[i] to object[j]
+            (let [sj (nth samples j)]
+              (when (and (boundTest si sj)
+                         (collisionTest?? si sj ci))
+                ;;make sure the normal is always from object[i] to object[j]
                 (if (neg? (vec2Dot (:normal @ci)
-                                     (vec2Sub (:center (nth objects j))
-                                              (:center (nth objects i)))))
+                                   (vec2Sub (:center sj) (:center si))))
                   (changeCollisionDir! ci))
-                (resolveCollision (nth objects i)
-                                  (nth objects j) ci)))
-            (recur (inc j))))))))
+                (resolveCollision si sj ci))
+              (recur (inc j)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn updateInertia  "" [s] ((:updateInertia @s) s))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn move  "" [s p] ((:move @s) s p))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rotate  "" [s angle] ((:rotate @s) angle))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def *gravity* (vec2 0 20))
-(defn rigidShape "" [center mass friction restitution]
-  (let [mass' (if (number? mass) mass 1)
-        s {:center center
-           :inertia 0
-           :friction (if (number? friction) friction 0.8)
-           :bounce (if (number? restitution) restitution 0.2)
-           :vel (vec2 0 0)
-           :invMass (if-not (zero? mass') (/ 1 mass') mass')
-           :accel (if-not (zero? mass') *gravity* (vec2 0 0))
-           :angle 0
-           ;;negetive-- clockwise
-           :angVel 0
+(defn- rigidBody "" [center mass friction restitution]
+  (let [mass' (if (number? mass) mass 1)]
+    (atom {:accel (if (zero? mass') *v2-zero* *gravity*)
            :angAccel 0
-           :boundRadius 0}
-        ret (atom s)]
-    ret))
+           :invMass (inv! mass')
+           :inertia 0
+           :vel *v2-zero*
+           :angVel 0
+           :boundRadius 0
+           :center center
+           :angle 0 ;;negetive-- clockwise
+           :sticky (if (number? friction) friction 0.8)
+           :bounce (if (number? restitution) restitution 0.2)})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateMass "" [s delta]
   (let [{:keys [invMass]} @s
-        mass (+ delta (if-not (zero? invMass) (/ 1 invMass) 0))]
+        mass (+ delta (inv! invMass))]
     (if (pos? mass)
-      (swap! s
-             #(assoc %
-                     :invMass (/ 1 mass)
-                     :accel *gravity*))
-      (swap! s
-             #(assoc %
-                     :invMass 0
-                     :vel (vec2 0 0)
-                     :accel (vec2 0 0)
-                     :angVel 0
-                     :angAccel 0)))
-    (updateInertia s)))
+      (swap! s #(assoc % :invMass (/ 1 mass) :accel *gravity*))
+      (swap! s #(assoc %
+                       :accel *v2-zero*
+                       :vel *v2-zero*
+                       :invMass 0
+                       :angVel 0
+                       :angAccel 0)))
+    (updateInertia! s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn update "" [s]
+(defn update "" [world s dt]
   (when *movement*
-    (let [dt *updateIntervalInSeconds*
-          {:keys [accel vel]} @s]
-      (swap! s
-             #(assoc %
-                     :vel (vec2Add vel (vec2Scale accel dt))))
-      (move s (vec2Scale (:vel @s) dt))
-      (swap! s
-             #(assoc %
-                     :angVel
-                     (+ (:angVel @s)
-                        (* (:angAccel @s) dt))))
-      (rotate s (* dt (:angVel @s)))))
-  (let [width *width*
-        height *height*
-        {:keys [center]} @s]
-    (when (or (< (:x center) 0)
-              (> (:x center) width)
-              (< (:y center) 0)
-              (> (:y center) height))
-      (let [i (.indexOf AllObjects s)]
-        (if (>= i 0)
-          (.splice AllObjects i 1))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn boundTest "" [s1 s2]
-  (let [vFrom1to2 (vec2Sub (:center @s2) (:center @s1))
-        rSum  (+ (:boundRadius @s1) (:boundRadius @s2))
-        dist (vec2Length vFrom1to2)]
-    (not (> dist rSum))))
+    (swap! s
+           (fn [root]
+             (assoc root
+                    :vel (vec2Add (:vel root) (vec2Scale (:accel root) dt)))))
+    (move! s (vec2Scale (:vel @s) dt))
+    (swap! s
+           (fn [root]
+             (assoc root
+                    :angVel (+ (:angVel root) (* (:angAccel root) dt)))))
+    (rotate! s (* dt (:angVel @s))))
+  (let [{:keys [width height samples]} @world
+        {:keys [x y]} (:center @s)]
+    (when (or (< x 0)
+              (> x width)
+              (< y 0)
+              (> y height))
+      (let [i (.indexOf samples s)]
+        (if-not (neg? i)
+          (.splice samples i 1))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- moveCircle "" [s p]
@@ -324,9 +303,6 @@
            #(assoc %
                    :startPt (vec2Add startPt p)
                    :center (vec2Add center p))) s))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- drawCircle "" [s])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rotCircle
@@ -357,16 +333,16 @@
         {c1 :center r1 :radius} @cc1
         vFrom1to2 (vec2Sub c2 c1)
         rSum (+ r1 r2)
-        dist (vec2Length vFrom1to2)]
+        dist (vec2Len vFrom1to2)]
     (cond
       (> dist (js/Math.sqrt (* rSum rSum))) ;overlapping
       false
       (not (zero? dist)) ;;overlapping but not same position
-      (let [normalFrom2to1 (vec2Normalize (vec2Scale vFrom1to2 -1))
+      (let [normalFrom2to1 (vec2Normal (vec2Scale vFrom1to2 -1))
             radiusC2 (vec2Scale normalFrom2to1 r2)]
         (setCollisionInfo! ci
                            (- rSum dist)
-                           (vec2Normalize vFrom1to2)
+                           (vec2Normal vFrom1to2)
                            (vec2Add c2 r2)) true)
       :else ;;same pos
       (do (if (> r1 r2)
@@ -386,7 +362,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn circle "" [center radius mass friction restitution]
-  (let [s (rigidShape center mass friction restitution)]
+  (let [s (rigidBody center mass friction restitution)]
     (swap! s
            #(assoc %
                    :type :circle
@@ -410,10 +386,10 @@
             (conj! vs (vec2Rotate v center angle)))
         vs' (persistent! vs)
         fs (transient [])]
-    (conj! fs (vec2Normalize (vec2Sub (nth vs' 1) (nth vs' 2))))
-    (conj! fs (vec2Normalize (vec2Sub (nth vs' 2) (nth vs' 3))))
-    (conj! fs (vec2Normalize (vec2Sub (nth vs' 3)(nth vs' 0))))
-    (conj! fs (vec2Normalize (vec2Sub (nth vs' 0)(nth vs' 1))))
+    (conj! fs (vec2Normal (vec2Sub (nth vs' 1) (nth vs' 2))))
+    (conj! fs (vec2Normal (vec2Sub (nth vs' 2) (nth vs' 3))))
+    (conj! fs (vec2Normal (vec2Sub (nth vs' 3)(nth vs' 0))))
+    (conj! fs (vec2Normal (vec2Sub (nth vs' 0)(nth vs' 1))))
     (swap! s
            #(assoc %
                    :vertices vs'
@@ -445,46 +421,6 @@
                      (/ 1 (/ (* (/ 1 invMass)
                                 (* width width)
                                 (* height height)) 12))))) s))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rectangle "" [center width height mass friction restitution]
-  (let [s (rigidShape center mass friction restitution)
-        {:keys [x y] center}
-        hw (/ width 2)
-        hh (/ height 2)
-        ;;0--TopLeft 1--TopRight 2--BottomRight 3--BottomLeft
-        vs [(vec2 (- x hw) (- y hh))
-            (vec2 (+ x hw) (- y hh))
-            (vec2 (+ x hw) (+ y hh))
-            (vec2 (- x hw) (+ y hh))]
-        ;;0--Top;1--Right;2--Bottom;3--Left
-        ;;normal of face towards outside of rectangle
-        nn [(vec2Normalize (vec2Sub (nth vs 1)(nth vs 2)))
-            (vec2Normalize (vec2Sub (nth vs 2)(nth vs 3)))
-            (vec2Normalize (vec2Sub (nth vs 3)(nth vs 0)))
-            (vec2Normalize (vec2Sub (nth vs 0)(nth vs 1)))]]
-    (swap! s
-           #(assoc %
-                   :type :rectangle
-                   :move moveRect
-                   :rotate rotRect
-                   :updateInertia updateInertiaRect
-                   :vertices vs
-                   :normals nn
-                   :width width
-                   :height height
-                   :boundRadius (/ (js/Math.sqrt (+ (* width width)
-                                                    (* height height))) 2)))
-    (updateInertia s)
-    s))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;EOF
-
-(defn- collideTestRect "" [r1 r2 ci]
-  (if (= (:type @r2) :circle)
-    (collidedRectCirc r1 r2 ci)
-    (collidedRectRect r1 r2 ci)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- supportStruct
@@ -574,84 +510,116 @@
     (and status1 status2)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- collidedRectCirc "" [r1 c2 ci]
-    var inside = true;
-    var bestDistance = -99999;
-    var nearestEdge = 0;
-    var i, v;
-    var circ2Pos, projection;
-    for (i = 0; i < 4; i++) {
-        //find the nearest face for center of circle
-        circ2Pos = otherCir.mCenter;
-        v = circ2Pos.subtract(this.mVertex[i]);
-        projection = v.dot(this.mFaceNormal[i]);
-        if (projection > 0) {
-            //if the center of circle is outside of rectangle
-            bestDistance = projection;
-            nearestEdge = i;
-            inside = false;
-            break;
-        }
-        if (projection > bestDistance) {
-            bestDistance = projection;
-            nearestEdge = i;
-        }
-    }
-    var dis, normal, radiusVec;
-    if (!inside) {
-        //the center of circle is outside of rectangle
+(defn- collidedRectCirc "" [r1 cc2 ci]
+  (let [{:keys [vertices normals]} @r1
+        {circ2Pos :center circ2Rad :radius} @cc2
+        ;;find the nearest face for center of circle
+        [bestDistance nearestEdge inside?]
+        (loop [bestDistance -99999
+               nearestEdge 0
+               inside? true break? false i 0]
+          (if (or break? (>= i 4))
+            [bestDistance nearestEdge inside?]
+            (let [v  (vec2Sub circ2Pos (nth vertices i))
+                  projection  (vec2Dot v (nth normals i))]
+            (if (pos? projection)
+              ;;if the center of circle is outside of rectangle
+              (recur projection i false true i)
+              (if (> projection bestDistance)
+                (recur projection i inside? break? (inc i))
+                (recur bestDistance nearestEdge inside? break? (inc i)))))))]
+    (cond
+      ;;the center of circle is outside of rectangle
+      ;;v1 is from left vertex of face to center of circle
+      ;;v2 is from left vertex of face to right vertex of face
+      (not inside?)
+      (let [v1  (vec2Sub circ2Pos (nth vertices nearestEdge))
+            v2  (vec2Sub (nth vertices (rem (inc nearestEdge) 4)) (nth vertices nearestEdge))
+            dot (vec2Dot v1 v2)]
+        (if (neg? dot)
+          (let [;;the center of circle is in corner region of mVertex[nearestEdge]
+                dis (vec2Len v1)]
+            ;;compare the distance with radium to decide collision
+            (if (> dis circ2Rad)
+              false
+              (let [normal (vec2Normal v1)
+                    radiusVec (vec2Scale normal (- circ2Rad))]
+                (setCollisionInfo! ci
+                                   (- circ2Rad dis)
+                                   normal
+                                   (vec2Add circ2Pos radiusVec)) true)))
+          (let [;;the center of circle is in corner region of mVertex[nearestEdge+1]
+                ;;v1 is from right vertex of face to center of circle
+                ;;v2 is from right vertex of face to left vertex of face
+                v1  (vec2Sub circ2Pos (nth vertices (rem (inc nearestEdge) 4)))
+                v2  (vec2Scale v2 -1)
+                dot (vec2Dot v1 v2)]
+            (if (neg? dot)
+              (let [dis (vec2Len v1)]
+                ;;compare the distance with radium to decide collision
+                (if (> dis circ2Rad)
+                  false
+                  (let [normal (vec2Normal v1)
+                        radiusVec (vec2Scale normal (- circ2Rad))]
+                    (setCollisionInfo! ci
+                                       (- circ2Rad dis)
+                                       normal
+                                       (vec2Add circ2Pos radiusVec)) true)))
+              (let []
+                ;;the center of circle is in face region of face[nearestEdge]
+                (if (< bestDistance circ2Rad)
+                  (let [radiusVec (vec2Scale (nth normals nearestEdge) circ2Rad)]
+                    (setCollisionInfo! ci
+                                       (- circ2Rad bestDistance)
+                                       (nth normals nearestEdge)
+                                       (vec2Sub circ2Pos radiusVec)) true)
+                  false))))))
+      :else
+      (let [;;the center of circle is inside of rectangle
+            radiusVec (vec2Scale (nth normals nearestEdge) circ2Rad)]
+        (setCollisionInfo! ci
+                           (- circ2Rad bestDistance)
+                           (nth normals nearestEdge)
+                           (vec2Sub circ2Pos radiusVec)) true))))
 
-        //v1 is from left vertex of face to center of circle
-        //v2 is from left vertex of face to right vertex of face
-        var v1 = circ2Pos.subtract(this.mVertex[nearestEdge]);
-        var v2 = this.mVertex[(nearestEdge + 1) % 4].subtract(this.mVertex[nearestEdge]);
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- collideTestRect "" [r1 r2 ci]
+  (if (= (:type @r2) :circle)
+    (collidedRectCirc r1 r2 ci)
+    (collidedRectRect r1 r2 ci)))
 
-        var dot = v1.dot(v2);
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn rectangle "" [center width height mass friction restitution]
+  (let [s (rigidBody center mass friction restitution)
+        {:keys [x y] center}
+        hw (/ width 2)
+        hh (/ height 2)
+        ;;0--TopLeft 1--TopRight 2--BottomRight 3--BottomLeft
+        vs [(vec2 (- x hw) (- y hh))
+            (vec2 (+ x hw) (- y hh))
+            (vec2 (+ x hw) (+ y hh))
+            (vec2 (- x hw) (+ y hh))]
+        ;;0--Top;1--Right;2--Bottom;3--Left
+        ;;normal of face towards outside of rectangle
+        nn [(vec2Normal (vec2Sub (nth vs 1)(nth vs 2)))
+            (vec2Normal (vec2Sub (nth vs 2)(nth vs 3)))
+            (vec2Normal (vec2Sub (nth vs 3)(nth vs 0)))
+            (vec2Normal (vec2Sub (nth vs 0)(nth vs 1)))]]
+    (swap! s
+           #(assoc %
+                   :type :rectangle
+                   :move moveRect
+                   :rotate rotRect
+                   :collisionTest collideTestRect
+                   :updateInertia updateInertiaRect
+                   :vertices vs
+                   :normals nn
+                   :width width
+                   :height height
+                   :boundRadius (/ (js/Math.sqrt (+ (* width width)
+                                                    (* height height))) 2)))
+    (updateInertia s)
+    s))
 
-        if (dot < 0) {
-            //the center of circle is in corner region of mVertex[nearestEdge]
-            dis = v1.length();
-            //compare the distance with radium to decide collision
-            if (dis > otherCir.mRadius) {
-                return false;
-            }
-
-            normal = v1.normalize();
-            radiusVec = normal.scale(-otherCir.mRadius);
-            collisionInfo.setInfo(otherCir.mRadius - dis, normal, circ2Pos.add(radiusVec));
-        } else {
-            //the center of circle is in corner region of mVertex[nearestEdge+1]
-
-            //v1 is from right vertex of face to center of circle
-            //v2 is from right vertex of face to left vertex of face
-            v1 = circ2Pos.subtract(this.mVertex[(nearestEdge + 1) % 4]);
-            v2 = v2.scale(-1);
-            dot = v1.dot(v2);
-            if (dot < 0) {
-                dis = v1.length();
-                //compare the distance with radium to decide collision
-                if (dis > otherCir.mRadius) {
-                    return false;
-                }
-                normal = v1.normalize();
-                radiusVec = normal.scale(-otherCir.mRadius);
-                collisionInfo.setInfo(otherCir.mRadius - dis, normal, circ2Pos.add(radiusVec));
-            } else {
-                //the center of circle is in face region of face[nearestEdge]
-                if (bestDistance < otherCir.mRadius) {
-                    radiusVec = this.mFaceNormal[nearestEdge].scale(otherCir.mRadius);
-                    collisionInfo.setInfo(otherCir.mRadius - bestDistance, this.mFaceNormal[nearestEdge], circ2Pos.subtract(radiusVec));
-                } else {
-                    return false;
-                }
-            }
-        }
-    } else {
-        //the center of circle is inside of rectangle
-        radiusVec = this.mFaceNormal[nearestEdge].scale(otherCir.mRadius);
-        collisionInfo.setInfo(otherCir.mRadius - bestDistance, this.mFaceNormal[nearestEdge], circ2Pos.subtract(radiusVec));
-    }
-    return true;
-};
-
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;EOF
