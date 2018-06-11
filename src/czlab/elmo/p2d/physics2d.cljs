@@ -9,7 +9,11 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.p2d.physics2d)
+  czlab.elmo.p2d.physics2d
+
+  (:require [oops.core :refer [oget oset!
+                               ocall oapply
+                               ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pythagSQ "" [x y] (+ (* x x) (* y y)))
@@ -584,8 +588,96 @@
     (dotimes [_ *relaxCount*] (collision* samples))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn speed! "" [s v]
+  (swap! s
+         (fn [{:keys [vel] :as root}]
+           (assoc root
+                  :vel (vc-add vel v)))) s)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
-
-
+(def gObjectNum  0)
+(def *gWorld* nil)
+(defn userControl "" [evt]
+  (let [key (or (oget evt "?keyCode")
+                (oget evt "?which"))
+        {:keys [samples]} *gWorld*
+        sz (count samples)
+        offset (- key 48)]
+    (cond
+      (and (>= key 48) (<= key 57))
+      (if (< (- offset 48) sz)
+            (set! gObjectNum offset))
+      (= key 38) ;up arrow
+      (if (pos? gObjectNum)
+        (set! gObjectNum (dec gObjectNum)))
+      (= key 40) ;down arrow
+      (if (< gObjectNum (- sz 1))
+        (set! gObjectNum (inc gObjectNum)))
+      (= key 87) ;;W
+      (move! (nth samples gObjectNum) (vec2 0 -10))
+      (= key 83) ;;S
+      (move! (nth samples gObjectNum) (vec2 0 10))
+      (= key 65) ;;A
+      (move! (nth samples gObjectNum) (vec2 -10 0))
+      (= key 68) ;;D
+      (move! (nth samples gObjectNum) (vec2 10 0))
+      (= key 81) ;;Q
+      (rotate! (nth samples gObjectNum) -0.1)
+      (= key 69) ;;E
+      (rotate! (nth samples gObjectNum) 0.1)
+      (= key 73) ;;I
+      (speedxx (nth samples gObjectNum) (vec2 0 -1))
+      (= key 75) ;;k
+      (xx (nth samples gObjectNum) (vec2 0 1))
+      (= key 74) ;;j
+      (xx (nth samples gObjectNum) (vec2 -1 0))
+      (= key 76) ;;l
+      (xx (nth samples gObjectNum) (vec2 1 0))
+      (= key 85) ;;U
+      (angv (nth samples gObjectNum) -0.1)
+      (= key 79) ;O
+      (angv (nth samples gObjectNum) 0.1)
+      (= key 90) ;Z
+      (updateMass! (nth samples gObjectNum) -1)
+      (= key 88)a ;;X
+      (updateMass! (nth samples gObjectNum) 1)
+      (= key 67) ;C
+      (fric (nth samples gObjectNum) -0.01)
+      (= key 86) ;V
+      (fric (nth samples gObjectNum) 0.01)
+      (= key 66) ;B
+      (bounce (nth samples gObjectNum) -0.01)
+      (= key 78) ;N
+      (bounce (nth samples gObjectNum) 0.01)
+      (= key 77) ;M
+      (set! mPositionalCorrectionFlag
+            (not mPositionalCorrectionFlag))
+      (= key 188) ; ;
+      (set! mMovement (not mMovement))
+      (= key 70);f
+      (let [obj (nth samples gObjectNum)
+            {:keys [center]} @obj
+            r1 (Rectangle (vec2 (:x center) (:y center))
+                          (+ 10 (rand 30))
+                          (+ 10 (rand 30))
+                          (rand 30)
+                          (rand) (rand))]
+        (speed r1 (vec2 (- (rand 300) 150)
+                        (- (rand 300) 150))))
+      (= key 71) ;;g
+      (let [obj (nth samples gObjectNum)
+            {:keys [center]} @obj
+            c1 (Circle (vec2 (:x center)(:y center))
+                       (+ 20 (rand 10))
+                       (rand 30)
+                       (rand) (rand))]
+        (speed c1 (vec2 (- (rand 300) 150)
+                        (- (rand 300) 150))))
+      (= key 72);H
+      (doseq [s samples
+              :let [{:keys [invMass]} @s]]
+        (if-not (zero? invMass)
+          (spped s (vec2 (- (rand 500) 250)
+                         (- (rand 500) 250))))))))
 
