@@ -14,6 +14,10 @@
   (:require [oops.core :refer [oget oset!
                                ocall oapply
                                ocall! oapply!]]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def *gWorld* nil)
+(def mPositionalCorrection? true)
+(def mMovement? true)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pythagSQ "" [x y] (+ (* x x) (* y y)))
@@ -131,16 +135,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateShape! "" [world s dt]
   (let [{:keys [top right bottom left height width samples]} @world]
-    ;; v = v + a*t
-    (swap! s (fn [{:keys [vel accel] :as root}]
-               (assoc root :vel (v2-add vel (v2-scale accel dt)))))
-    ;;s = x + v*t
-    (move! s (v2-scale (:vel @s) dt))
+    (when mMovement?
+      ;; v = v + a*t
+      (swap! s (fn [{:keys [vel accel] :as root}]
+                 (assoc root :vel (v2-add vel (v2-scale accel dt)))))
+      ;;s = x + v*t
+      (move! s (v2-scale (:vel @s) dt))
 
-    (swap! s (fn [{:keys [angVel angAccel] :as root}]
-               (assoc root :angVel (+ angVel (* angAccel dt)))))
-    (rotate! s (* (:angVel @s) dt))
-
+      (swap! s (fn [{:keys [angVel angAccel] :as root}]
+                 (assoc root :angVel (+ angVel (* angAccel dt)))))
+      (rotate! s (* (:angVel @s) dt)))
     (let [{cx :x cy :y} (:center @s)]
       (when (or (< cx 0)
                 (> cx width)
@@ -540,7 +544,7 @@
 (defn- resolveCollision "" [s1 s2 ci]
   (when-not (and (zero? (:invMass @s1))
                  (zero? (:invMass @s2)))
-    (correctPos! s1 s2 ci)
+    (if mPositionalCorrection? (correctPos! s1 s2 ci))
     ;;the direction of collisionInfo is always from s1 to s2
     ;;but the Mass is inversed, so start scale with s2 and end scale with s1
     (let
@@ -588,96 +592,198 @@
     (dotimes [_ *relaxCount*] (collision* samples))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn speed! "" [s v]
-  (swap! s
-         (fn [{:keys [vel] :as root}]
-           (assoc root
-                  :vel (vc-add vel v)))) s)
+(defn alterShapeAttr! "" [s attr & more]
+  (let [{:keys [angVel vel]} @s
+        p1 (first more)
+        v (cond (= :angVel attr) (+ angVel p1)
+                (= :vel attr) (v2-add vel p1)
+                (= :bounce attr) p1
+                (= :sticky attr) p1)]
+    (if (some? v)
+      (swap! s #(assoc % attr v))) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
 (def gObjectNum  0)
-(def *gWorld* nil)
 (defn userControl "" [evt]
   (let [key (or (oget evt "?keyCode")
                 (oget evt "?which"))
         {:keys [samples]} *gWorld*
-        sz (count samples)
+        s (nth samples gObjectNum)
+        len (count samples)
         offset (- key 48)]
     (cond
-      (and (>= key 48) (<= key 57))
-      (if (< (- offset 48) sz)
-            (set! gObjectNum offset))
+      (and (>= key 48)
+           (<= key 57))
+      (if (< (- offset 48) len)
+        (set! gObjectNum offset))
       (= key 38) ;up arrow
       (if (pos? gObjectNum)
         (set! gObjectNum (dec gObjectNum)))
       (= key 40) ;down arrow
-      (if (< gObjectNum (- sz 1))
+      (if (< gObjectNum (- len 1))
         (set! gObjectNum (inc gObjectNum)))
       (= key 87) ;;W
-      (move! (nth samples gObjectNum) (vec2 0 -10))
+      (move! s (vec2 0 -10))
       (= key 83) ;;S
-      (move! (nth samples gObjectNum) (vec2 0 10))
+      (move! s (vec2 0 10))
       (= key 65) ;;A
-      (move! (nth samples gObjectNum) (vec2 -10 0))
+      (move! s (vec2 -10 0))
       (= key 68) ;;D
-      (move! (nth samples gObjectNum) (vec2 10 0))
+      (move! s (vec2 10 0))
       (= key 81) ;;Q
-      (rotate! (nth samples gObjectNum) -0.1)
+      (rotate! s -0.1)
       (= key 69) ;;E
-      (rotate! (nth samples gObjectNum) 0.1)
+      (rotate! s 0.1)
       (= key 73) ;;I
-      (speedxx (nth samples gObjectNum) (vec2 0 -1))
+      (alterShapeAttr! s :vel (vec2 0 -1))
       (= key 75) ;;k
-      (xx (nth samples gObjectNum) (vec2 0 1))
+      (alterShapeAttr! s :vel (vec2 0 1))
       (= key 74) ;;j
-      (xx (nth samples gObjectNum) (vec2 -1 0))
+      (alterShapeAttr! s :vel (vec2 -1 0))
       (= key 76) ;;l
-      (xx (nth samples gObjectNum) (vec2 1 0))
+      (alterShapeAttr! s :vel (vec2 1 0))
       (= key 85) ;;U
-      (angv (nth samples gObjectNum) -0.1)
+      (alterShapeAttr! s :angVel -0.1)
       (= key 79) ;O
-      (angv (nth samples gObjectNum) 0.1)
+      (alterShapeAttr! s :angVel 0.1)
       (= key 90) ;Z
-      (updateMass! (nth samples gObjectNum) -1)
-      (= key 88)a ;;X
-      (updateMass! (nth samples gObjectNum) 1)
+      (updateMass! s -1)
+      (= key 88) ;;X
+      (updateMass! s 1)
       (= key 67) ;C
-      (fric (nth samples gObjectNum) -0.01)
+      (alterShapeAttr! s :sticky -0.01)
       (= key 86) ;V
-      (fric (nth samples gObjectNum) 0.01)
+      (alterShapeAttr! s :sticky 0.01)
       (= key 66) ;B
-      (bounce (nth samples gObjectNum) -0.01)
+      (alterShapeAttr! s :bounce -0.01)
       (= key 78) ;N
-      (bounce (nth samples gObjectNum) 0.01)
+      (alterShapeAttr! s :bounce 0.01)
       (= key 77) ;M
-      (set! mPositionalCorrectionFlag
-            (not mPositionalCorrectionFlag))
+      (set! mPositionalCorrection? (not mPositionalCorrection?))
       (= key 188) ; ;
-      (set! mMovement (not mMovement))
+      (set! mMovement? (not mMovement?))
       (= key 70);f
-      (let [obj (nth samples gObjectNum)
-            {:keys [center]} @obj
-            r1 (Rectangle (vec2 (:x center) (:y center))
-                          (+ 10 (rand 30))
-                          (+ 10 (rand 30))
-                          (rand 30)
-                          (rand) (rand))]
-        (speed r1 (vec2 (- (rand 300) 150)
-                        (- (rand 300) 150))))
+      (let [{{:keys [x y]} :center} @s
+            r1 (Rectangle (vec2 x y) (+ 10 (rand 30)) (+ 10 (rand 30)) (rand 30) (rand) (rand))]
+        (alterShapeAttr! r1 (vec2 (- (rand 300) 150) (- (rand 300) 150))))
       (= key 71) ;;g
-      (let [obj (nth samples gObjectNum)
-            {:keys [center]} @obj
-            c1 (Circle (vec2 (:x center)(:y center))
-                       (+ 20 (rand 10))
-                       (rand 30)
-                       (rand) (rand))]
-        (speed c1 (vec2 (- (rand 300) 150)
-                        (- (rand 300) 150))))
+      (let [{{:keys [x y]} :center} @s
+            c1 (Circle (vec2 x y) (+ 20 (rand 10)) (rand 30) (rand) (rand))]
+        (alterShapeAttr! c1 (vec2 (- (rand 300) 150) (- (rand 300) 150))))
       (= key 72);H
       (doseq [s samples
               :let [{:keys [invMass]} @s]]
         (if-not (zero? invMass)
-          (spped s (vec2 (- (rand 500) 250)
-                         (- (rand 500) 250))))))))
+          (alterShapeAttr! s :vel (vec2 (- (rand 500) 250)
+                                        (- (rand 500) 250))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
+var mCanvas, mContext, mWidth = 800, mHeight = 450;
+    mCanvas = document.getElementById('canvas');
+    mContext = mCanvas.getContext('2d');
+    mCanvas.height = mHeight;
+    mCanvas.width = mWidth;
+
+    var mGravity = new Vec2(0, 20);
+    var mMovement = true;
+
+    var mCurrentTime, mElapsedTime, mPreviousTime = Date.now(), mLagTime = 0;
+    var kFPS = 60;          // Frames per second
+    var kFrameTime = 1 / kFPS;
+    var mUpdateIntervalInSeconds = kFrameTime;
+    var kMPF = 1000 * kFrameTime; // Milliseconds per frame.
+    var mAllObjects = [];
+
+    var updateUIEcho = function () {
+        document.getElementById("uiEchoString").innerHTML =
+                "<p><b>Selected Object:</b>:</p>" +
+                "<ul style=\"margin:-10px\">" +
+                "<li>Id: " + gObjectNum + "</li>" +
+                "<li>Center: " + mAllObjects[gObjectNum].mCenter.x.toPrecision(3) + "," + mAllObjects[gObjectNum].mCenter.y.toPrecision(3) + "</li>" +
+                "<li>Angle: " + mAllObjects[gObjectNum].mAngle.toPrecision(3) + "</li>" +
+                "<li>Velocity: " + mAllObjects[gObjectNum].mVelocity.x.toPrecision(3) + "," + mAllObjects[gObjectNum].mVelocity.y.toPrecision(3) + "</li>" +
+                "<li>AngluarVelocity: " + mAllObjects[gObjectNum].mAngularVelocity.toPrecision(3) + "</li>" +
+                "<li>Mass: " + 1 / mAllObjects[gObjectNum].mInvMass.toPrecision(3) + "</li>" +
+                "<li>Friction: " + mAllObjects[gObjectNum].mFriction.toPrecision(3) + "</li>" +
+                "<li>Restitution: " + mAllObjects[gObjectNum].mRestitution.toPrecision(3) + "</li>" +
+                "<li>Positional Correction: " + gEngine.Physics.mPositionalCorrectionFlag + "</li>" +
+                "<li>Movement: " + gEngine.Core.mMovement + "</li>" +
+                "</ul> <hr>" +
+                "<p><b>Control</b>: of selected object</p>" +
+                "<ul style=\"margin:-10px\">" +
+                "<li><b>Num</b> or <b>Up/Down Arrow</b>: Select Object</li>" +
+                "<li><b>WASD</b> + <b>QE</b>: Position [Move + Rotate]</li>" +
+                "<li><b>IJKL</b> + <b>UO</b>: Velocities [Linear + Angular]</li>" +
+                "<li><b>Z/X</b>: Mass [Decrease/Increase]</li>" +
+                "<li><b>C/V</b>: Frictrion [Decrease/Increase]</li>" +
+                "<li><b>B/N</b>: Restitution [Decrease/Increase]</li>" +
+                "<li><b>M</b>: Positional Correction [On/Off]</li>" +
+                "<li><b>,</b>: Movement [On/Off]</li>" +
+                "</ul> <hr>" +
+                "<b>F/G</b>: Spawn [Rectangle/Circle] at selected object" +
+                "<p><b>H</b>: Excite all objects</p>" +
+                "<p><b>R</b>: Reset System</p>" +
+                "<hr>";
+    };
+    var draw = function () {
+        mContext.clearRect(0, 0, mWidth, mHeight);
+        var i;
+        for (i = 0; i < mAllObjects.length; i++) {
+            mContext.strokeStyle = 'blue';
+            if (i === gObjectNum) {
+                mContext.strokeStyle = 'red';
+            }
+            mAllObjects[i].draw(mContext);
+        }
+    };
+    var update = function () {
+        var i;
+        for (i = 0; i < mAllObjects.length; i++) {
+            mAllObjects[i].update(mContext);
+        }
+    };
+    var runGameLoop = function () {
+        requestAnimationFrame(function () {
+            runGameLoop();
+        });
+
+        //      compute how much time has elapsed since we last runGameLoop was executed
+        mCurrentTime = Date.now();
+        mElapsedTime = mCurrentTime - mPreviousTime;
+        mPreviousTime = mCurrentTime;
+        mLagTime += mElapsedTime;
+
+        updateUIEcho();
+        draw();
+        //      Make sure we update the game the appropriate number of times.
+        //      Update only every Milliseconds per frame.
+        //      If lag larger then update frames, update until caught up.
+        while (mLagTime >= kMPF) {
+            mLagTime -= kMPF;
+            gEngine.Physics.collision();
+            update();
+        }
+    };
+    var initializeEngineCore = function () {
+        runGameLoop();
+    };
+    var mPublic = {
+        initializeEngineCore: initializeEngineCore,
+        mAllObjects: mAllObjects,
+        mWidth: mWidth,
+        mHeight: mHeight,
+        mContext: mContext,
+        mGravity: mGravity,
+        mUpdateIntervalInSeconds: mUpdateIntervalInSeconds,
+        mMovement: mMovement
+    };
+    return mPublic;
+
+
+
+
+
 
