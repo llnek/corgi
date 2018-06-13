@@ -14,10 +14,27 @@
   (:require [oops.core :refer [oget oset!
                                ocall oapply
                                ocall! oapply!]]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def *gWorld* nil)
+(def *gWorld*
+    (atom {:samples (array)
+           :cur 0
+           :canvas nil
+           :context nil
+           :width 800
+           :height 450
+           :gravity (vec2 0 20)}))
+
 (def mPositionalCorrection? true)
 (def mMovement? true)
+(def mCurrentTime 0)
+(def mElapsedTime 0)
+(def mPreviousTime (system-time))
+(def mLagTime  0)
+(def kFPS 60) ;;Frames per second
+(def kFrameTime (/ 1 kFPS))
+(def mUpdateIntervalInSeconds kFrameTime)
+(def kMPF (* 1000 kFrameTime)) ;;Milliseconds per frame.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pythagSQ "" [x y] (+ (* x x) (* y y)))
@@ -679,32 +696,14 @@
                                         (- (rand 500) 250))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
-
-var mCanvas, mContext, mWidth = 800, mHeight = 450;
-    mCanvas = document.getElementById('canvas');
-    mContext = mCanvas.getContext('2d');
-    mCanvas.height = mHeight;
-    mCanvas.width = mWidth;
-
-    var mGravity = new Vec2(0, 20);
-    var mMovement = true;
-
-    var mCurrentTime, mElapsedTime, mPreviousTime = Date.now(), mLagTime = 0;
-    var kFPS = 60;          // Frames per second
-    var kFrameTime = 1 / kFPS;
-    var mUpdateIntervalInSeconds = kFrameTime;
-    var kMPF = 1000 * kFrameTime; // Milliseconds per frame.
-    var mAllObjects = [];
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateUIEcho "" []
   (let [html (js/document.getElementById "uiEchoString")
-        {:keys [samples]} @*gWorld*
-        obj (nth samples gObjectNum)
+        {:keys [cur samples]} @*gWorld*
+        obj (nth samples cur)
         {:keys [sticky bounce invMass angVel vel angle center]} @obj]
     (->> (str "<p><b>Selected Object:</b>:</p>"
               "<ul style=\"margin:-10px\">"
-              "<li>Id: " gObjectNum "</li>"
+              "<li>Id: " cur "</li>"
               "<li>Center: " (:x center) "," (:y center) "</li>"
               "<li>Angle: " angle "</li>"
               "<li>Velocity: " (:x vel) "," (:y vel) "</li>"
@@ -733,62 +732,69 @@ var mCanvas, mContext, mWidth = 800, mHeight = 450;
          (oset! html "!innerHTML" ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn draw = function () {
-        mContext.clearRect(0, 0, mWidth, mHeight);
-        var i;
-        for (i = 0; i < mAllObjects.length; i++) {
-            mContext.strokeStyle = 'blue';
-            if (i === gObjectNum) {
-                mContext.strokeStyle = 'red';
-            }
-            mAllObjects[i].draw(mContext);
-        }
-    };
-    var update = function () {
-        var i;
-        for (i = 0; i < mAllObjects.length; i++) {
-            mAllObjects[i].update(mContext);
-        }
-    };
-    var runGameLoop = function () {
-        requestAnimationFrame(function () {
-            runGameLoop();
-        });
+(defn draw "" []
+  (let [{:keys [cur samples
+                width height context]} @*gWorld*
+        len (count samples)]
+    (ocall! ctx "clearRect" 0 0 width height)
+    (loop [i 0]
+      (when (< i len)
+        (oset! context
+               "!strokeStyle"
+               (if (= i cur) "red" "blue"))
+        (ocall! (nth samples cur) "draw" context)
+        (recur (+ i 1))))))
 
-        //      compute how much time has elapsed since we last runGameLoop was executed
-        mCurrentTime = Date.now();
-        mElapsedTime = mCurrentTime - mPreviousTime;
-        mPreviousTime = mCurrentTime;
-        mLagTime += mElapsedTime;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn update "" []
+  (let [{:keys [context samples]} @*gWorld*] (doseq [s samples] (update s context))))
 
-        updateUIEcho();
-        draw();
-        //      Make sure we update the game the appropriate number of times.
-        //      Update only every Milliseconds per frame.
-        //      If lag larger then update frames, update until caught up.
-        while (mLagTime >= kMPF) {
-            mLagTime -= kMPF;
-            gEngine.Physics.collision();
-            update();
-        }
-    };
-    var initializeEngineCore = function () {
-        runGameLoop();
-    };
-    var mPublic = {
-        initializeEngineCore: initializeEngineCore,
-        mAllObjects: mAllObjects,
-        mWidth: mWidth,
-        mHeight: mHeight,
-        mContext: mContext,
-        mGravity: mGravity,
-        mUpdateIntervalInSeconds: mUpdateIntervalInSeconds,
-        mMovement: mMovement
-    };
-    return mPublic;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn runGameLoop "" []
+  (js/requestAnimationFrame #(runGameLoop))
+  ;;compute how much time has elapsed since we last runGameLoop was executed
+  (set! mCurrentTime (system-time))
+  (set! mElapsedTime (- mCurrentTime mPreviousTime))
+  (set! mPreviousTime mCurrentTime)
+  (set! mLagTime (+ mLagTime mElapsedTime))
+  (updateUIEcho)
+  (draw)
+  ;;Make sure we update the game the appropriate number of times.
+  ;;Update only every Milliseconds per frame.
+  ;;If lag larger then update frames, update until caught up.
+  (while (>= mLagTime kMPF)
+    (set! mLagTime (- mLagTime kMPF))
+    (collision)
+    (update)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn MyGame "" []
+  (let [canvas (js/document.getElementById "canvas")
+        context (ocall! canvas "getContext" "2d")
+        {:keys [width height]} @*gWorld*
+        _ (oset! canvas "height" height)
+        _ (oset! canvas "width" width)
+        _ (swap! *gWorld* #(assoc % :canvas canvas :context context))
+        r1 (Rectangle (vec2 500 200) 400 20 0 0.3 0)
+        r2 (Rectangle (vec2 200 400) 400 20 0 1 0.5)
+        r3 (Rectangle (vec2 100 200) 200 20 0)
+        r4 (Rectangle (vec2 10 360) 20 100 0 0 1)]
+    (rotate! r1 2.8)
+    (dotimes [i (range 10)]
+      (-> (Rectangle (vec2 (rand width)
+                           (rand (/ height 2)))
+                     (+ 10 (rand 50)) (+ 10 (rand 50)) (rand 30) (rand) (rand))
+          (alterShapeAttr! :vel
+                           (vec2 (- (rand 60) 30) (- (rand 60) 30))))
+      (-> (Circle (vec2 (rand width)
+                        (rand (/ height 2)))
+                  (+ 10 (rand 20)) (rand 30) (rand) (rand))
+          (alterShapeAttr! (vec2 (- (rand 60) 30)
+                                 (- (rand 60) 30)))))
+    (runGameLoop)))
 
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
 
 
