@@ -16,14 +16,15 @@
                                ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(declare vec2)
 (def *gWorld*
     (atom {:samples (array)
+           :context nil
            :cur 0
            :canvas nil
-           :context nil
            :width 800
            :height 450
-           :gravity (vec2 0 20)}))
+           :gravity (vec2 0 -20)}))
 
 (def mPositionalCorrection? true)
 (def mMovement? true)
@@ -32,9 +33,9 @@
 (def mPreviousTime (system-time))
 (def mLagTime  0)
 (def kFPS 60) ;;Frames per second
-(def kFrameTime (/ 1 kFPS))
-(def mUpdateIntervalInSeconds kFrameTime)
-(def kMPF (* 1000 kFrameTime)) ;;Milliseconds per frame.
+(def kFrameSecs (inv! kFPS))
+;(def mUpdateIntervalInSeconds kFrameSecs)
+(def kMPF (* 1000 kFrameSecs)) ;;Milliseconds per frame.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pythagSQ "" [x y] (+ (* x x) (* y y)))
@@ -150,7 +151,7 @@
     (updateInertia! s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn updateShape! "" [world s dt]
+(defn updateShape! "" [s dt]
   (let [{:keys [top right bottom left height width samples]} @world]
     (when mMovement?
       ;; v = v + a*t
@@ -391,6 +392,16 @@
                                           (pythagSQ width height)) 12))))) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- rectDraw "" [r1 context]
+  (let [{:keys [vertices width height angle]} @r1
+        {:keys [x y]} (nth vertices 0)]
+    (ocall! context "save")
+    (ocall! context "translate" x y)
+    (ocall! context "rotate" angle)
+    (ocall! context "strokeRect" 0 0 width height)
+    (ocall! context "restore")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Rectangle "" [center width height mass friction restitution]
   (let [{:keys [x y]} center
         hw (* 0.5 width)
@@ -409,6 +420,7 @@
               :updateInertia rectUpdateInertia
               :collisionTest rectCollisionTest
               :move rectMove
+              :draw rectDraw
               :rotate rectRotate
               :type :rectangle
               :width width
@@ -469,6 +481,19 @@
   (if (= (:type @s2) :circle)
     (circleCollidedCircCirc s1 s2 ci) (rectCollidedRectCirc s2 s1 ci)))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- circleDraw "" [c1 context]
+  (let [{:keys [center radius startPt]} @c1
+        {:keys [x y]} center
+        {sx :x sy :y} startPt]
+    (ocall! context "beginPath")
+    (ocall! context "arc" x y radius 0 (* 2 js/Math.PI) true)
+    (ocall! context "moveTo" sx sy)
+    (ocall! context "lineTo" x y)
+    (ocall! context "closePath")
+    (ocall! context "stroke")))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Circle "" [center radius mass friction restitution]
   (let [{:keys [x y]} center
@@ -490,6 +515,18 @@
 ;;percentage of separation to project objects
 (def *correction-rate* 0.8)
 (def *relaxCount* 15)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- drawCollisionInfo "" [ci context]
+  (let [{:keys [start end]} @ci
+        {sx :x sy :y} start
+        {ex :x ey :y} end]
+    (ocall! context "beginPath")
+    (ocall! context "moveTo" sx sy)
+    (ocall! context "lineTo" ex ey)
+    (ocall context "closePath")
+    (oset! context "!strokeStyle" "orange")
+    (ocall! context "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- correctPos! "" [s1 s2 ci]
@@ -599,12 +636,13 @@
                                   (v2-sub (:center @sj)
                                           (:center @si))))
                   (changeCollisionDir ci))
+                (drawCollisionInfo ci context)
                 (resolveCollision si sj ci)))
             (recur (+ 1 j))))
         (recur (+ 1 i))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn collision "" [world]
+(defn checkCollision "" []
   (let [{:keys [samples]} @world]
     (dotimes [_ *relaxCount*] (collision* samples))))
 
@@ -732,7 +770,7 @@
          (oset! html "!innerHTML" ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn draw "" []
+(defn- drawGame "" []
   (let [{:keys [cur samples
                 width height context]} @*gWorld*
         len (count samples)]
@@ -746,8 +784,9 @@
         (recur (+ i 1))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn update "" []
-  (let [{:keys [context samples]} @*gWorld*] (doseq [s samples] (update s context))))
+(defn- update! "" []
+  (let [{:keys [context samples]} @*gWorld*]
+    (doseq [s samples] (updateShape! s kFrameSecs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn runGameLoop "" []
@@ -758,14 +797,12 @@
   (set! mPreviousTime mCurrentTime)
   (set! mLagTime (+ mLagTime mElapsedTime))
   (updateUIEcho)
-  (draw)
+  (drawGame)
   ;;Make sure we update the game the appropriate number of times.
   ;;Update only every Milliseconds per frame.
   ;;If lag larger then update frames, update until caught up.
   (while (>= mLagTime kMPF)
-    (set! mLagTime (- mLagTime kMPF))
-    (collision)
-    (update)))
+    (set! mLagTime (- mLagTime kMPF)) (checkCollision) (update! )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn MyGame "" []
