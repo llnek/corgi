@@ -16,63 +16,58 @@
                                ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(declare vec2)
-(def *gWorld*
-    (atom {:samples (array)
-           :context nil
-           :cur 0
-           :canvas nil
-           :width 800
-           :height 450
-           :gravity (vec2 0 -20)}))
+(defn- inv! "" [x] (if (zero? x) 0 (/ 1 x)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vec2 "" [x y] {:x x :y y})
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def VEC_ZERO (vec2 0 0))
+(def *shapeNum* (atom 0))
+(defn- nextShapeNum "" [] (swap! *shapeNum* inc))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def *gWorld*
+  (atom {:samples (array)
+         :context nil
+         :cur 0
+         :canvas nil
+         :top 0
+         :right 799
+         :bottom 449
+         :left 0
+         :width 800
+         :height 450
+         :gravity (vec2 0 20)}))
 (def mPositionalCorrection? true)
+(def mPreviousTime (system-time))
 (def mMovement? true)
 (def mCurrentTime 0)
 (def mElapsedTime 0)
-(def mPreviousTime (system-time))
-(def mLagTime  0)
-(def kFPS 60) ;;Frames per second
+(def mLagTime 0)
+(def kFPS 60)
 (def kFrameSecs (inv! kFPS))
-;(def mUpdateIntervalInSeconds kFrameSecs)
-(def kMPF (* 1000 kFrameSecs)) ;;Milliseconds per frame.
+(def kMPF (* 1000 kFrameSecs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pythagSQ "" [x y] (+ (* x x) (* y y)))
 (defn- pythag "" [x y] (js/Math.sqrt (pythagSQ x y)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- inv! "" [x] (if (zero? x) 0 (/ 1 x)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec2 "" [x y] {:x x :y y})
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def *gravity* (vec2 0 -20))
-(def VEC_ZERO (vec2 0 0))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn v2-len "" [v] (pythag (:x v) (:y v)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-add "" [v1 v2]
-  (vec2 (+ (:x v1) (:x v2)) (+ (:y v1) (:y v2))))
+(defn v2-add "" [v1 v2] (vec2 (+ (:x v1) (:x v2)) (+ (:y v1) (:y v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-sub "" [v1 v2]
-  (vec2 (- (:x v1) (:x v2)) (- (:y v1) (:y v2))))
+(defn v2-sub "" [v1 v2] (vec2 (- (:x v1) (:x v2)) (- (:y v1) (:y v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-scale
-  "" [v n] (vec2 (* n (:x v)) (* n (:y v))))
+(defn v2-scale "" [v n] (vec2 (* n (:x v)) (* n (:y v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-dot "" [v1 v2]
-  (+ (* (:x v1) (:x v2)) (* (:y v1) (:y v2))))
+(defn v2-dot "" [v1 v2] (+ (* (:x v1) (:x v2)) (* (:y v1) (:y v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-cross "" [v1 v2]
-  (- (* (:x v1) (:y v2)) (* (:y v1) (:x v2))))
+(defn v2-cross "" [v1 v2] (- (* (:x v1) (:y v2)) (* (:y v1) (:x v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn v2-rot "rotate counter-clockwise" [v1 center angle]
@@ -80,9 +75,8 @@
         cos (js/Math.cos angle)
         sin (js/Math.sin angle)
         x (- (:x v1) cx) y (- (:y v1) cy)]
-    (vec2
-      (+ cx (- (* x cos) (* y sin)))
-      (+ cy (+ (* x sin) (* y cos))))))
+    (vec2 (+ cx (- (* x cos) (* y sin)))
+          (+ cy (+ (* x sin) (* y cos))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn v2-norm "" [v1]
@@ -96,7 +90,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- collisionInfo "" []
-  (atom {:depth 0 :normal VEC_ZERO :start VEC_ZERO :End VEC_ZERO}))
+  (atom {:depth 0 :normal VEC_ZERO :start VEC_ZERO :end VEC_ZERO}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- setCollisionInfo! "" [ci d n s]
@@ -116,43 +110,44 @@
                   :normal (v2-scale normal -1)))) ci)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- RigidShape "" [center mass friction restitution]
-  (let [mass' (if (number? mass) mass 1)]
-    (atom {:center center
-           :inertia 0
-           :sticky (if (number? friction) friction 0.8)
-           :bounce (if (number? restitution) restitution 0.2)
-           :velocity VEC_ZERO
-           :invMass (inv! mass')
-           :accel (if (zero? mass') VEC_ZERO *gravity*)
-           :angle 0
-           :angVel 0 ;; clockwise = negative
-           :angAccel 0
-           :bxRadius 0})))
+(defn- RigidShape "" [center & [mass friction restitution]]
+  (let [{:keys [gravity samples]} @*gWorld*
+        mass' (if (number? mass) mass 1)
+        ret (atom {:invMass (inv! mass')
+                   :center center
+                   :oid (nextShapeNum)
+                   :inertia 0
+                   :vel VEC_ZERO
+                   :angle 0
+                   :angVel 0 ;; clockwise = negative
+                   :angAccel 0
+                   :bxRadius 0
+                   :accel (if (zero? mass') VEC_ZERO gravity)
+                   :sticky (if (number? friction) friction 0.8)
+                   :bounce (if (number? restitution) restitution 0.2)})]
+    (.push samples ret)
+    ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn collisionTest "" [s1 s2 ci] ((:collisionTest s1) s1 s2 ci))
+(defn collisionTest?? "" [s1 s2 ci] ((:collisionTest @s1) s1 s2 ci))
 (defn updateInertia! "" [s] ((:updateInertia @s) s) s)
 (defn move! "" [s p] ((:move @s) s p) s)
 (defn rotate! "" [s v] ((:rotate @s) s v) s)
+(defn draw "" [s c] ((:draw @s) s c) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateMass! "" [s delta]
-  (let [{:keys [invMass]} @s
+  (let [{:keys [gravity]} @*gWorld*
+        {:keys [invMass]} @s
         mass (+ (inv! invMass) delta)]
     (if (pos? mass)
-      (swap! s #(assoc % :invMass (inv! mass) :accel *gravity*))
-      (swap! s #(assoc %
-                       :invMass 0
-                       :vel VEC_ZERO
-                       :accel VEC_ZERO
-                       :angVel 0
-                       :angAccel 0)))
+      (swap! s #(assoc % :invMass (inv! mass) :accel gravity))
+      (swap! s #(assoc % :invMass 0 :vel VEC_ZERO :accel VEC_ZERO :angVel 0 :angAccel 0)))
     (updateInertia! s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateShape! "" [s dt]
-  (let [{:keys [top right bottom left height width samples]} @world]
+  (let [{:keys [top right bottom left height width samples]} @*gWorld*]
     (when mMovement?
       ;; v = v + a*t
       (swap! s (fn [{:keys [vel accel] :as root}]
@@ -172,7 +167,7 @@
           (if-not (neg? pos) (.splice samples pos 1)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- boundTest? "true if overlapping" [s1 s2]
+(defn- overlap? "" [s1 s2]
   (let [{c1 :center r1 :bxRadius} @s1
         {c2 :center r2 :bxRadius} @s2
         v1to2 (v2-sub c2 c1)] (not (> (v2-len v1to2) (+ r1 r2)))))
@@ -180,30 +175,25 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;rect-stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- supportInfo "" [] (atom {:supportPt nil :supportPtDist 0}))
-(def *tmpSupport* (supportInfo))
-(defn- supportInfo* "" [d p] (atom {:supportPt p :supportPtDist d}))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findSupportPoint "" [r1 dir ptOnEdge]
   (let [{:keys [vertices]} @r1
         len (count vertices)]
-    (loop [supportPointDist -9999999 supportPoint nil i 0]
+    (loop [spDist -9999999 sp nil i 0]
       (if (>= i len)
-        (supportInfo* supportPointDist supportPoint)
+        [spDist sp]
         (let [v' (nth vertices i)
-              ii (+ 1 i)
+              ii (+ i 1)
               proj (v2-dot (v2-sub v' ptOnEdge) dir)]
           ;;find the longest distance with certain edge
           ;;dir is -n direction, so the distance should be positive
           (if (and (pos? proj)
-                   (> proj supportPointDist))
+                   (> proj spDist))
             (recur proj v' ii)
-            (recur supportPointDist supportPoint ii)))))))
+            (recur spDist sp ii)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- findAxisLeastPenetration
-  "Find the shortest axis that overlapping" [r1 r2 ci]
+(defn- hasAxisLeastPenetration?
+  "Find the shortest axis that's overlapping" [r1 r2 ci]
   (let [{:keys [vertices normals]} @r1
         len (count normals)
         [supportPoint bestDist bestIndex hasSupport?]
@@ -217,13 +207,13 @@
                   dir (v2-scale n -1)
                   ptOnEdge (nth vertices i)
                   ;;find the support on B, the point has longest distance with edge i
-                  {:keys [supportPt supportPtDist]}
+                  [supportPtDist supportPt]
                   (findSupportPoint r2  dir ptOnEdge)
                   sp? (not (nil? supportPt))]
-          ;;get the shortest support point depth
-          (if (and sp? (< supportPtDist bestDist))
-            (recur supportPt supportPtDist i sp? ii)
-            (recur suPt bestDist bestIdx sp? ii)))))]
+              ;;get the shortest support point depth
+              (if (and sp? (< supportPtDist bestDist))
+                (recur supportPt supportPtDist i sp? ii)
+                (recur suPt bestDist bestIdx sp? ii)))))]
     (when hasSupport? ;;all four directions have support points
       (let [bn (nth normals bestIndex)
             bv (v2-scale bn bestDist)]
@@ -231,13 +221,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectCollidedRectRect
-  "Check for collision between RigidRectangle and RigidRectangle"
+  "Check for collision between 2 rectangles"
   [r1 r2 ci]
   ;;find Axis of Separation for both rectangle
   (let [ci_1 (collisionInfo)
         ci_2 (collisionInfo)
-        p1? (findAxisLeastPenetration r1 r2 ci_1)
-        p2? (if p1? (findAxisLeastPenetration r2 r1 ci_2))]
+        p1? (hasAxisLeastPenetration? r1 r2 ci_1)
+        p2? (if p1? (hasAxisLeastPenetration? r2 r1 ci_2))]
     (when p2?
       ;;if both of rectangles are overlapping,
       ;;choose the shorter normal as the normal
@@ -251,11 +241,11 @@
     (and p1? p2?)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circleInsideRect "" [r1 cc1 ci nEdge bestDist]
+(defn- circleInsideRect? "" [r1 cc1 ci nEdge bestDist]
   (let [{:keys [normals vertices]} @r1
         {:keys [radius center]} @cc1
         n (nth normals nEdge)
-        rVec (v2-scale n (:radius @cc1))]
+        rVec (v2-scale n radius)]
     (setCollisionInfo! ci
                        (- radius bestDist)
                        n
@@ -269,9 +259,7 @@
     (loop [inside? true
            bestDist -99999 nEdge 0 i 0]
       (if (or (not inside?) (>= i len))
-        {:inside? inside?
-         :bestDist bestDist
-         :nEdge nEdge}
+        {:inside? inside? :bestDist bestDist :nEdge nEdge}
         (let [v (v2-sub center (nth vertices i))
               ii (+ i 1)
               proj (v2-dot v (nth normals i))]
@@ -282,7 +270,7 @@
             :else (recur inside? bestDist nEdge ii)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circleOutsideRect "" [r1 cc1 ci nEdge bestDist]
+(defn- circleOutsideRect? "" [r1 cc1 ci nEdge bestDist]
   (let [{:keys [normals vertices]} @r1
         {:keys [radius center]} @cc1
         vn (nth vertices nEdge)
@@ -336,8 +324,8 @@
   (let [{:keys [inside? bestDist nEdge]}
         (findNFaceToCircle r1 cc1 ci)]
     (if inside?
-      (circleInsideRect r1 cc1 ci nEdge bestDist)
-      (circleOutsideRect r1 cc1 ci nEdge bestDist))))
+      (circleInsideRect? r1 cc1 ci nEdge bestDist)
+      (circleOutsideRect? r1 cc1 ci nEdge bestDist))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectCollisionTest "" [s1 s2 ci]
@@ -393,8 +381,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectDraw "" [r1 context]
-  (let [{:keys [vertices width height angle]} @r1
+  (let [{:keys [vertices width height angle oid]} @r1
         {:keys [x y]} (nth vertices 0)]
+    ;(js/console.log (str "draw rect: " oid))
     (ocall! context "save")
     (ocall! context "translate" x y)
     (ocall! context "rotate" angle)
@@ -402,7 +391,7 @@
     (ocall! context "restore")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Rectangle "" [center width height mass friction restitution]
+(defn Rectangle "" [center width height & [mass friction restitution]]
   (let [{:keys [x y]} center
         hw (* 0.5 width)
         hh (* 0.5 height)
@@ -467,10 +456,10 @@
       false
       (zero? dist) ;;centers overlap
       (do (setCollisionInfo! ci
-                         rSum
-                         (vec2 0 -1)
-                         (if (> r1 r2)
-                           (v2-add c1 (vec2 0 r1)) (v2-add c2 (vec2 0 r2)))) true)
+                             rSum
+                             (vec2 0 -1)
+                             (if (> r1 r2)
+                               (v2-add c1 (vec2 0 r1)) (v2-add c2 (vec2 0 r2)))) true)
       :else ;overlap
       (let [rC2 (-> (v2-norm (v2-scale v1to2 -1)) (v2-scale r2))]
         (setCollisionInfo! ci
@@ -481,12 +470,12 @@
   (if (= (:type @s2) :circle)
     (circleCollidedCircCirc s1 s2 ci) (rectCollidedRectCirc s2 s1 ci)))
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleDraw "" [c1 context]
-  (let [{:keys [center radius startPt]} @c1
+  (let [{:keys [center radius startPt oid]} @c1
         {:keys [x y]} center
         {sx :x sy :y} startPt]
+    ;(js/console.log (str "draw circle: " oid))
     (ocall! context "beginPath")
     (ocall! context "arc" x y radius 0 (* 2 js/Math.PI) true)
     (ocall! context "moveTo" sx sy)
@@ -495,7 +484,7 @@
     (ocall! context "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Circle "" [center radius mass friction restitution]
+(defn Circle "" [center radius & [mass friction restitution]]
   (let [{:keys [x y]} center
         s (RigidShape center mass friction restitution)]
     (swap! s
@@ -503,6 +492,7 @@
                    {:collisionTest circleCollisionTest
                     :updateInertia circleUpdateInertia
                     :rotate  circleRotate
+                    :draw circleDraw
                     :move circleMove
                     :type :circle
                     :radius radius
@@ -568,15 +558,14 @@
                     :angVel (+ angVel (* r2xN jN e2))
                     :vel (v2-add vel (v2-scale impulse m2)))))
     ;;rVelocity.dot(tangent) should less than 0
-    (let [tangent (->>
-                    (v2-dot rVelocity normal)
-                    (v2-scale normal)
-                    (v2-sub rVelocity)
-                    (v2-norm )
-                    (v2-scale -1))
+    (let [tangent (-> (->> (v2-dot rVelocity normal)
+                           (v2-scale normal)
+                           (v2-sub rVelocity)
+                           (v2-norm ))
+                      (v2-scale -1))
           r1xT (v2-cross r1 tangent)
           r2xT (v2-cross r2 tangent)
-          jT' (/ (* (- (1 + bounce')) (v2-dot rVelocity tangent) sticky')
+          jT' (/ (* (- (+ 1 bounce')) (v2-dot rVelocity tangent) sticky')
                  (+ m1 m2 (* r1xT r1xT e1) (* r2xT r2xT e2)))
           ;;friction should less than force in normal direction
           jT (if (> jT' jN) jN jT')
@@ -620,8 +609,9 @@
         (resolveCollision* s1 s2 r1 r2 ci rVelocity rVelocityInNormal)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- collision* "" [samples]
-  (let [len (count samples)
+(defn- checkCollision* "" []
+  (let [{:keys [samples context]} @*gWorld*
+        len (count samples)
         ci (collisionInfo)]
     (loop [i 0]
       (when-not (>= i len)
@@ -629,8 +619,8 @@
           (when-not (>= j len)
             (let [si (nth samples i)
                   sj (nth samples j)]
-              (when (and (boundTest? si sj)
-                         (collisionTest si sj ci))
+              (when (and (overlap? si sj)
+                         (collisionTest?? si sj ci))
                 ;;make sure the normal is always from object[i] to object[j]
                 (if (neg? (v2-dot (:normal @ci)
                                   (v2-sub (:center @sj)
@@ -643,8 +633,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn checkCollision "" []
-  (let [{:keys [samples]} @world]
-    (dotimes [_ *relaxCount*] (collision* samples))))
+  (dotimes [_ *relaxCount*] (checkCollision*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn alterShapeAttr! "" [s attr & more]
@@ -659,25 +648,24 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-(def gObjectNum  0)
-(defn userControl "" [evt]
+(defn ^:export userControl "" [evt]
   (let [key (or (oget evt "?keyCode")
                 (oget evt "?which"))
-        {:keys [samples]} *gWorld*
-        s (nth samples gObjectNum)
+        {:keys [cur samples]} @*gWorld*
+        s (nth samples cur)
         len (count samples)
         offset (- key 48)]
     (cond
       (and (>= key 48)
            (<= key 57))
       (if (< (- offset 48) len)
-        (set! gObjectNum offset))
+        (swap! *gWorld* #(assoc % :cur offset)))
       (= key 38) ;up arrow
-      (if (pos? gObjectNum)
-        (set! gObjectNum (dec gObjectNum)))
+      (if (pos? cur)
+        (swap! *gWorld* #(assoc % :cur (dec cur))))
       (= key 40) ;down arrow
-      (if (< gObjectNum (- len 1))
-        (set! gObjectNum (inc gObjectNum)))
+      (if (< cur (- len 1))
+        (swap! *gWorld* #(assoc % :cur (inc cur))))
       (= key 87) ;;W
       (move! s (vec2 0 -10))
       (= key 83) ;;S
@@ -720,23 +708,25 @@
       (set! mMovement? (not mMovement?))
       (= key 70);f
       (let [{{:keys [x y]} :center} @s
-            r1 (Rectangle (vec2 x y) (+ 10 (rand 30)) (+ 10 (rand 30)) (rand 30) (rand) (rand))]
+            r1 (Rectangle (vec2 x y)
+                          (+ 10 (rand 30))
+                          (+ 10 (rand 30)) (rand 30) (rand) (rand))]
         (alterShapeAttr! r1 (vec2 (- (rand 300) 150) (- (rand 300) 150))))
       (= key 71) ;;g
       (let [{{:keys [x y]} :center} @s
-            c1 (Circle (vec2 x y) (+ 20 (rand 10)) (rand 30) (rand) (rand))]
+            c1 (Circle (vec2 x y)
+                       (+ 20 (rand 10)) (rand 30) (rand) (rand))]
         (alterShapeAttr! c1 (vec2 (- (rand 300) 150) (- (rand 300) 150))))
       (= key 72);H
       (doseq [s samples
               :let [{:keys [invMass]} @s]]
-        (if-not (zero? invMass)
+        (if (pos? invMass)
           (alterShapeAttr! s :vel (vec2 (- (rand 500) 250)
                                         (- (rand 500) 250))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateUIEcho "" []
-  (let [html (js/document.getElementById "uiEchoString")
-        {:keys [cur samples]} @*gWorld*
+  (let [{:keys [uiEcho cur samples]} @*gWorld*
         obj (nth samples cur)
         {:keys [sticky bounce invMass angVel vel angle center]} @obj]
     (->> (str "<p><b>Selected Object:</b>:</p>"
@@ -767,20 +757,20 @@
               "<p><b>H</b>: Excite all objects</p>"
               "<p><b>R</b>: Reset System</p>"
               "<hr>")
-         (oset! html "!innerHTML" ))))
+         (oset! uiEcho "!innerHTML" ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- drawGame "" []
   (let [{:keys [cur samples
                 width height context]} @*gWorld*
         len (count samples)]
-    (ocall! ctx "clearRect" 0 0 width height)
+    (ocall! context "clearRect" 0 0 width height)
     (loop [i 0]
       (when (< i len)
         (oset! context
                "!strokeStyle"
                (if (= i cur) "red" "blue"))
-        (ocall! (nth samples cur) "draw" context)
+        (draw (nth samples i) context)
         (recur (+ i 1))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -802,22 +792,30 @@
   ;;Update only every Milliseconds per frame.
   ;;If lag larger then update frames, update until caught up.
   (while (>= mLagTime kMPF)
-    (set! mLagTime (- mLagTime kMPF)) (checkCollision) (update! )))
+    ;(js/console.log "entered update loop")
+    (set! mLagTime (- mLagTime kMPF))
+    (checkCollision)
+    (update! ))
+  ;(js/console.log "end game loop")
+  nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn MyGame "" []
-  (let [canvas (js/document.getElementById "canvas")
+(defn ^:export MyGame "" []
+  (let [html (js/document.getElementById "uiEchoString")
+        canvas (js/document.getElementById "canvas")
         context (ocall! canvas "getContext" "2d")
         {:keys [width height]} @*gWorld*
         _ (oset! canvas "height" height)
         _ (oset! canvas "width" width)
-        _ (swap! *gWorld* #(assoc % :canvas canvas :context context))
+        _ (swap! *gWorld* #(assoc %
+                                  :uiEcho html
+                                  :canvas canvas :context context))
         r1 (Rectangle (vec2 500 200) 400 20 0 0.3 0)
         r2 (Rectangle (vec2 200 400) 400 20 0 1 0.5)
         r3 (Rectangle (vec2 100 200) 200 20 0)
         r4 (Rectangle (vec2 10 360) 20 100 0 0 1)]
     (rotate! r1 2.8)
-    (dotimes [i (range 10)]
+    (dotimes [i 10]
       (-> (Rectangle (vec2 (rand width)
                            (rand (/ height 2)))
                      (+ 10 (rand 50)) (+ 10 (rand 50)) (rand 30) (rand) (rand))
@@ -833,5 +831,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
 
+
+(set! js/userControl userControl)
+(set! js/MyGame MyGame)
 
 
