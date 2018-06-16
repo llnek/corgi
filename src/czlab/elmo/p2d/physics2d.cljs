@@ -21,35 +21,18 @@
 (defn vec2 "" [x y] {:x x :y y})
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def VEC_ZERO (vec2 0 0))
-(def *shapeNum* (atom 0))
+(def ^:private *shapeNum* (atom 0))
 (defn- nextShapeNum "" [] (swap! *shapeNum* inc))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def *gWorld*
-  (atom {:samples (array)
-         :context nil
-         :cur 0
-         :canvas nil
-         :top 0
-         :right 799
-         :bottom 449
-         :left 0
-         :width 800
-         :height 450
-         :gravity (vec2 0 20)}))
-(def mPositionalCorrection? true)
-(def mPreviousTime (system-time))
-(def mMovement? true)
-(def mCurrentTime 0)
-(def mElapsedTime 0)
-(def mLagTime 0)
-(def kFPS 60)
-(def kFrameSecs (inv! kFPS))
-(def kMPF (* 1000 kFrameSecs))
+(def ^:private *gWorld* (atom {:samples (array)
+                               :context nil :cur 0 :canvas nil}))
+(def ^:private kPositionalCorrection? true)
+(def ^:private kMovement? true)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- pythagSQ "" [x y] (+ (* x x) (* y y)))
-(defn- pythag "" [x y] (js/Math.sqrt (pythagSQ x y)))
+(defn pythagSQ "" [x y] (+ (* x x) (* y y)))
+(defn pythag "" [x y] (js/Math.sqrt (pythagSQ x y)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn v2-len "" [v] (pythag (:x v) (:y v)))
@@ -114,10 +97,11 @@
   (let [{:keys [gravity samples]} @*gWorld*
         mass' (if (number? mass) mass 1)
         ret (atom {:invMass (inv! mass')
-                   :center center
                    :oid (nextShapeNum)
+                   :center center
                    :inertia 0
                    :vel VEC_ZERO
+                   :oob? false
                    :angle 0
                    :angVel 0 ;; clockwise = negative
                    :angAccel 0
@@ -125,30 +109,32 @@
                    :accel (if (zero? mass') VEC_ZERO gravity)
                    :sticky (if (number? friction) friction 0.8)
                    :bounce (if (number? restitution) restitution 0.2)})]
-    (.push samples ret)
-    ret))
+    (.push samples ret) ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collisionTest?? "" [s1 s2 ci] ((:collisionTest @s1) s1 s2 ci))
 (defn updateInertia! "" [s] ((:updateInertia @s) s) s)
+(defn draw "" [s c] ((:draw @s) s c) s)
 (defn move! "" [s p] ((:move @s) s p) s)
 (defn rotate! "" [s v] ((:rotate @s) s v) s)
-(defn draw "" [s c] ((:draw @s) s c) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateMass! "" [s delta]
   (let [{:keys [gravity]} @*gWorld*
         {:keys [invMass]} @s
-        mass (+ (inv! invMass) delta)]
-    (if (pos? mass)
-      (swap! s #(assoc % :invMass (inv! mass) :accel gravity))
-      (swap! s #(assoc % :invMass 0 :vel VEC_ZERO :accel VEC_ZERO :angVel 0 :angAccel 0)))
+        m (+ (inv! invMass) delta)]
+    (swap! s
+           #(merge %
+                   (if (pos? m)
+                     {:invMass (inv! m) :accel gravity}
+                     {:invMass 0 :vel VEC_ZERO
+                      :accel VEC_ZERO :angVel 0 :angAccel 0})))
     (updateInertia! s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateShape! "" [s dt]
-  (let [{:keys [top right bottom left height width samples]} @*gWorld*]
-    (when mMovement?
+  (let [{:keys [height width samples]} @*gWorld*]
+    (when kMovement?
       ;; v = v + a*t
       (swap! s (fn [{:keys [vel accel] :as root}]
                  (assoc root :vel (v2-add vel (v2-scale accel dt)))))
@@ -158,13 +144,13 @@
       (swap! s (fn [{:keys [angVel angAccel] :as root}]
                  (assoc root :angVel (+ angVel (* angAccel dt)))))
       (rotate! s (* (:angVel @s) dt)))
+
     (let [{cx :x cy :y} (:center @s)]
       (when (or (< cx 0)
                 (> cx width)
                 (< cy 0)
                 (> cy height))
-        (let [pos (.indexOf samples s)]
-          (if-not (neg? pos) (.splice samples pos 1)))))))
+        (swap! s #(assoc % :oob? true))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- overlap? "" [s1 s2]
@@ -587,7 +573,7 @@
 (defn- resolveCollision "" [s1 s2 ci]
   (when-not (and (zero? (:invMass @s1))
                  (zero? (:invMass @s2)))
-    (if mPositionalCorrection? (correctPos! s1 s2 ci))
+    (if kPositionalCorrection? (correctPos! s1 s2 ci))
     ;;the direction of collisionInfo is always from s1 to s2
     ;;but the Mass is inversed, so start scale with s2 and end scale with s1
     (let
@@ -619,7 +605,9 @@
           (when-not (>= j len)
             (let [si (nth samples i)
                   sj (nth samples j)]
-              (when (and (overlap? si sj)
+              (when (and (not (:oob? @si))
+                         (not (:oob? @sj))
+                         (overlap? si sj)
                          (collisionTest?? si sj ci))
                 ;;make sure the normal is always from object[i] to object[j]
                 (if (neg? (v2-dot (:normal @ci)
@@ -703,9 +691,9 @@
       (= key 78) ;N
       (alterShapeAttr! s :bounce 0.01)
       (= key 77) ;M
-      (set! mPositionalCorrection? (not mPositionalCorrection?))
+      (set! kPositionalCorrection? (not kPositionalCorrection?))
       (= key 188) ; ;
-      (set! mMovement? (not mMovement?))
+      (set! kMovement? (not kMovement?))
       (= key 70);f
       (let [{{:keys [x y]} :center} @s
             r1 (Rectangle (vec2 x y)
@@ -739,8 +727,8 @@
               "<li>Mass: " (inv! invMass) "</li>"
               "<li>Friction: " sticky "</li>"
               "<li>Restitution: " bounce "</li>"
-              "<li>Positional Correction: " mPositionalCorrection? "</li>"
-              "<li>Movement: " mMovement? "</li>"
+              "<li>Positional Correction: " kPositionalCorrection? "</li>"
+              "<li>Movement: " kMovement? "</li>"
               "</ul> <hr>"
               "<p><b>Control</b>: of selected object</p>"
               "<ul style=\"margin:-10px\">"
@@ -767,40 +755,59 @@
     (ocall! context "clearRect" 0 0 width height)
     (loop [i 0]
       (when (< i len)
-        (oset! context
-               "!strokeStyle"
-               (if (= i cur) "red" "blue"))
-        (draw (nth samples i) context)
+        (let [s (nth samples i)
+              {:keys [oob?]} @s]
+          (when-not oob?
+            (oset! context
+                   "!strokeStyle" (if (= i cur) "red" "blue"))
+            (draw s context)))
         (recur (+ i 1))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- update! "" []
-  (let [{:keys [context samples]} @*gWorld*]
-    (doseq [s samples] (updateShape! s kFrameSecs))))
+  (let [{:keys [context samples frameSecs]} @*gWorld*]
+    (doseq [s samples
+            :let [{:keys [oob?]} @s]]
+      (if-not oob?
+        (updateShape! s frameSecs)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn runGameLoop "" []
+(def ^:private prevMillis (system-time))
+(def ^:private nowMillis 0)
+(def ^:private lagMillis 0)
+(def ^:private deltaMillis 0)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- runGameLoop "" []
   (js/requestAnimationFrame #(runGameLoop))
-  ;;compute how much time has elapsed since we last runGameLoop was executed
-  (set! mCurrentTime (system-time))
-  (set! mElapsedTime (- mCurrentTime mPreviousTime))
-  (set! mPreviousTime mCurrentTime)
-  (set! mLagTime (+ mLagTime mElapsedTime))
+  (set! nowMillis (system-time))
+  (set! deltaMillis (- nowMillis prevMillis))
+  (set! prevMillis nowMillis)
+  (set! lagMillis (+ lagMillis deltaMillis))
   (updateUIEcho)
   (drawGame)
   ;;Make sure we update the game the appropriate number of times.
   ;;Update only every Milliseconds per frame.
   ;;If lag larger then update frames, update until caught up.
-  (while (>= mLagTime kMPF)
-    ;(js/console.log "entered update loop")
-    (set! mLagTime (- mLagTime kMPF))
-    (checkCollision)
-    (update! ))
-  ;(js/console.log "end game loop")
-  nil)
+  (let [{:keys [frameMillis]} @*gWorld*]
+    (while (>= lagMillis frameMillis)
+      (set! lagMillis (- lagMillis frameMillis))
+      (checkCollision)
+      (update! ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn ^:export MyGame "" []
+(defn- initPhysics "" [gravity fps {:keys [width height] :as options}]
+  (swap! *gWorld*
+         #(assoc %
+                 :FPS fps
+                 :width width
+                 :height height
+                 :gravity (vec2 0 gravity)
+                 :frameSecs (inv! fps)
+                 :frameMillis (* 1000 (inv! fps)))) *gWorld*)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- myGame "" []
+  (initPhysics 20 60 {:width 800 :height 450})
   (let [html (js/document.getElementById "uiEchoString")
         canvas (js/document.getElementById "canvas")
         context (ocall! canvas "getContext" "2d")
@@ -815,7 +822,7 @@
         r3 (Rectangle (vec2 100 200) 200 20 0)
         r4 (Rectangle (vec2 10 360) 20 100 0 0 1)]
     (rotate! r1 2.8)
-    (dotimes [i 10]
+    (dotimes [i 4]
       (-> (Rectangle (vec2 (rand width)
                            (rand (/ height 2)))
                      (+ 10 (rand 50)) (+ 10 (rand 50)) (rand 30) (rand) (rand))
@@ -830,9 +837,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
-
 (set! js/userControl userControl)
-(set! js/MyGame MyGame)
+(set! js/MyGame myGame)
 
 
