@@ -17,7 +17,7 @@
     [czlab.elmo.afx.core
      :as ec :refer [each-indexed applyScalarOp
                     half* f#* n# _1 _2 do-with numStr]]
-    [czlab.elmo.afx.ccsx
+    [czlab.elmo.cc.ccsx
      :as cx :refer [oget-x oget-y oget-piccy
                     oget-bottom oget-right
                     sprite* attr* ccmenu?

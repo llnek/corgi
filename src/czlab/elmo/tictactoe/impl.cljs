@@ -15,14 +15,14 @@
     [czlab.elmo.afx.core
      :as ec :refer [do->true
                     nneg? f#* n# _1 _2 do-with]]
-    [czlab.elmo.afx.ccsx
+    [czlab.elmo.cc.ccsx
      :as cx :refer [oget-bottom oget-right gcbyn
                     oget-x oget-y oget-left oget-top]])
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
-    [czlab.elmo.afx.ccsx
+    [czlab.elmo.cc.ccsx
      :as cx :refer [*game-arena* *game-scene* *xcfg*]]
-    [czlab.elmo.afx.dialog :as dlg]
+    [czlab.elmo.cc.dialog :as dlg]
     [czlab.elmo.tictactoe.board :as bot]
     [czlab.elmo.tictactoe.misc :as mc]
     [czlab.elmo.tictactoe.hud :as hud]

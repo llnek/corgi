@@ -11,82 +11,35 @@
 
   czlab.elmo.p2d.physics2d
 
-  (:require [czlab.elmo.afx.core :as ec]
-            [oops.core :refer [oget oset!
-                               ocall oapply
-                               ocall! oapply!]]))
+  (:require [czlab.elmo.afx.core :as ec :refer [invert]]
+            [czlab.elmo.afx.gfx2d
+             :as gx :refer [pythag pythagSQ TWO-PI PI
+                            vec2 VEC_ZERO
+                            v2-len v2-add v2-sub v2-dot
+                            v2-negate v2-scale v2-cross v2-rot v2-norm v2-dist]]
+            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- inv! "" [x] (if (zero? x) 0 (/ 1 x)))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec2 "" [x y] {:x x :y y})
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def VEC_ZERO (vec2 0 0))
 (def ^:private *shapeNum* (atom 0))
 (defn- nextShapeNum "" [] (swap! *shapeNum* inc))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private *gWorld* (atom {:samples (ec/createStore 10)
                                :context nil :cur 0 :canvas nil}))
-(def ^:private kPositionalCorrection? true)
-(def ^:private kMovement? true)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn pythagSQ "" [x y] (+ (* x x) (* y y)))
-(defn pythag "" [x y] (js/Math.sqrt (pythagSQ x y)))
+(defn- collisionInfo
+  "" [] (atom {:depth 0 :normal VEC_ZERO :start VEC_ZERO :end VEC_ZERO}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-len "" [v] (pythag (:x v) (:y v)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-add "" [v1 v2] (vec2 (+ (:x v1) (:x v2)) (+ (:y v1) (:y v2))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-sub "" [v1 v2] (vec2 (- (:x v1) (:x v2)) (- (:y v1) (:y v2))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-scale "" [v n] (vec2 (* n (:x v)) (* n (:y v))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-dot "" [v1 v2] (+ (* (:x v1) (:x v2)) (* (:y v1) (:y v2))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-cross "" [v1 v2] (- (* (:x v1) (:y v2)) (* (:y v1) (:x v2))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-rot "rotate counter-clockwise" [v1 center angle]
-  (let [{cx :x cy :y} center
-        cos (js/Math.cos angle)
-        sin (js/Math.sin angle)
-        x (- (:x v1) cx) y (- (:y v1) cy)]
-    (vec2 (+ cx (- (* x cos) (* y sin)))
-          (+ cy (+ (* x sin) (* y cos))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-norm "" [v1]
-  (let [len (inv! (v2-len v1))]
-    (vec2 (* len (:x v1)) (* len (:y v1)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-dist "" [v1 v2]
-  (pythag (- (:x v1) (:x v2))
-          (- (:y v1) (:y v2))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- collisionInfo "" []
-  (atom {:depth 0 :normal VEC_ZERO :start VEC_ZERO :end VEC_ZERO}))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- setCollisionInfo! "" [ci d n s]
+(defn- chgci! "" [ci d n s]
   (swap! ci
          #(assoc %
-                 :depth d
-                 :normal n
-                 :start s
-                 :end (v2-add s (v2-scale n d)))) ci)
+                 :depth d :normal n
+                 :start s :end (v2-add s (v2-scale n d)))) ci)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- changeCollisionDir "" [ci]
+(defn- revCIDir! "" [ci]
   (swap! ci
          (fn [{:keys [start end normal] :as root}]
            (assoc root
@@ -97,7 +50,7 @@
 (defn- RigidShape "" [center & [mass friction restitution]]
   (let [{:keys [gravity samples]} @*gWorld*
         mass' (if (number? mass) mass 1)
-        ret (atom {:invMass (inv! mass')
+        ret (atom {:invMass (invert mass')
                    :oid (nextShapeNum)
                    :center center
                    :inertia 0
@@ -123,27 +76,28 @@
 (defn updateMass! "" [s delta]
   (let [{:keys [gravity]} @*gWorld*
         {:keys [invMass]} @s
-        m (+ (inv! invMass) delta)]
+        m (+ (invert invMass) delta)]
     (swap! s
            #(merge %
                    (if (pos? m)
-                     {:invMass (inv! m) :accel gravity}
+                     {:invMass (invert m) :accel gravity}
                      {:invMass 0 :vel VEC_ZERO
                       :accel VEC_ZERO :angVel 0 :angAccel 0})))
     (updateInertia! s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn updateShape! "" [s dt]
+(defn- updateShape! "" [s dt]
   (let [{:keys [height width samples]} @*gWorld*]
-    (when kMovement?
-      ;; v = v + a*t
+    (when true
+      ;;update vel += a*t
       (swap! s (fn [{:keys [vel accel] :as root}]
                  (assoc root :vel (v2-add vel (v2-scale accel dt)))))
-      ;;s = x + v*t
+      ;;move object += v*dt
       (move! s (v2-scale (:vel @s) dt))
-
+      ;;update angular vel
       (swap! s (fn [{:keys [angVel angAccel] :as root}]
                  (assoc root :angVel (+ angVel (* angAccel dt)))))
+      ;rotate object
       (rotate! s (* (:angVel @s) dt)))
 
     (let [{cx :x cy :y} (:center @s)]
@@ -162,10 +116,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;rect-stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- findSupportPoint "" [r1 dir ptOnEdge]
-  (let [{:keys [vertices]} @r1
+(defn- findSPoint?? "" [r1 dir ptOnEdge]
+  (let [{:keys [vertices]}
+        @r1
         len (count vertices)]
-    (loop [spDist -9999999 sp nil i 0]
+    (loop [spDist js/Number.NEGATIVE_INFINITY sp nil i 0]
       (if (>= i len)
         [spDist sp]
         (let [v' (nth vertices i)
@@ -183,28 +138,26 @@
   "Find the shortest axis that's overlapping" [r1 r2 ci]
   (let [{:keys [vertices normals]} @r1
         len (count normals)
-        [supportPoint bestDist bestIndex hasSupport?]
-        (loop [suPt nil bestDist 999999
-               bestIdx nil hasSupport? true i 0]
-          (if-not (and hasSupport? (< i len))
-            [suPt bestDist bestIdx hasSupport?]
+        [bestDist supportPoint bestIndex hasSupport?]
+        (loop [bestDist js/Number.POSITIVE_INFINITY
+               suPt nil bestIdx nil hasSupport? true i 0]
+          (if-not (and (< i len)
+                       hasSupport?)
+            [bestDist suPt bestIdx hasSupport?]
             (let [n (nth normals i)
                   ii (+ i 1)
-                  ;;use -n as direction and the vectex on edge i as point on edge
-                  dir (v2-scale n -1)
+                  dir (v2-negate n)
                   ptOnEdge (nth vertices i)
-                  ;;find the support on B, the point has longest distance with edge i
-                  [supportPtDist supportPt]
-                  (findSupportPoint r2  dir ptOnEdge)
-                  sp? (not (nil? supportPt))]
-              ;;get the shortest support point depth
-              (if (and sp? (< supportPtDist bestDist))
-                (recur supportPt supportPtDist i sp? ii)
-                (recur suPt bestDist bestIdx sp? ii)))))]
+                  [dist pt]
+                  (findSPoint?? r2  dir ptOnEdge)
+                  sp? (not (nil? pt))]
+              (if (and sp? (< dist bestDist))
+                (recur dist pt i sp? ii)
+                (recur bestDist suPt bestIdx sp? ii)))))]
     (when hasSupport? ;;all four directions have support points
       (let [bn (nth normals bestIndex)
             bv (v2-scale bn bestDist)]
-        (setCollisionInfo! ci bestDist bn (v2-add supportPoint bv)))) hasSupport?))
+        (chgci! ci bestDist bn (v2-add supportPoint bv)))) hasSupport?))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectCollidedRectRect
@@ -221,10 +174,8 @@
       (let [{d1 :depth n1 :normal s1 :start} @ci_1
             {d2 :depth n2 :normal s2 :start} @ci_2]
         (if (< d1 d2)
-          (setCollisionInfo! ci d1 n1
-                             (v2-sub s1 (v2-scale n1 d1)))
-          (setCollisionInfo! ci d2
-                             (v2-scale n2 -1) s2))))
+          (chgci! ci d1 n1 (v2-sub s1 (v2-scale n1 d1)))
+          (chgci! ci d2 (v2-negate n2) s2))))
     (and p1? p2?)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -233,20 +184,17 @@
         {:keys [radius center]} @cc1
         n (nth normals nEdge)
         rVec (v2-scale n radius)]
-    (setCollisionInfo! ci
-                       (- radius bestDist)
-                       n
-                       (v2-sub center rVec)) true))
+    (chgci! ci (- radius bestDist) n (v2-sub center rVec)) true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- findNFaceToCircle "" [r1 cc1 ci]
+(defn- nfaceToCircle?? "" [r1 cc1 ci]
   (let [{:keys [vertices normals]} @r1
         {:keys [center]} @cc1
         len (count normals)]
     (loop [inside? true
-           bestDist -99999 nEdge 0 i 0]
+           bestDist js/Number.NEGATIVE_INFINITY nEdge 0 i 0]
       (if (or (not inside?) (>= i len))
-        {:inside? inside? :bestDist bestDist :nEdge nEdge}
+        [inside? bestDist nEdge]
         (let [v (v2-sub center (nth vertices i))
               ii (+ i 1)
               proj (v2-dot v (nth normals i))]
@@ -277,15 +225,13 @@
             rVec (v2-scale n (- radius))]
         (if (> dis radius)
           false
-          (do (setCollisionInfo! ci
-                                 (- radius dis)
-                                 n (v2-add center rVec)) true)))
+          (do (chgci! ci (- radius dis) n (v2-add center rVec)) true)))
       ;;;else
       ;the center of circle is in corner region of vertex[nEdge+1]
       ;v1 is from right vertex of face to center of circle
       ;v2 is from right vertex of face to left vertex of face
       (let [v1 (v2-sub center vX)
-            v2 (v2-scale V2 -1)
+            v2 (v2-negate V2)
             dot (v2-dot v1 v2)]
         (cond
           (neg? dot)
@@ -294,22 +240,16 @@
                 rVec (v2-scale n (- radius))]
             (if (> dis radius)
               false
-              (do (setCollisionInfo! ci
-                                     (- radius dis)
-                                     n (v2-add center rVec)) true)))
+              (do (chgci! ci (- radius dis) n (v2-add center rVec)) true)))
           ;;the circle is in face region of face[nEdge]
           (< bestDist radius)
           (let [rVec (v2-scale en radius)]
-            (do (setCollisionInfo! ci
-                                   (- radius bestDist)
-                                   en
-                                   (v2-sub center rVec)) true))
+            (do (chgci! ci (- radius bestDist) en (v2-sub center rVec)) true))
           :else false)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectCollidedRectCirc "" [r1 cc1 ci]
-  (let [{:keys [inside? bestDist nEdge]}
-        (findNFaceToCircle r1 cc1 ci)]
+  (let [[inside? bestDist nEdge] (nfaceToCircle?? r1 cc1 ci)]
     (if inside?
       (circleInsideRect? r1 cc1 ci nEdge bestDist)
       (circleOutsideRect? r1 cc1 ci nEdge bestDist))))
@@ -363,7 +303,7 @@
            #(assoc %
                    :inertia (if (zero? invMass)
                               0
-                              (inv! (/ (* (inv! invMass)
+                              (invert (/ (* (invert invMass)
                                           (pythagSQ width height)) 12))))) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -427,7 +367,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleUpdateInertia "" [c]
   (let [{:keys [invMass radius]} @c
-        n (if (zero? invMass) 0 (* (inv! invMass) radius radius))]
+        n (if (zero? invMass) 0 (* (invert invMass) radius radius))]
     ;;why 12?
     (swap! c #(assoc % :inertia (/ n 12))) c))
 
@@ -442,15 +382,13 @@
       (> dist rSum) ;;no overlap
       false
       (zero? dist) ;;centers overlap
-      (do (setCollisionInfo! ci
-                             rSum
-                             (vec2 0 -1)
-                             (if (> r1 r2)
-                               (v2-add c1 (vec2 0 r1)) (v2-add c2 (vec2 0 r2)))) true)
+      (do (chgci! ci rSum
+                  (vec2 0 -1)
+                  (if (> r1 r2)
+                    (v2-add c1 (vec2 0 r1)) (v2-add c2 (vec2 0 r2)))) true)
       :else ;overlap
-      (let [rC2 (-> (v2-norm (v2-scale v1to2 -1)) (v2-scale r2))]
-        (setCollisionInfo! ci
-                           (- rSum dist) (v2-norm v1to2) (v2-add c2 rC2)) true))))
+      (let [rC2 (-> (v2-norm (v2-negate v1to2)) (v2-scale r2))]
+        (chgci! ci (- rSum dist) (v2-norm v1to2) (v2-add c2 rC2)) true))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleCollisionTest "" [s1 s2 ci]
@@ -464,7 +402,7 @@
         {sx :x sy :y} startPt]
     ;(js/console.log (str "draw circle: " oid))
     (ocall! context "beginPath")
-    (ocall! context "arc" x y radius 0 (* 2 js/Math.PI) true)
+    (ocall! context "arc" x y radius 0 TWO-PI true)
     (ocall! context "moveTo" sx sy)
     (ocall! context "lineTo" x y)
     (ocall! context "closePath")
@@ -545,11 +483,11 @@
                     :angVel (+ angVel (* r2xN jN e2))
                     :vel (v2-add vel (v2-scale impulse m2)))))
     ;;rVelocity.dot(tangent) should less than 0
-    (let [tangent (-> (->> (v2-dot rVelocity normal)
-                           (v2-scale normal)
-                           (v2-sub rVelocity)
-                           (v2-norm ))
-                      (v2-scale -1))
+    (let [tangent (->> (v2-dot rVelocity normal)
+                       (v2-scale normal)
+                       (v2-sub rVelocity)
+                       (v2-norm)
+                       (v2-negate))
           r1xT (v2-cross r1 tangent)
           r2xT (v2-cross r2 tangent)
           jT' (/ (* (- (+ 1 bounce')) (v2-dot rVelocity tangent) sticky')
@@ -574,7 +512,7 @@
 (defn- resolveCollision "" [s1 s2 ci]
   (when-not (and (zero? (:invMass @s1))
                  (zero? (:invMass @s2)))
-    (if kPositionalCorrection? (correctPos! s1 s2 ci))
+    (correctPos! s1 s2 ci)
     ;;the direction of collisionInfo is always from s1 to s2
     ;;but the Mass is inversed, so start scale with s2 and end scale with s1
     (let
@@ -614,7 +552,7 @@
                 (if (neg? (v2-dot (:normal @ci)
                                   (v2-sub (:center @sj)
                                           (:center @si))))
-                  (changeCollisionDir ci))
+                  (revCIDir! ci))
                 (drawCollisionInfo ci context)
                 (resolveCollision si sj ci)))
             (recur (+ 1 j))))
@@ -691,10 +629,6 @@
       (alterShapeAttr! s :bounce -0.01)
       (= key 78) ;N
       (alterShapeAttr! s :bounce 0.01)
-      (= key 77) ;M
-      (set! kPositionalCorrection? (not kPositionalCorrection?))
-      (= key 188) ; ;
-      (set! kMovement? (not kMovement?))
       (= key 70);f
       (let [{{:keys [x y]} :center} @s
             r1 (Rectangle (vec2 x y)
@@ -727,11 +661,9 @@
               "<li>Angle: " angle "</li>"
               "<li>Velocity: " (:x vel) "," (:y vel) "</li>"
               "<li>AngluarVelocity: " angVel "</li>"
-              "<li>Mass: " (inv! invMass) "</li>"
+              "<li>Mass: " (invert invMass) "</li>"
               "<li>Friction: " sticky "</li>"
               "<li>Restitution: " bounce "</li>"
-              "<li>Positional Correction: " kPositionalCorrection? "</li>"
-              "<li>Movement: " kMovement? "</li>"
               "</ul> <hr>"
               "<p><b>Control</b>: of selected object</p>"
               "<ul style=\"margin:-10px\">"
@@ -741,8 +673,6 @@
               "<li><b>Z/X</b>: Mass [Decrease/Increase]</li>"
               "<li><b>C/V</b>: Frictrion [Decrease/Increase]</li>"
               "<li><b>B/N</b>: Restitution [Decrease/Increase]</li>"
-              "<li><b>M</b>: Positional Correction [On/Off]</li>"
-              "<li><b>,</b>: Movement [On/Off]</li>"
               "</ul> <hr>"
               "<b>F/G</b>: Spawn [Rectangle/Circle] at selected object"
               "<p><b>H</b>: Excite all objects</p>"
@@ -810,8 +740,8 @@
                  :width width
                  :height height
                  :gravity (vec2 0 gravity)
-                 :frameSecs (inv! fps)
-                 :frameMillis (* 1000 (inv! fps)))) *gWorld*)
+                 :frameSecs (invert fps)
+                 :frameMillis (* 1000 (invert fps)))) *gWorld*)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- myGame "" []

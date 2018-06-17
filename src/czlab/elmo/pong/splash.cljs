@@ -12,11 +12,11 @@
   czlab.elmo.pong.splash
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [do-with each-indexed f#*]]
-                   [czlab.elmo.afx.ccsx
+                   [czlab.elmo.cc.ccsx
                     :as cx :refer [oget-height oget-width
                                    oget-x oget-y
                                    oget-top sprite* ]])
-  (:require [czlab.elmo.afx.ccsx :as cx :refer [bsize *xcfg*]]
+  (:require [czlab.elmo.cc.ccsx :as cx :refer [bsize *xcfg*]]
             [czlab.elmo.pong.mmenu :as mu]
             [czlab.elmo.pong.misc :as mc]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]

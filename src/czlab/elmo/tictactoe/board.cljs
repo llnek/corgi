@@ -12,9 +12,9 @@
   czlab.elmo.tictactoe.board
 
   (:require-macros
-    [czlab.elmo.afx.ccsx :as cx]
+    [czlab.elmo.cc.ccsx :as cx]
     [czlab.elmo.afx.core :as ec :refer [each-indexed _1 n#]])
-  (:require [czlab.elmo.afx.ccsx :as cx :refer []]
+  (:require [czlab.elmo.cc.ccsx :as cx :refer []]
             [czlab.elmo.afx.algos :as ag]
             [czlab.elmo.afx.core :as ec :refer [raise!]]))
 

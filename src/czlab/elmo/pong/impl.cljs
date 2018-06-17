@@ -15,17 +15,17 @@
     [czlab.elmo.afx.core
      :as ec :refer [do->true half*
                     nneg? f#* n# _1 _2 do-with]]
-    [czlab.elmo.afx.ccsx
+    [czlab.elmo.cc.ccsx
      :as cx :refer [oget-bottom oget-right gcbyn
                     sprite* attr* pos* pos! posX! posY!
                     oget-x oget-y oget-left oget-top]])
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
-    [czlab.elmo.afx.ccsx
+    [czlab.elmo.cc.ccsx
      :as cx :refer [half-size* *game-arena*
                     cpos bbox4
                     *game-scene* *xcfg* bsize csize]]
-    [czlab.elmo.afx.dialog :as dlg]
+    [czlab.elmo.cc.dialog :as dlg]
     [czlab.elmo.pong.hud :as hud]
     [czlab.elmo.pong.misc :as mc]
     [czlab.elmo.afx.ecs :as ecs]

@@ -14,10 +14,10 @@
   (:require-macros
     [czlab.elmo.afx.core
      :as ec :refer [applyScalarOp half* do-with f#*]]
-    [czlab.elmo.afx.ccsx
+    [czlab.elmo.cc.ccsx
      :as cx :refer [oget-height oget-width
                     oget-x oget-y oget-top sprite* ]])
-  (:require [czlab.elmo.afx.ccsx :as cx :refer [bsize]]
+  (:require [czlab.elmo.cc.ccsx :as cx :refer [bsize]]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 

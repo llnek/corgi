@@ -12,8 +12,8 @@
   czlab.elmo.tictactoe.app
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [f#*]]
-                   [czlab.elmo.afx.ccsx :as cx :refer []])
-  (:require [czlab.elmo.afx.ccsx :as cx]
+                   [czlab.elmo.cc.ccsx :as cx :refer []])
+  (:require [czlab.elmo.cc.ccsx :as cx]
             [czlab.elmo.afx.core :as ec]
             [czlab.elmo.tictactoe.splash :as splash]))
 

@@ -12,11 +12,11 @@
   czlab.elmo.pong.options
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [do-with f#*]]
-                   [czlab.elmo.afx.ccsx
+                   [czlab.elmo.cc.ccsx
                     :as cx :refer [oget-height oget-width
                                    oget-x oget-y
                                    oget-top sprite* ]])
-  (:require [czlab.elmo.afx.ccsx :as cx :refer [bsize *xcfg*]]
+  (:require [czlab.elmo.cc.ccsx :as cx :refer [bsize *xcfg*]]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
             [czlab.elmo.pong.misc :as mc]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))

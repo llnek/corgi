@@ -13,11 +13,11 @@
 
   (:require-macros [czlab.elmo.afx.core
                     :as ec :refer [half* _1 _2 f#* do-with numStr]]
-                   [czlab.elmo.afx.ccsx
+                   [czlab.elmo.cc.ccsx
                     :as cx :refer [sprite* oget-top oget-x oget-y
                                    gcbyn
                                    oget-bottom oget-right oget-left]])
-  (:require [czlab.elmo.afx.ccsx
+  (:require [czlab.elmo.cc.ccsx
              :as cx :refer [*anchor-top-right* *anchor-top-left*
                             *game-scene* *xcfg* *anchor-top*]]
             [czlab.elmo.afx.core :as ec]

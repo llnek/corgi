@@ -12,11 +12,11 @@
   czlab.elmo.tictactoe.mmenu
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 _2 do-with f#*]]
-                   [czlab.elmo.afx.ccsx
+                   [czlab.elmo.cc.ccsx
                     :as cx :refer [oget-height oget-width
                                    oget-x oget-y
                                    oget-top sprite* ]])
-  (:require [czlab.elmo.afx.ccsx :as cx :refer [bsize *xcfg*]]
+  (:require [czlab.elmo.cc.ccsx :as cx :refer [bsize *xcfg*]]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
             [czlab.elmo.tictactoe.options :as opt]
             [czlab.elmo.tictactoe.game :as ga]

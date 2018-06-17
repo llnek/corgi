@@ -14,8 +14,8 @@
   (:require-macros
     [czlab.elmo.afx.core
      :as ec :refer [_1 _2 f#* do-with]]
-    [czlab.elmo.afx.ccsx :as cx :refer [sprite* attr*]])
-  (:require [czlab.elmo.afx.ccsx
+    [czlab.elmo.cc.ccsx :as cx :refer [sprite* attr*]])
+  (:require [czlab.elmo.cc.ccsx
              :as cx :refer [*xcfg* *game-scene* *game-arena*]]
             [czlab.elmo.afx.core :as ec]
             [czlab.elmo.afx.ecs :as ecs]
