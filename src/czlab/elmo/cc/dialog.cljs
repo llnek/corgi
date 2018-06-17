@@ -9,13 +9,13 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.afx.dialog
+  czlab.elmo.cc.dialog
 
   (:require-macros
     [czlab.elmo.afx.core
      :as ec :refer [each-indexed applyScalarOp
                     half* f#* n# _1 _2 do-with numStr]]
-    [czlab.elmo.afx.ccsx
+    [czlab.elmo.cc.ccsx
      :as cx :refer [oget-x oget-y oget-piccy
                     oget-bottom oget-right
                     sprite* attr* ccmenu?
@@ -26,7 +26,7 @@
                     oget-left oget-top oget-id
                     snode? bbox? bbox4? ccnode? sprite?]])
   (:require [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
-            [czlab.elmo.afx.ccsx :as cx]
+            [czlab.elmo.cc.ccsx :as cx]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -312,5 +312,59 @@
   (cont identity))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;in memory store
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createStore "" [batch]
+  (let [batch' (if (and (number? batch) (pos? batch)) batch 10)]
+    (atom {::batch batch' ::size 0 ::next 0 ::slots #js[]})))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn countStore "" [store] (get @store ::next))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn nthStore "" [store pos] (nth (::slots @store) pos))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn eachStore "" [store cb]
+  (let [{:keys [::slots ::next]} @store]
+    (loop [i 0]
+      (when (< i next)
+        (cb (nth slots i)) (recur (+ 1 i)))) nil))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- grow! "" [slots sz batch]
+  (dotimes [_ batch] (.push slots nil)) (+ sz batch))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addToStore! "" [store obj]
+  (if (some? obj)
+    (swap! store
+           (fn [{:keys [::next ::size
+                        ::batch ::slots] :as root}]
+             (let [next1 (inc next)
+                   size' (if (< next size) size (grow! slots size batch))]
+               (swap! obj #(assoc % :____slot next))
+               (aset slots next obj)
+               (assoc root
+                      ::next next1 ::size size'))))) obj)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn delFromStore! "" [store obj]
+  (if (some? obj)
+    ;jiggle the free slot to reuse the one just dropped
+    (swap! store
+           (fn [{:keys [::next ::slots] :as root}]
+             (let [next1 (dec next)
+                   tail (aget slots next1)
+                   slot' (:____slot @tail)
+                   epos' (:____slot @obj)]
+               ;set the free ptr to the dropped, move the tail to old slot
+               (aset slots next1 nil)
+               (aset slots epos' tail)
+               (swap! tail #(assoc % :____slot epos'))
+               (swap! obj #(dissoc % :____slot))
+               (merge root {::next next1}))))) store)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
 

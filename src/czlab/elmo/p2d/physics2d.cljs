@@ -11,7 +11,8 @@
 
   czlab.elmo.p2d.physics2d
 
-  (:require [oops.core :refer [oget oset!
+  (:require [czlab.elmo.afx.core :as ec]
+            [oops.core :refer [oget oset!
                                ocall oapply
                                ocall! oapply!]]))
 
@@ -25,7 +26,7 @@
 (defn- nextShapeNum "" [] (swap! *shapeNum* inc))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private *gWorld* (atom {:samples (array)
+(def ^:private *gWorld* (atom {:samples (ec/createStore 10)
                                :context nil :cur 0 :canvas nil}))
 (def ^:private kPositionalCorrection? true)
 (def ^:private kMovement? true)
@@ -101,7 +102,7 @@
                    :center center
                    :inertia 0
                    :vel VEC_ZERO
-                   :oob? false
+                   :valid? true
                    :angle 0
                    :angVel 0 ;; clockwise = negative
                    :angAccel 0
@@ -109,7 +110,7 @@
                    :accel (if (zero? mass') VEC_ZERO gravity)
                    :sticky (if (number? friction) friction 0.8)
                    :bounce (if (number? restitution) restitution 0.2)})]
-    (.push samples ret) ret))
+    (ec/addToStore! samples ret) ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collisionTest?? "" [s1 s2 ci] ((:collisionTest @s1) s1 s2 ci))
@@ -150,7 +151,7 @@
                 (> cx width)
                 (< cy 0)
                 (> cy height))
-        (swap! s #(assoc % :oob? true))))))
+        (swap! s #(assoc % :valid? false))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- overlap? "" [s1 s2]
@@ -597,16 +598,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- checkCollision* "" []
   (let [{:keys [samples context]} @*gWorld*
-        len (count samples)
+        len (ec/countStore samples)
         ci (collisionInfo)]
     (loop [i 0]
       (when-not (>= i len)
         (loop [j (+ 1 i)]
           (when-not (>= j len)
-            (let [si (nth samples i)
-                  sj (nth samples j)]
-              (when (and (not (:oob? @si))
-                         (not (:oob? @sj))
+            (let [si (ec/nthStore samples i)
+                  sj (ec/nthStore samples j)]
+              (when (and (:valid? @si)
+                         (:valid? @sj)
                          (overlap? si sj)
                          (collisionTest?? si sj ci))
                 ;;make sure the normal is always from object[i] to object[j]
@@ -640,8 +641,8 @@
   (let [key (or (oget evt "?keyCode")
                 (oget evt "?which"))
         {:keys [cur samples]} @*gWorld*
-        s (nth samples cur)
-        len (count samples)
+        len (ec/countStore samples)
+        s (ec/nthStore samples cur)
         offset (- key 48)]
     (cond
       (and (>= key 48)
@@ -706,16 +707,18 @@
                        (+ 20 (rand 10)) (rand 30) (rand) (rand))]
         (alterShapeAttr! c1 (vec2 (- (rand 300) 150) (- (rand 300) 150))))
       (= key 72);H
-      (doseq [s samples
-              :let [{:keys [invMass]} @s]]
-        (if (pos? invMass)
-          (alterShapeAttr! s :vel (vec2 (- (rand 500) 250)
-                                        (- (rand 500) 250))))))))
+      (ec/eachStore samples
+                    (fn [s]
+                      (let [{:keys [invMass]} @s]
+                        (if (pos? invMass)
+                          (alterShapeAttr! s
+                                           :vel (vec2 (- (rand 500) 250)
+                                                      (- (rand 500) 250))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateUIEcho "" []
   (let [{:keys [uiEcho cur samples]} @*gWorld*
-        obj (nth samples cur)
+        obj (ec/nthStore samples cur)
         {:keys [sticky bounce invMass angVel vel angle center]} @obj]
     (->> (str "<p><b>Selected Object:</b>:</p>"
               "<ul style=\"margin:-10px\">"
@@ -751,13 +754,13 @@
 (defn- drawGame "" []
   (let [{:keys [cur samples
                 width height context]} @*gWorld*
-        len (count samples)]
+        len (ec/countStore samples)]
     (ocall! context "clearRect" 0 0 width height)
     (loop [i 0]
       (when (< i len)
-        (let [s (nth samples i)
-              {:keys [oob?]} @s]
-          (when-not oob?
+        (let [s (ec/nthStore samples i)
+              {:keys [valid?]} @s]
+          (when valid?
             (oset! context
                    "!strokeStyle" (if (= i cur) "red" "blue"))
             (draw s context)))
@@ -765,11 +768,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- update! "" []
-  (let [{:keys [context samples frameSecs]} @*gWorld*]
-    (doseq [s samples
-            :let [{:keys [oob?]} @s]]
-      (if-not oob?
-        (updateShape! s frameSecs)))))
+  (let [{:keys [context samples frameSecs]} @*gWorld*
+        bin #js []]
+    (ec/eachStore samples
+                  (fn [s]
+                    (let [{:keys [valid?]} @s]
+                      (if-not valid?
+                        (.push bin s)
+                        (updateShape! s frameSecs)))))
+    (when (pos? (count bin))
+      (doseq [b bin] (ec/delFromStore! samples b)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private prevMillis (system-time))

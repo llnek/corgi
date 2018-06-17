@@ -9,7 +9,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.afx.ccsx
+  czlab.elmo.cc.ccsx
 
   (:refer-clojure :exclude [contains?])
 

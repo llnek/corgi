@@ -9,13 +9,13 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.afx.boot
+  czlab.elmo.cc.boot
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [f#* do-with]]
-                   [czlab.elmo.afx.ccsx
+                   [czlab.elmo.cc.ccsx
                     :as cx :refer [oget-width oget-height
                                    not-native? native? attr*]])
-  (:require [czlab.elmo.afx.ccsx :as cx :refer [*xcfg*]]
+  (:require [czlab.elmo.cc.ccsx :as cx :refer [*xcfg*]]
             [czlab.elmo.afx.core :as ec]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
