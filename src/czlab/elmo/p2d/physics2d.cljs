@@ -13,9 +13,8 @@
 
   (:require [czlab.elmo.afx.core :as ec :refer [invert]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [pythag pythagSQ TWO-PI PI
-                            vec2 VEC_ZERO
-                            v2-len v2-add v2-sub v2-dot
+             :as gx :refer [pythag pythagSQ TWO-PI PI vec2 VEC_ZERO _cocos2dx?
+                            v2-len v2-add v2-sub v2-dot Point2D Size2D
                             v2-negate v2-scale v2-cross v2-rot v2-norm v2-dist]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
@@ -28,7 +27,7 @@
                                :context nil :cur 0 :canvas nil}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- collisionInfo
+(defn- ci-info
   "" [] (atom {:depth 0 :normal VEC_ZERO :start VEC_ZERO :end VEC_ZERO}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -44,15 +43,16 @@
          (fn [{:keys [start end normal] :as root}]
            (assoc root
                   :start end :end start
-                  :normal (v2-scale normal -1)))) ci)
+                  :normal (v2-negate normal)))) ci)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- RigidShape "" [center & [mass friction restitution]]
+(defn- rigidize! "" [s & [mass friction restitution]]
   (let [{:keys [gravity samples]} @*gWorld*
-        mass' (if (number? mass) mass 1)
-        ret (atom {:invMass (invert mass')
+        mass' (if (number? mass) mass 1)]
+    (swap! s
+           #(assoc %
+                   :invMass (invert mass')
                    :oid (nextShapeNum)
-                   :center center
                    :inertia 0
                    :vel VEC_ZERO
                    :valid? true
@@ -62,13 +62,13 @@
                    :bxRadius 0
                    :accel (if (zero? mass') VEC_ZERO gravity)
                    :sticky (if (number? friction) friction 0.8)
-                   :bounce (if (number? restitution) restitution 0.2)})]
-    (ec/addToStore! samples ret) ret))
+                   :bounce (if (number? restitution) restitution 0.2)))
+    (ec/addToStore! samples s) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collisionTest?? "" [s1 s2 ci] ((:collisionTest @s1) s1 s2 ci))
 (defn updateInertia! "" [s] ((:updateInertia @s) s) s)
-(defn draw "" [s c] ((:draw @s) s c) s)
+(defn draw "" [s c] (gx/drawShape s c))
 (defn move! "" [s p] ((:move @s) s p) s)
 (defn rotate! "" [s v] ((:rotate @s) s v) s)
 
@@ -100,7 +100,7 @@
       ;rotate object
       (rotate! s (* (:angVel @s) dt)))
 
-    (let [{cx :x cy :y} (:center @s)]
+    (let [{cx :x cy :y} @s]
       (when (or (< cx 0)
                 (> cx width)
                 (< cy 0)
@@ -109,9 +109,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- overlap? "" [s1 s2]
-  (let [{c1 :center r1 :bxRadius} @s1
-        {c2 :center r2 :bxRadius} @s2
-        v1to2 (v2-sub c2 c1)] (not (> (v2-len v1to2) (+ r1 r2)))))
+  (let [{p1 :pos r1 :bxRadius} @s1
+        {p2 :pos r2 :bxRadius} @s2
+        v1to2 (v2-sub p2 p1)] (not (> (v2-len v1to2) (+ r1 r2)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;rect-stuff
@@ -160,12 +160,12 @@
         (chgci! ci bestDist bn (v2-add supportPoint bv)))) hasSupport?))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rectCollidedRectRect
+(defn- testRectRect?
   "Check for collision between 2 rectangles"
   [r1 r2 ci]
   ;;find Axis of Separation for both rectangle
-  (let [ci_1 (collisionInfo)
-        ci_2 (collisionInfo)
+  (let [ci_1 (ci-info)
+        ci_2 (ci-info)
         p1? (hasAxisLeastPenetration? r1 r2 ci_1)
         p2? (if p1? (hasAxisLeastPenetration? r2 r1 ci_2))]
     (when p2?
@@ -181,15 +181,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleInsideRect? "" [r1 cc1 ci nEdge bestDist]
   (let [{:keys [normals vertices]} @r1
-        {:keys [radius center]} @cc1
+        {:keys [radius pos]} @cc1
         n (nth normals nEdge)
         rVec (v2-scale n radius)]
-    (chgci! ci (- radius bestDist) n (v2-sub center rVec)) true))
+    (chgci! ci (- radius bestDist) n (v2-sub pos rVec)) true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- nfaceToCircle?? "" [r1 cc1 ci]
   (let [{:keys [vertices normals]} @r1
-        {:keys [center]} @cc1
+        {center :pos} @cc1
         len (count normals)]
     (loop [inside? true
            bestDist js/Number.NEGATIVE_INFINITY nEdge 0 i 0]
@@ -206,8 +206,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleOutsideRect? "" [r1 cc1 ci nEdge bestDist]
-  (let [{:keys [normals vertices]} @r1
-        {:keys [radius center]} @cc1
+  (let [{center :pos :keys [radius]} @cc1
+        {:keys [normals vertices]} @r1
         vn (nth vertices nEdge)
         en (nth normals nEdge)
         ;;V1 is from left vertex of face to center of circle
@@ -248,7 +248,7 @@
           :else false)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rectCollidedRectCirc "" [r1 cc1 ci]
+(defn- collidedRectCirc "" [r1 cc1 ci]
   (let [[inside? bestDist nEdge] (nfaceToCircle?? r1 cc1 ci)]
     (if inside?
       (circleInsideRect? r1 cc1 ci nEdge bestDist)
@@ -257,7 +257,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectCollisionTest "" [s1 s2 ci]
   (if (= (:type @s2) :circle)
-    (rectCollidedRectCirc s1 s2 ci) (rectCollidedRectRect s1 s2 ci)))
+    (collidedRectCirc s1 s2 ci) (testRectRect? s1 s2 ci)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;rectangle stuff
@@ -272,7 +272,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectRotate "" [s angle']
-  (let [{:keys [center angle vertices normals]} @s
+  (let [{center :pos :keys [angle vertices normals]} @s
         [v0 v1 v2 v3] vertices
         a2 (+ angle angle')
         vs [(v2-rot v0 center angle')
@@ -287,10 +287,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectMove "" [s p]
-  (let [{:keys [center vertices]} @s
+  (let [{center :pos :keys [vertices]} @s
         [v0 v1 v2 v3] vertices]
     (swap! s #(assoc %
-                     :center (v2-add center p)
+                     :pos (v2-add center p)
                      :vertices [(v2-add v0 p)
                                 (v2-add v1 p)
                                 (v2-add v2 p)
@@ -307,41 +307,24 @@
                                           (pythagSQ width height)) 12))))) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rectDraw "" [r1 context]
-  (let [{:keys [vertices width height angle oid]} @r1
-        {:keys [x y]} (nth vertices 0)]
-    ;(js/console.log (str "draw rect: " oid))
-    (ocall! context "save")
-    (ocall! context "translate" x y)
-    (ocall! context "rotate" angle)
-    (ocall! context "strokeRect" 0 0 width height)
-    (ocall! context "restore")))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Rectangle "" [center width height & [mass friction restitution]]
-  (let [{:keys [x y]} center
-        hw (* 0.5 width)
-        hh (* 0.5 height)
-        ;;0--TopLeft;1--TopRight;2--BottomRight;3--BottomLeft
+(defn Rectangle "" [pt sz & [mass friction restitution]]
+  (let [s (-> (gx/Rectangle pt sz)
+              (rigidize! mass friction restitution))
+        {:keys [width height width_2 height_2] {:keys [x y]} :pos} @s
+        bottom (if _cocos2dx? (- y height_2) (+ y height_2))
+        top (if _cocos2dx? (+ y height_2) (- y height_2))
+        right (+ x width_2)
+        left (- x width_2)
         [v0 v1 v2 v3 :as vs]
-        [(vec2 (- x hw) (- y hh))
-         (vec2 (+ x hw) (- y hh))
-         (vec2 (+ x hw) (+ y hh))
-         (vec2 (- x hw) (+ y hh))]
-        s (RigidShape center
-                      mass
-                      friction restitution)]
+        [(vec2 left top) (vec2 right top)
+         (vec2 right bottom) (vec2 left bottom)]]
     (->>
       #(assoc %
               :updateInertia rectUpdateInertia
               :collisionTest rectCollisionTest
               :move rectMove
-              :draw rectDraw
               :rotate rectRotate
-              :type :rectangle
-              :width width
-              :height height
-              :bxRadius (* 0.5 (pythag width height))
+              :bxRadius (/ (pythag width height) 2)
               :vertices vs
               :normals (createFaceNormals vs)) (swap! s))
     (updateInertia! s)))
@@ -350,15 +333,15 @@
 ;;circle-stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleMove "" [c p]
-  (let [{:keys [startPt center]} @c]
+  (let [{center :pos :keys [startPt]} @c]
     (swap! c
            #(assoc %
-                   :startPt (v2-add startPt p)
-                   :center (v2-add center p))) c))
+                   :pos (v2-add center p)
+                   :startPt (v2-add startPt p))) c))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleRotate "rotate angle in counterclockwise" [c angle']
-  (let [{:keys [angle startPt center]} @c]
+  (let [{center :pos :keys [angle startPt]} @c]
     (swap! c
            #(assoc %
                    :angle (+ angle angle')
@@ -372,9 +355,9 @@
     (swap! c #(assoc % :inertia (/ n 12))) c))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circleCollidedCircCirc "" [cc1 cc2 ci]
-  (let [{c1 :center r1 :radius} @cc1
-        {c2 :center r2 :radius} @cc2
+(defn- collidedCircCirc "" [cc1 cc2 ci]
+  (let [{c1 :pos r1 :radius} @cc1
+        {c2 :pos r2 :radius} @cc2
         v1to2  (v2-sub c2 c1)
         rSum  (+ r1 r2)
         dist  (v2-len v1to2)]
@@ -393,37 +376,22 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleCollisionTest "" [s1 s2 ci]
   (if (= (:type @s2) :circle)
-    (circleCollidedCircCirc s1 s2 ci) (rectCollidedRectCirc s2 s1 ci)))
+    (collidedCircCirc s1 s2 ci) (collidedRectCirc s2 s1 ci)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circleDraw "" [c1 context]
-  (let [{:keys [center radius startPt oid]} @c1
-        {:keys [x y]} center
-        {sx :x sy :y} startPt]
-    ;(js/console.log (str "draw circle: " oid))
-    (ocall! context "beginPath")
-    (ocall! context "arc" x y radius 0 TWO-PI true)
-    (ocall! context "moveTo" sx sy)
-    (ocall! context "lineTo" x y)
-    (ocall! context "closePath")
-    (ocall! context "stroke")))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Circle "" [center radius & [mass friction restitution]]
-  (let [{:keys [x y]} center
-        s (RigidShape center mass friction restitution)]
+(defn Circle "" [pt radius & [mass friction restitution]]
+  (let [s (-> (gx/Circle pt radius)
+              (rigidize! mass friction restitution))
+        {{:keys [x y]} :pos} @s
+        top (if _cocos2dx? (+ y radius) (- y radius))]
     (swap! s
            #(merge %
                    {:collisionTest circleCollisionTest
                     :updateInertia circleUpdateInertia
                     :rotate  circleRotate
-                    :draw circleDraw
                     :move circleMove
-                    :type :circle
-                    :radius radius
                     :bxRadius radius
-                    ;;the start point of line in circle
-                    :startPt (vec2 x (- y radius))}))
+                    :startPt (vec2 x top)}))
     (updateInertia! s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -517,8 +485,8 @@
     ;;but the Mass is inversed, so start scale with s2 and end scale with s1
     (let
       [{:keys [normal start end]} @ci
-       {m1 :invMass c1 :center vs1 :vel av1 :angVel} @s1
-       {m2 :invMass c2 :center vs2 :vel av2 :angVel} @s2
+       {m1 :invMass c1 :pos vs1 :vel av1 :angVel} @s1
+       {m2 :invMass c2 :pos vs2 :vel av2 :angVel} @s2
        start' (v2-scale start (/ m2 (+ m1 m2)))
        end' (v2-scale end (/ m1 (+ m1 m2)))
        p (v2-add start' end')
@@ -537,7 +505,7 @@
 (defn- checkCollision* "" []
   (let [{:keys [samples context]} @*gWorld*
         len (ec/countStore samples)
-        ci (collisionInfo)]
+        ci (ci-info)]
     (loop [i 0]
       (when-not (>= i len)
         (loop [j (+ 1 i)]
@@ -550,9 +518,8 @@
                          (collisionTest?? si sj ci))
                 ;;make sure the normal is always from object[i] to object[j]
                 (if (neg? (v2-dot (:normal @ci)
-                                  (v2-sub (:center @sj)
-                                          (:center @si))))
-                  (revCIDir! ci))
+                                  (v2-sub (:pos @sj)
+                                          (:pos @si)))) (revCIDir! ci))
                 (drawCollisionInfo ci context)
                 (resolveCollision si sj ci)))
             (recur (+ 1 j))))
@@ -630,14 +597,14 @@
       (= key 78) ;N
       (alterShapeAttr! s :bounce 0.01)
       (= key 70);f
-      (let [{{:keys [x y]} :center} @s
-            r1 (Rectangle (vec2 x y)
-                          (+ 10 (rand 30))
-                          (+ 10 (rand 30)) (rand 30) (rand) (rand))]
+      (let [{:keys [pos]} @s
+            r1 (Rectangle pos
+                          (Size2D (+ 10 (rand 30))
+                                  (+ 10 (rand 30))) (rand 30) (rand) (rand))]
         (alterShapeAttr! r1 (vec2 (- (rand 300) 150) (- (rand 300) 150))))
       (= key 71) ;;g
-      (let [{{:keys [x y]} :center} @s
-            c1 (Circle (vec2 x y)
+      (let [{:keys [pos]} @s
+            c1 (Circle pos
                        (+ 20 (rand 10)) (rand 30) (rand) (rand))]
         (alterShapeAttr! c1 (vec2 (- (rand 300) 150) (- (rand 300) 150))))
       (= key 72);H
@@ -653,11 +620,11 @@
 (defn updateUIEcho "" []
   (let [{:keys [uiEcho cur samples]} @*gWorld*
         obj (ec/nthStore samples cur)
-        {:keys [sticky bounce invMass angVel vel angle center]} @obj]
+        {:keys [sticky bounce invMass angVel vel angle pos]} @obj]
     (->> (str "<p><b>Selected Object:</b>:</p>"
               "<ul style=\"margin:-10px\">"
               "<li>Id: " cur "</li>"
-              "<li>Center: " (:x center) "," (:y center) "</li>"
+              "<li>Center: " (:x pos) "," (:y pos) "</li>"
               "<li>Angle: " angle "</li>"
               "<li>Velocity: " (:x vel) "," (:y vel) "</li>"
               "<li>AngluarVelocity: " angVel "</li>"
@@ -755,19 +722,20 @@
         _ (swap! *gWorld* #(assoc %
                                   :uiEcho html
                                   :canvas canvas :context context))
-        r1 (Rectangle (vec2 500 200) 400 20 0 0.3 0)
-        r2 (Rectangle (vec2 200 400) 400 20 0 1 0.5)
-        r3 (Rectangle (vec2 100 200) 200 20 0)
-        r4 (Rectangle (vec2 10 360) 20 100 0 0 1)]
+        r1 (Rectangle (Point2D 500 200) (Size2D 400 20) 0 0.3 0)
+        r2 (Rectangle (Point2D 200 400) (Size2D 400 20) 0 1 0.5)
+        r3 (Rectangle (Point2D 100 200) (Size2D 200 20) 0)
+        r4 (Rectangle (Point2D 10 360) (Size2D 20 100) 0 0 1)]
     (rotate! r1 2.8)
     (dotimes [i 4]
-      (-> (Rectangle (vec2 (rand width)
-                           (rand (/ height 2)))
-                     (+ 10 (rand 50)) (+ 10 (rand 50)) (rand 30) (rand) (rand))
+      (-> (Rectangle (Point2D (rand width)
+                              (rand (/ height 2)))
+                     (Size2D (+ 10 (rand 50))
+                             (+ 10 (rand 50))) (rand 30) (rand) (rand))
           (alterShapeAttr! :vel
                            (vec2 (- (rand 60) 30) (- (rand 60) 30))))
-      (-> (Circle (vec2 (rand width)
-                        (rand (/ height 2)))
+      (-> (Circle (Point2D (rand width)
+                           (rand (/ height 2)))
                   (+ 10 (rand 20)) (rand 30) (rand) (rand))
           (alterShapeAttr! (vec2 (- (rand 60) 30)
                                  (- (rand 60) 30)))))

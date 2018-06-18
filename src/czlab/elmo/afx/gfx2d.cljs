@@ -16,6 +16,9 @@
             [oops.core :refer [oget oset! ocall oapply ocall!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;(def *coordinate-system* :right-handed)
+;(def _cocos2dx? true)
+(def _cocos2dx? false)
 (def PI js/Math.PI)
 (def TWO-PI (* 2 PI))
 
@@ -70,44 +73,98 @@
           (- (:y v1) (:y v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Size2D "" [width height] {:width width :height height})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Point2D "" [x y] (vec2 x y))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Area2D "" [pt sz] (merge pt sz))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- cfgStyle! "" [ctx styleObj]
   (oset! ctx "!lineWidth" (oget styleObj "?line" "?width"))
   (oset! ctx "!strokeStyle" (oget styleObj "?stroke" "?style")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn circle "" [x y radius] {:x x :y y :radius radius})
+(defn- Shape "" [pt] (atom {:pos pt}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn drawCircle "" [circle ctx styleObj]
-  (let [{:keys [x y radius]} circle]
+(defn- circleDraw "" [c1 ctx & [styleObj]]
+  (let [{:keys [pos radius startPt]} @c1
+        {:keys [x y]} pos]
     (ocall! ctx "beginPath")
-    (cfgStyle! ctx styleObj)
+    (when (some? styleObj)
+      (cfgStyle! ctx styleObj))
     (ocall! ctx "arc" x y radius 0 TWO-PI true)
+    (when (some? startPt)
+      (ocall! ctx
+              "moveTo"
+              (:x startPt)
+              (:y startPt))
+      (ocall! ctx "lineTo" x y))
+    (ocall! ctx "closePath")
     (ocall! ctx "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn line "" [x1 y1 x2 y2] {:x1 x1 :y1 y1 :x2 x2 :y2 y2})
+(defn Circle "" [pt radius]
+  (let [s (Shape pt)]
+    (swap! s #(assoc %
+                     :draw circleDraw
+                     :type :circle
+                     :radius radius)) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn drawLine "" [line ctx styleObj]
-  (let [{:keys [x1 x2 y1 y2]} line]
+(defn- rectDraw "" [r1 ctx & [styleObj]]
+  (let [{:keys [vertices width height angle]} @r1
+        {:keys [x y]} (nth vertices 0)]
+    (ocall! ctx "save")
+    (ocall! ctx "translate" x y)
+    (ocall! ctx "rotate" angle)
+    (when (some? styleObj)
+      (cfgStyle! ctx styleObj))
+    (ocall! ctx "strokeRect" 0 0 width height)
+    (ocall! ctx "restore")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Rectangle "" [pt sz]
+  (let [s (Shape pt)
+        {:keys [width height]} sz]
+    (swap! s #(assoc %
+                     :type :rectangle
+                     :draw rectDraw
+                     :angle 0
+                     :width_2 (/ width 2)
+                     :height_2 (/ height 2)
+                     :width width
+                     :height height)) s))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- lineDraw "" [line ctx & [styleObj]]
+  (let [{:keys [pos endPt]} @line]
     (ocall! ctx "beginPath")
-    (ocall! ctx "moveTo" x1 y1)
-    (ocall! ctx "lineTo" x2 y2)
-    (cfgStyle! ctx styleObj)
-    (if-some [x (oget styleObj "?line" "?cap")] (oset! ctx "!lineCap" x))
+    (when (some? styleObj)
+      (cfgStyle! ctx styleObj)
+      (if-some [x (oget styleObj
+                        "?line" "?cap")] (oset! ctx "!lineCap" x)))
+    (ocall! ctx "moveTo" (:x pos) (:y pos))
+    (ocall! ctx "lineTo" (:x endPt) (:y endPt))
     (ocall! ctx "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn point2d "" [x y] {:x x :y y})
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn area2d
-  "" [x y width height] {:x x :y y :width width :height height})
+(defn Line "" [ptA ptB]
+  (let [s (Shape ptA)]
+    (swap! s #(assoc %
+                     :draw lineDraw
+                     :type :line
+                     :endPt ptB)) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn textStyle
   "" [] {:font "14px 'Arial'" :fill "#dddddd" :align "left" :base "top" })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn drawShape "" [s ctx & [styleObj]] ((:draw @s) s ctx styleObj) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
