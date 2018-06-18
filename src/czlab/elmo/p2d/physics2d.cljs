@@ -42,8 +42,7 @@
   (swap! ci
          (fn [{:keys [start end normal] :as root}]
            (assoc root
-                  :start end :end start
-                  :normal (v2-negate normal)))) ci)
+                  :start end :end start :normal (v2-negate normal)))) ci)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rigidize! "" [s & [mass friction restitution]]
@@ -100,11 +99,11 @@
       ;rotate object
       (rotate! s (* (:angVel @s) dt)))
 
-    (let [{cx :x cy :y} @s]
-      (when (or (< cx 0)
-                (> cx width)
-                (< cy 0)
-                (> cy height))
+    (let [{{:keys [x y]} :pos} @s]
+      (when (or (< x 0)
+                (> x width)
+                (< y 0)
+                (> y height))
         (swap! s #(assoc % :valid? false))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -676,20 +675,15 @@
     (when (pos? (count bin))
       (doseq [b bin] (ec/delFromStore! samples b)))))
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private prevMillis (system-time))
 (def ^:private nowMillis 0)
 (def ^:private lagMillis 0)
-(def ^:private deltaMillis 0)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- runGameLoop "" []
-  (js/requestAnimationFrame #(runGameLoop))
-  (set! nowMillis (system-time))
-  (set! deltaMillis (- nowMillis prevMillis))
-  (set! prevMillis nowMillis)
-  (set! lagMillis (+ lagMillis deltaMillis))
-  (updateUIEcho)
-  (drawGame)
+(defn step "" [dt]
+  (set! prevMillis (system-time))
+  (set! lagMillis (+ lagMillis dt))
   ;;Make sure we update the game the appropriate number of times.
   ;;Update only every Milliseconds per frame.
   ;;If lag larger then update frames, update until caught up.
@@ -700,15 +694,24 @@
       (update! ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- runGameLoop "" []
+  (js/requestAnimationFrame #(runGameLoop))
+  (updateUIEcho)
+  (drawGame)
+  (step (- (system-time) prevMillis)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- initPhysics "" [gravity fps {:keys [width height] :as options}]
-  (swap! *gWorld*
-         #(assoc %
-                 :FPS fps
-                 :width width
-                 :height height
-                 :gravity (vec2 0 gravity)
-                 :frameSecs (invert fps)
-                 :frameMillis (* 1000 (invert fps)))) *gWorld*)
+  (let [{:keys [cc2dx?]} options]
+    (if (true? cc2dx?) (set! _cocos2dx? true))
+    (swap! *gWorld*
+           #(assoc %
+                   :FPS fps
+                   :width width
+                   :height height
+                   :gravity (vec2 0 gravity)
+                   :frameSecs (invert fps)
+                   :frameMillis (* 1000 (invert fps)))) *gWorld*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- myGame "" []
