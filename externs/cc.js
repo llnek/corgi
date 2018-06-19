@@ -64,6 +64,9 @@ var jsb={
   }
 };
 
+cc.color.WHITE={};
+cc.color.RED={};
+
 cc.Node=function(){};
 cc.Node.prototype.onEnter=function(){};
 cc.Node.prototype.onExit=function(){};

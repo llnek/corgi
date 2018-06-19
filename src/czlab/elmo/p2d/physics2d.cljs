@@ -47,7 +47,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rigidize! "" [s & [mass friction restitution]]
   (let [{:keys [gravity samples]} @*gWorld*
+        options (get @*gWorld* (:type @s))
+        {:keys [draw]} options
         mass' (if (number? mass) mass 1)]
+    (if (fn? draw) (swap! s #(assoc % :draw draw)))
     (swap! s
            #(assoc %
                    :invMass (invert mass')
@@ -67,7 +70,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collisionTest?? "" [s1 s2 ci] ((:collisionTest @s1) s1 s2 ci))
 (defn updateInertia! "" [s] ((:updateInertia @s) s) s)
-(defn draw "" [s c] (gx/drawShape s c))
+(defn draw "" [s & more] (apply gx/drawShape (concat [s] more)))
 (defn move! "" [s p] ((:move @s) s p) s)
 (defn rotate! "" [s v] ((:rotate @s) s v) s)
 
@@ -85,8 +88,19 @@
     (updateInertia! s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- validateShape "" [s]
+  (let [{{:keys [x y]} :pos} @s
+        {:keys [top right bottom left]} @*gWorld*]
+    (if (or (< x left)
+            (> x right)
+            (if _cocos2dx?
+              (or (> y top) (< y bottom))
+              (or (< y top) (> y bottom))))
+      (swap! s #(assoc % :valid? false)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- updateShape! "" [s dt]
-  (let [{:keys [height width samples]} @*gWorld*]
+  (let [{:keys [height width samples validator]} @*gWorld*]
     (when true
       ;;update vel += a*t
       (swap! s (fn [{:keys [vel accel] :as root}]
@@ -98,13 +112,7 @@
                  (assoc root :angVel (+ angVel (* angAccel dt)))))
       ;rotate object
       (rotate! s (* (:angVel @s) dt)))
-
-    (let [{{:keys [x y]} :pos} @s]
-      (when (or (< x 0)
-                (> x width)
-                (< y 0)
-                (> y height))
-        (swap! s #(assoc % :valid? false))))))
+    (if (fn? validator) (validator s) (validateShape s))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- overlap? "" [s1 s2]
@@ -608,12 +616,11 @@
         (alterShapeAttr! c1 (vec2 (- (rand 300) 150) (- (rand 300) 150))))
       (= key 72);H
       (ec/eachStore samples
-                    (fn [s]
-                      (let [{:keys [invMass]} @s]
-                        (if (pos? invMass)
-                          (alterShapeAttr! s
-                                           :vel (vec2 (- (rand 500) 250)
-                                                      (- (rand 500) 250))))))))))
+                    (fn [s i]
+                      (if (pos? (:invMass @s))
+                        (alterShapeAttr! s
+                                         :vel (vec2 (- (rand 500) 250)
+                                                    (- (rand 500) 250)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateUIEcho "" []
@@ -648,33 +655,26 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- drawGame "" []
-  (let [{:keys [cur samples
-                width height context]} @*gWorld*
-        len (ec/countStore samples)]
+  (let [{:keys [cur samples width height context]} @*gWorld*]
     (ocall! context "clearRect" 0 0 width height)
-    (loop [i 0]
-      (when (< i len)
-        (let [s (ec/nthStore samples i)
-              {:keys [valid?]} @s]
-          (when valid?
-            (oset! context
-                   "!strokeStyle" (if (= i cur) "red" "blue"))
-            (draw s context)))
-        (recur (+ i 1))))))
+    (ec/eachStore samples
+                  (fn [s i]
+                    (when (:valid? @s)
+                      (oset! context
+                             "!strokeStyle" (if (= i cur) "red" "blue"))
+                      (draw s context))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- update! "" []
   (let [{:keys [context samples frameSecs]} @*gWorld*
         bin #js []]
     (ec/eachStore samples
-                  (fn [s]
-                    (let [{:keys [valid?]} @s]
-                      (if-not valid?
-                        (.push bin s)
-                        (updateShape! s frameSecs)))))
+                  (fn [s i]
+                    (if-not (:valid? @s)
+                      (.push bin s)
+                      (updateShape! s frameSecs))))
     (when (pos? (count bin))
       (doseq [b bin] (ec/delFromStore! samples b)))))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private prevMillis (system-time))
@@ -701,21 +701,26 @@
   (step (- (system-time) prevMillis)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- initPhysics "" [gravity fps {:keys [width height] :as options}]
-  (let [{:keys [cc2dx?]} options]
+(defn initPhysics "" [gravity fps world & [options]]
+  (let [{:keys [cc2dx? validator]} options
+        {:keys [top right bottom left]} world
+        options' (dissoc options cc2dx? validator)]
     (if (true? cc2dx?) (set! _cocos2dx? true))
     (swap! *gWorld*
-           #(assoc %
-                   :FPS fps
-                   :width width
-                   :height height
-                   :gravity (vec2 0 gravity)
-                   :frameSecs (invert fps)
-                   :frameMillis (* 1000 (invert fps)))) *gWorld*))
+           (fn [root]
+             (-> (merge root options')
+                 (assoc :validator (if (fn? validator) validator validateShape)
+                        :arena world
+                        :FPS fps
+                        :width (+ 1 (- right left))
+                        :height (+ 1 (if _cocos2dx? (- top bottom) (- bottom top)))
+                        :gravity (vec2 0 gravity)
+                        :frameSecs (invert fps)
+                        :frameMillis (* 1000 (invert fps)))))) *gWorld*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- myGame "" []
-  (initPhysics 20 60 {:width 800 :height 450})
+  (initPhysics 20 60 {:left 0 :right 799 :top 0 :bottom 449})
   (let [html (js/document.getElementById "uiEchoString")
         canvas (js/document.getElementById "canvas")
         context (ocall! canvas "getContext" "2d")

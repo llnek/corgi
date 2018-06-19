@@ -21,19 +21,37 @@
                     oget-x oget-y oget-left oget-top]])
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
+    [czlab.elmo.afx.gfx2d :as gx :refer [vec2 Point2D Size2D]]
     [czlab.elmo.p2d.physics2d
-     :as py :refer [vec2 Point2D Size2D Rectangle Circle]]
+     :as py :refer [Rectangle Circle]]
     [czlab.elmo.cc.ccsx
      :as cx :refer [half-size* *game-arena*
                     cpos bbox4
                     *game-scene* *xcfg* bsize csize]]
     [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- circleDraw "" [s node i cur]
+  (let [{:keys [pos angle radius startPt]} @s
+        c (if (= i cur) js/cc.color.RED js/cc.color.WHITE)]
+    (ocall! node "drawCircle" (clj->js pos) radius angle 100 true 2 c)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- rectDraw "" [s node i cur]
+  (let [{:keys [vertices width height angle]} @s
+        c (if (= i cur) js/cc.color.RED js/cc.color.WHITE)]
+    (ocall! node "drawPoly" (clj->js vertices) nil 2 c)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" [state]
-  (let [{:keys [arena]} @state
-        {:keys [width height]} (cx/bbox4->bbox arena)]
-    (py/initPhysics -20 60 {:cc2dx? true :width width :height height})
+  (let [pw (py/initPhysics -20 60
+                          (:arena @state)
+                          {:cc2dx? true
+                           :rectangle {:draw rectDraw}
+                           :circle {:draw circleDraw}})
+        {:keys [width height]} @pw]
+    (swap! state #(assoc % :phyWorld pw))
     (let [r1 (Rectangle (Point2D 500 200) (Size2D 400 20) 0 0.3 0)
           r2 (Rectangle (Point2D 200 400) (Size2D 400 20) 0 1 0.5)
           r3 (Rectangle (Point2D 100 200) (Size2D 200 20) 0)
@@ -54,10 +72,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateECS "" [dt]
-  (let [state (oget @*game-scene* "gstate")]
-
-
-    ))
+  (let [state (oget @*game-scene* "gstate")
+        ui @*game-arena*
+        {:keys [cur samples]}
+        (deref (:phyWorld @state))
+        node (new js/cc.DrawNode)]
+    (ocall! ui "removeAllChildren")
+    (cx/addItem ui node)
+    (ec/eachStore samples
+                  (fn [s i] (py/draw s node i cur)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

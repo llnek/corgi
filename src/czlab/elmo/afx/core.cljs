@@ -333,7 +333,7 @@
   (let [{:keys [::slots ::next]} @store]
     (loop [i 0]
       (when (< i next)
-        (cb (nth slots i)) (recur (+ 1 i)))) nil))
+        (cb (nth slots i) i) (recur (+ 1 i)))) nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- grow! "" [slots sz batch]

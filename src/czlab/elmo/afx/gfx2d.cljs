@@ -54,8 +54,9 @@
 (defn v2-cross "" [v1 v2] (- (* (:x v1) (:y v2)) (* (:y v1) (:x v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-rot "rotate counter-clockwise" [v1 center angle]
-  (let [{cx :x cy :y} center
+(defn v2-rot "rotate counter-clockwise" [v1 center angleRad]
+  (let [angle (if _cocos2dx? (- angleRad) angleRad)
+        {cx :x cy :y} center
         cos (js/Math.cos angle)
         sin (js/Math.sin angle)
         x (- (:x v1) cx) y (- (:y v1) cy)]
@@ -164,7 +165,8 @@
   "" [] {:font "14px 'Arial'" :fill "#dddddd" :align "left" :base "top" })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn drawShape "" [s ctx & [styleObj]] ((:draw @s) s ctx styleObj) s)
+(defn drawShape
+  "" [s ctx & more] (apply (:draw @s) (concat [s ctx] more)) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
