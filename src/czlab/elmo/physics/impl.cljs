@@ -34,14 +34,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleDraw "" [s node i cur]
   (let [{:keys [pos angle radius startPt]} @s
-        c (if (= i cur) js/cc.color.RED js/cc.color.WHITE)]
-    (ocall! node "drawCircle" (clj->js pos) radius angle 100 true 2 c)))
+        c (if (= i cur) js/cc.color.RED js/cc.color.GREEN)]
+    (ocall! node "drawCircle" (clj->js pos) radius angle 100 true 4 c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectDraw "" [s node i cur]
   (let [{:keys [vertices width height angle]} @s
         c (if (= i cur) js/cc.color.RED js/cc.color.WHITE)]
-    (ocall! node "drawPoly" (clj->js vertices) nil 2 c)))
+    (ocall! node "drawPoly" (clj->js vertices) nil 4 c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" [state]
@@ -52,19 +52,19 @@
                            :circle {:draw circleDraw}})
         {:keys [width height]} @pw]
     (swap! state #(assoc % :phyWorld pw))
-    (let [r1 (Rectangle (Point2D 500 200) (Size2D 400 20) 0 0.3 0)
-          r2 (Rectangle (Point2D 200 400) (Size2D 400 20) 0 1 0.5)
-          r3 (Rectangle (Point2D 100 200) (Size2D 200 20) 0)
-          r4 (Rectangle (Point2D 10 360) (Size2D 20 100) 0 0 1)]
+    (let [r1 (Rectangle (Point2D 500 400) (Size2D 400 20) 0 0.3 0)
+          r2 (Rectangle (Point2D 200 200) (Size2D 400 20) 0 1 0.5)
+          r3 (Rectangle (Point2D 100 400) (Size2D 200 20) 0)
+          r4 (Rectangle (Point2D 10 240) (Size2D 20 100) 0 0 1)]
       (py/rotate! r1 2.8)
       (dotimes [i 4]
-        (-> (Rectangle (Point2D (rand width)
+        (-> (Rectangle (Point2D (rand (/ width 2))
                                 (rand (/ height 2)))
                        (Size2D (+ 10 (rand 50))
                                (+ 10 (rand 50))) (rand 30) (rand) (rand))
             (py/alterShapeAttr! :vel
                                 (vec2 (- (rand 60) 30) (- (rand 60) 30))))
-        (-> (Circle (Point2D (rand width)
+        (-> (Circle (Point2D (rand (/ width 2))
                              (rand (/ height 2)))
                     (+ 10 (rand 20)) (rand 30) (rand) (rand))
             (py/alterShapeAttr! (vec2 (- (rand 60) 30)
@@ -80,7 +80,8 @@
     (ocall! ui "removeAllChildren")
     (cx/addItem ui node)
     (ec/eachStore samples
-                  (fn [s i] (py/draw s node i cur)))))
+                  (fn [s i] (py/draw s node i cur)))
+    (py/step (* 1000 dt))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
