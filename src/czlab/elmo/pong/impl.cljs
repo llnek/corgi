@@ -33,8 +33,6 @@
     [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(declare processCell)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- runAI "" [state]
 
   )
@@ -54,35 +52,48 @@
          (dlg/popDlg scene ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- tieGame "" [state]
-  (hud/writeStatus "It's a draw!")
-  (cx/sfxPlayEffect :game-tie)
-  (onEnd state)
-  (swap! state #(assoc % :running? false)))
+(defn- nextPoint "" [state]
+  (let [{:keys [BALL-SPEED CX CO vert?]} (:game @*xcfg*)
+        {:keys [arena gmode]} @state
+        cp (cx/vbox4MID arena)
+        layer @*game-arena*
+        sp (gcbyn layer "ball")
+        [vx vy] (if (= gmode 3)
+                  [0 0]
+                  [(* BALL-SPEED (ec/randSign))
+                   (* BALL-SPEED (ec/randSign))])]
+    (attr* sp #js{:vel_x vx :vel_y vy})
+    (cx/setXXX! sp {:show? true :pos cp})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- wonGame "" [state who player]
-  (let [s (get-in @state [:scores who])]
+(defn- wonGame "" [state who]
+  (let [{:keys [pid] :as player} (get @state who)]
     (cx/sfxPlayEffect :game-end)
-    (hud/writeScore who (inc s))
-    (hud/writeStatus (str (get player :pid) " wins!"))
+    (hud/writeStatus (str pid " wins!"))
     (onEnd state)
-    (swap! state #(-> (assoc % :running? false)
-                      (update-in [:scores who] inc)))))
+    (swap! state #(assoc % :running? false))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- checkGameState "" [state player]
-
-  )
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- updateArena "" [state player cell]
-
-  )
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- processCell "" [state cell]
-      )
+(defn- checkGame "" [state]
+  (let [{:keys [NUM-POINTS CX CO vert?]} (:game @*xcfg*)
+        {:keys [scores walls]} @state
+        {:keys [n w e s]} walls
+        layer @*game-arena*
+        spb (gcbyn layer "ball")
+        bb (bbox4 spb)
+        winner (if vert?
+                 (cond (cx/isIntersect? bb n) CX
+                       (cx/isIntersect? bb s) CO)
+                 (cond (cx/isIntersect? bb e) CX
+                       (cx/isIntersect? bb w) CO))]
+    (when (some? winner)
+      (swap! state #(update-in % [:scores winner] inc))
+      (cx/setXXX! spb {:show? false})
+      (let [s (get-in @state [:scores winner])]
+        (hud/writeScore winner s)
+        (if (>= s NUM-POINTS)
+          (wonGame state winner)
+          (nextPoint state))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onClick "" [state topic msgTopic evt]
@@ -302,25 +313,24 @@
         (oset! spb "!vel_y" (- vy))
         (oset! spb "!vel_x" (- vx))))
     ;ball & walls
-    (if (or (cx/isIntersect? bb n)
-            (cx/isIntersect? bb s))
+    (when (or (cx/isIntersect? bb n)
+              (cx/isIntersect? bb s))
       (oset! spb "!vel_y" (- vy)))
-    (if (or (cx/isIntersect? bb e)
-            (cx/isIntersect? bb w))
+    (when (or (cx/isIntersect? bb e)
+              (cx/isIntersect? bb w))
       (oset! spb "!vel_x" (- vx)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateECS "" [dt]
-  (let [state (oget @*game-scene* "gstate")]
-
-    (motion state dt)
-    (collide state)
-
-    ))
-
+  (let [state (oget @*game-scene* "gstate")
+        {:keys [running?]} @state]
+    (when-not (false? running?)
+      (motion state dt)
+      (collide state)
+      (checkGame state))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-;; PreUpdate:  100, NetPlay:    200, Select:     300, Motion:     400, Move:       500, Logic:   600, Collide:  700, Resolve:    800, Render:     900
+
 
 

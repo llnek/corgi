@@ -607,7 +607,7 @@
     (if (some? color) (ocall! node "setColor" color))
     (if (some? pos)
       (ocall! node "setPosition" (point->p pos)))
-    (if-not show? (ocall! node "setVisible" false))
+    (ocall! node "setVisible" show?)
     (if (number? scale) (ocall! node "setScale" scale)) node))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

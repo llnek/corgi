@@ -22,6 +22,8 @@
 (def ^:private paddlespeed 120)
 (def ^:private ballspeed 204)
 (def ^:private court-length 512)
+(def ^:private paddle-size {:height 168 :width 36})
+(def ^:private ball-size {:width 36 :height 36 :radius 18})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onceOnly "" []
@@ -44,7 +46,7 @@
                  :size {:width 2048 :height 1536}
                  ;:landscape? false
                  ;:size {:width 1536 :height 2048}
-                 :NUM-POINTS 4
+                 :NUM-POINTS 5
                  :P1-ICON "X"
                  :BEGIN-WITH "X"
                  :BALL-SPEED 0

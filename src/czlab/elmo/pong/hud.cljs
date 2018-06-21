@@ -82,12 +82,17 @@
 
           replay (cx/gmenu [{:nnn "#icon_replay.png" :cb onReplay}]
                            {:anchor cx/*anchor-bottom* :show? false})]
+      (cx/addItem layer status "status")
+      (cx/addItem layer score1 "score1")
+      (cx/addItem layer score2 "score2")
       (cx/info* "hud called"))))
       ;(cx/pegToAnchor audio cx/*anchor-bottom-left* B)
       ;(cx/addItem layer title "title")
       ;(cx/addItem layer p1 "p1")
       ;(cx/addItem layer p2 "p2")
-      ;(cx/addItem layer status "status")
+
+
+
       ;(cx/addItem layer audio "audio")
       ;(cx/addItem layer pmenu "pause"))))
       ;(cx/addItem layer replay "replay"))))
@@ -101,7 +106,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn writeScore "" [who score]
   (let [hud (gcbyn @*game-scene* "hud")
-        s (str "p" (name who))
+        s (str "score" (name who))
         obj (gcbyn hud s)]
     (ocall! obj "setString" (numStr score))))
 
