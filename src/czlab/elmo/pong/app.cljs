@@ -13,7 +13,7 @@
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [f#*]]
                    [czlab.elmo.cc.ccsx :as cx :refer []])
-  (:require [czlab.elmo.cc.ccsx :as cx]
+  (:require [czlab.elmo.cc.ccsx :as cx :refer [*xcfg*]]
             [czlab.elmo.afx.core :as ec]
             [czlab.elmo.pong.splash :as splash]))
 
@@ -22,23 +22,33 @@
 (def ^:private paddlespeed 120)
 (def ^:private ballspeed 204)
 (def ^:private court-length 512)
-(def ^:private _HEIGHT 1536)
-(def ^:private _WIDTH 2048)
-(def ^:private _RATIO (/ _WIDTH court-length))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- onceOnly "" []
+  (let [{:keys [width height]} (cx/vbox)
+        ratio (if (> width height)
+                (/ width court-length)
+                (/ height court-length))]
+    (swap! *xcfg*
+           #(update-in %
+                       [:game]
+                       merge
+                       {:BALL-SPEED (* ratio ballspeed)
+                        :PADDLE-SPEED (* ratio paddlespeed)}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def cfg {:appKey "fa0860f9-76dc-4135-8bc7-bd5af3147d55",
           :appid "pong"
           :game { ;:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
-                 ;:landscape? true
-                 ;:size {:height _HEIGHT :width _WIDTH}
-                 :landscape? false
-                 :size {:width 1536 :height 2048}
+                 :landscape? true
+                 :size {:width 2048 :height 1536}
+                 ;:landscape? false
+                 ;:size {:width 1536 :height 2048}
                  :NUM-POINTS 4
                  :P1-ICON "X"
                  :BEGIN-WITH "X"
-                 :BALL-SPEED (* _RATIO ballspeed)
-                 :PADDLE-SPEED (* _RATIO paddlespeed)}
+                 :BALL-SPEED 0
+                 :PADDLE-SPEED 0}
           :images {:lang-pics "pong/l10n/images.png"
                    :game-pics "pong/imgs/images.png"
                    :gui-edit-orange "core/orange_edit.png"
@@ -53,6 +63,7 @@
                   :title "fnts/AutoMission.fnt"
                   :c "fnts/Subito.fnt"
                   :text "fnts/CoffeeBuzzed.fnt" }
+          :runOnce onceOnly
           :startScene (f#* (splash/splashScene))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

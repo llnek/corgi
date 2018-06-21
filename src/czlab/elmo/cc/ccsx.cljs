@@ -1090,7 +1090,8 @@
         bar (gcbyn scene "progress")
         logo (gcbyn scene "logo")
         target nil
-        selector #(do (runOnce)
+        selector #(do (preCacheAtlases)
+                      (runOnce)
                       (run* (startScene)))]
     (info* "fade out! run next scene!!!!!")
     (ocall! scene "unscheduleUpdate")
@@ -1267,8 +1268,8 @@
          :audio {:volume 0.5
                  :open? true
                  :track nil }
-         :runOnce (f#* (preCacheAtlases))
-         :startScene (f#*  nil)})
+         :runOnce noopy
+         :startScene noopy})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
