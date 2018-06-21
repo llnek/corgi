@@ -35,13 +35,13 @@
 (defn- circleDraw "" [s node i cur]
   (let [{:keys [pos angle radius startPt]} @s
         c (if (= i cur) js/cc.color.RED js/cc.color.GREEN)]
-    (ocall! node "drawCircle" (clj->js pos) radius angle 100 true 4 c)))
+    (ocall! node "drawCircle" (clj->js pos) radius angle 100 true 2 c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectDraw "" [s node i cur]
   (let [{:keys [vertices width height angle]} @s
         c (if (= i cur) js/cc.color.RED js/cc.color.WHITE)]
-    (ocall! node "drawPoly" (clj->js vertices) nil 4 c)))
+    (ocall! node "drawPoly" (clj->js vertices) nil 2 c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" [state]

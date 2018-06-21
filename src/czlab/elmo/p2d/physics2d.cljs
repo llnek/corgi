@@ -11,7 +11,7 @@
 
   czlab.elmo.p2d.physics2d
 
-  (:require [czlab.elmo.afx.core :as ec :refer [invert]]
+  (:require [czlab.elmo.afx.core :as ec :refer [num?? invert]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [pythag pythagSQ TWO-PI PI vec2 VEC_ZERO _cocos2dx?
                             v2-len v2-add v2-sub v2-dot Point2D Size2D
@@ -404,16 +404,12 @@
     (updateInertia! s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;percentage of separation to project objects
-(def *correction-rate* 0.8)
-(def *relaxCount* 15)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- correctPos! "" [s1 s2 ci]
+(defn- correctPos! "" [posCorrection s1 s2 ci]
   (let [{:keys [depth normal]} @ci
         {m1 :invMass} @s1
         {m2 :invMass} @s2
-        n (* (/ depth (+ m1 m2)) *correction-rate*)
+        n (* posCorrection
+             (/ depth (+ m1 m2)))
         jiggle (v2-scale normal n)]
     (move! s1 (v2-scale jiggle (- m1)))
     (move! s2 (v2-scale jiggle m2))))
@@ -474,10 +470,10 @@
                       :vel (v2-add vel (v2-scale impulse m2))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- resolveCollision "" [s1 s2 ci]
+(defn- resolveCollision "" [posCorrection s1 s2 ci]
   (when-not (and (zero? (:invMass @s1))
                  (zero? (:invMass @s2)))
-    (correctPos! s1 s2 ci)
+    (correctPos! posCorrection s1 s2 ci)
     ;;the direction of collisionInfo is always from s1 to s2
     ;;but the Mass is inversed, so start scale with s2 and end scale with s1
     (let
@@ -499,31 +495,29 @@
         (resolveCollision* s1 s2 r1 r2 ci rVelocity rVelocityInNormal)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- checkCollision* "" []
+(defn- checkCollision* "" [posCorrection]
   (let [{:keys [samples context]} @*gWorld*
         len (ec/countStore samples)
         ci (ci-info)]
-    (loop [i 0]
-      (when-not (>= i len)
-        (loop [j (+ 1 i)]
-          (when-not (>= j len)
-            (let [si (ec/nthStore samples i)
-                  sj (ec/nthStore samples j)]
-              (when (and (:valid? @si)
-                         (:valid? @sj)
-                         (overlap? si sj)
-                         (collisionTest?? si sj ci))
-                ;;make sure the normal is always from object[i] to object[j]
-                (if (neg? (v2-dot (:normal @ci)
-                                  (v2-sub (:pos @sj)
-                                          (:pos @si)))) (revCIDir! ci))
-                (resolveCollision si sj ci)))
-            (recur (+ 1 j))))
-        (recur (+ 1 i))))))
+    (dotimes [i len]
+      (loop [j (inc i)]
+        (when-not (>= j len)
+          (let [si (ec/nthStore samples i)
+                sj (ec/nthStore samples j)]
+            (when (and (:valid? @si)
+                       (:valid? @sj)
+                       (overlap? si sj)
+                       (collisionTest?? si sj ci))
+              ;;make sure the normal is always si -> sj
+              (if (neg? (v2-dot (:normal @ci)
+                                (v2-sub (:pos @sj)
+                                        (:pos @si)))) (revCIDir! ci))
+              (resolveCollision posCorrection si sj ci)))
+          (recur (+ 1 j)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn checkCollision "" []
-  (dotimes [_ *relaxCount*] (checkCollision*)))
+(defn runCollisionAlgo "" [algoIterCount posCorrection]
+  (dotimes [_ algoIterCount] (checkCollision* posCorrection)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn alterShapeAttr! "" [s attr & more]
@@ -552,21 +546,24 @@
 (def ^:private prevMillis (system-time))
 (def ^:private lagMillis 0)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn step "" [dt]
+(defn step "" [dt & [algoIterCount posCorrection]]
   (set! prevMillis (system-time))
   (set! lagMillis (+ lagMillis dt))
   ;;Make sure we update the game the appropriate number of times.
   ;;Update only every Milliseconds per frame.
   ;;If lag larger then update frames, update until caught up.
-  (let [{:keys [frameMillis]} @*gWorld*]
+  (let [{:keys [frameMillis]} @*gWorld*
+        iterCnt (num?? algoIterCount 10)
+        posCorrect (num?? posCorrection 0.8)]
     (while (>= lagMillis frameMillis)
-      (set! lagMillis (- lagMillis frameMillis))
-      (checkCollision)
-      (update! ))))
+      (set! lagMillis
+            (- lagMillis frameMillis))
+      (runCollisionAlgo iterCnt posCorrect) (update! ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn step* "" []
-  (step (- (system-time) prevMillis)))
+(defn step*
+  "" [& [algoIterCount posCorrection]]
+  (step (- (system-time) prevMillis) algoIterCount posCorrection))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn initPhysics "" [gravity fps world & [options]]
