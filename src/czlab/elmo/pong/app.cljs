@@ -18,22 +18,27 @@
             [czlab.elmo.pong.splash :as splash]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;per second (cal'ced by reference to original pong game)
+(def ^:private paddlespeed 120)
+(def ^:private ballspeed 204)
+(def ^:private court-length 512)
+(def ^:private _HEIGHT 1536)
+(def ^:private _WIDTH 2048)
+(def ^:private _RATIO (/ _WIDTH court-length))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def cfg {:appKey "fa0860f9-76dc-4135-8bc7-bd5af3147d55",
           :appid "pong"
           :game { ;:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
-                 :landscape? true
-                 :size {:height 1536 :width 2048}
-                 ;:landscape? false
-                 ;:size {:width 1536 :height 2048}
-                 :BALL-SPEED 500;;150 ;; 25 incremental
-                 :PADDLE-SPEED 300 ;; 300
+                 ;:landscape? true
+                 ;:size {:height _HEIGHT :width _WIDTH}
+                 :landscape? false
+                 :size {:width 1536 :height 2048}
+                 :NUM-POINTS 4
                  :P1-ICON "X"
                  :BEGIN-WITH "X"
-                 :NUM-POINTS 4
-                 :GRID-W 40
-                 :GRID-H 60}
+                 :BALL-SPEED (* _RATIO ballspeed)
+                 :PADDLE-SPEED (* _RATIO paddlespeed)}
           :images {:lang-pics "pong/l10n/images.png"
                    :game-pics "pong/imgs/images.png"
                    :gui-edit-orange "core/orange_edit.png"
