@@ -91,9 +91,7 @@
       (cx/setXXX! spb {:show? false})
       (let [s (get-in @state [:scores winner])]
         (hud/writeScore winner s)
-        (if (>= s NUM-POINTS)
-          (wonGame state winner)
-          (nextPoint state))))))
+        (if (>= s NUM-POINTS) (wonGame state winner) (nextPoint state))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- onClick "" [state topic msgTopic evt]
@@ -272,6 +270,29 @@
   (motionPads state dt))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- resolvePaddleHit "" [vert? sp bb bp [vx vy] ball pnum]
+  (let [[hw hh] (half-size* ball)]
+    (if vert?
+      (do (oset! sp "!vel_y" (- vy))
+          (cond (= 1 pnum) (ocall! sp "setPositionY" (+ (:top bp) hh))
+                (= 2 pnum) (ocall! sp "setPositionY" (- (:bottom bp) hh))))
+      (do (oset! sp "!vel_x" (- vx))
+          (cond (= 1 pnum) (ocall! sp "setPositionX" (+ (:right bp) hw))
+                (= 2 pnum) (ocall! sp "setPositionX" (- (:left bp) hw)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- resolveWallHit "" [vert? sp bb bw [vx vy] ball w]
+  (let [[hw hh] (half-size* ball)]
+    (case  w
+      (:n :s) (do (oset! sp "!vel_y" (- vy))
+                  (cond (= :s w) (ocall! sp "setPositionY" (+ (:top bw) hh))
+                        (= :n w) (ocall! sp "setPositionY" (- (:bottom bw) hh))))
+      (:e :w) (do (oset! sp "!vel_x" (- vx))
+                  (cond (= :w w) (ocall! sp "setPositionX" (+ (:right bw) hw))
+                        (= :e w) (ocall! sp "setPositionX" (- (:left bw) hw))))
+      nil)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- collide "" [state]
   (let [{:keys [paddle ball walls]} @state
         {:keys [n w e s]} walls
@@ -287,38 +308,30 @@
         vy (oget spb "?vel_y")
         bb (bbox4 spb)]
     ;;clamp pads
-    (if vert?
-      (do
-        (if (cx/isIntersect? w b1)
-          (ocall sp1 "setPositionX" (+ hw (:left w))))
-        (if (cx/isIntersect? e b1)
-          (ocall sp1 "setPositionX" (- (:right e) hw)))
-        (if (cx/isIntersect? w b2)
-          (ocall sp2 "setPositionX" (+ hw (:left w))))
-        (if (cx/isIntersect? e b2)
-          (ocall sp2 "setPositionX" (- (:right e) hw))))
-      (do
-        (if (cx/isIntersect? n b1)
-          (ocall sp1 "setPositionY" (- (:bottom n) hh)))
-        (if (cx/isIntersect? s b1)
-          (ocall sp1 "setPositionY" (+ hh (:top s))))
-        (if (cx/isIntersect? n b2)
-          (ocall sp2 "setPositionY" (- (:bottom n) hh)))
-        (if (cx/isIntersect? s b2)
-          (ocall sp2 "setPositionY" (+ hh (:top s))))))
-    ;ball & pads
-    (if (or (cx/isIntersect? bb b1)
-            (cx/isIntersect? bb b2))
+    (doseq [[sp bx] [[sp1 b1] [sp2 b2]]]
       (if vert?
-        (oset! spb "!vel_y" (- vy))
-        (oset! spb "!vel_x" (- vx))))
+        (do (if (cx/isIntersect? w bx)
+              (ocall sp "setPositionX" (+ hw (:left w))))
+            (if (cx/isIntersect? e bx)
+              (ocall sp "setPositionX" (- (:right e) hw))))
+        (do (if (cx/isIntersect? n bx)
+              (ocall sp "setPositionY" (- (:bottom n) hh)))
+            (if (cx/isIntersect? s bx)
+              (ocall sp "setPositionY" (+ hh (:top s)))))))
+    ;ball & pads
+    (cond (cx/isIntersect? bb b1)
+          (resolvePaddleHit vert? spb bb b1 [vx vy] ball 1)
+          (cx/isIntersect? bb b2)
+          (resolvePaddleHit vert? spb bb b2 [vx vy] ball 2))
     ;ball & walls
-    (when (or (cx/isIntersect? bb n)
-              (cx/isIntersect? bb s))
-      (oset! spb "!vel_y" (- vy)))
-    (when (or (cx/isIntersect? bb e)
-              (cx/isIntersect? bb w))
-      (oset! spb "!vel_x" (- vx)))))
+    (cond (cx/isIntersect? bb n)
+          (resolveWallHit vert? spb bb n [vx vy] ball :n)
+          (cx/isIntersect? bb s)
+          (resolveWallHit vert? spb bb s [vx vy] ball :s))
+    (cond (cx/isIntersect? bb e)
+          (resolveWallHit vert? spb bb e [vx vy] ball :e)
+          (cx/isIntersect? bb w)
+          (resolveWallHit vert? spb bb w [vx vy] ball :w))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateECS "" [dt]
