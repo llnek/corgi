@@ -11,7 +11,10 @@
 
   czlab.elmo.pong.splash
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [do-with each-indexed f#*]]
+  (:require-macros [czlab.elmo.afx.core
+                    :as ec :refer [with-local-vars
+                                   var-set var-get
+                                   do-with each-indexed f#*]]
                    [czlab.elmo.cc.ccsx
                     :as cx :refer [oget-height oget-width
                                    oget-x oget-y
@@ -20,7 +23,7 @@
             [czlab.elmo.pong.mmenu :as mu]
             [czlab.elmo.pong.misc :as mc]
             [czlab.elmo.afx.core :as ec :refer [nichts?]]
-            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
+            [oops.core :refer [oget+ oset!+ oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn-  onPlay "" [] (f#* (cx/run* (mu/mmenuScene))))

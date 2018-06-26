@@ -9,8 +9,23 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.afx.core)
+  czlab.elmo.afx.core
 
+  (:refer-clojure :exclude [with-local-vars var-get var-set]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro var-set  "" [p v]
+  (let [x (symbol (str ".-" (name p))) y (symbol "____lvars")] `(set! (~x ~y) ~v)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro var-get  "" [p]
+  (let [x (symbol (str ".-" (name p))) y (symbol "____lvars")] `(~x ~y)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro with-local-vars "" [bindings & more]
+  (let [zzz (vec (mapcat #(vector (name (first %)) (last %))
+                         (partition 2 bindings)))]
+    `(let [~'____lvars (cljs.core/js-obj ~@zzz)] ~@more)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro f#* "" [& forms] `(fn [& ~'____xs] ~@forms))
