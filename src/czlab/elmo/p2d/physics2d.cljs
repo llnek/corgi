@@ -13,7 +13,7 @@
 
   (:require [czlab.elmo.afx.core :as ec :refer [num?? invert]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [pythag pythagSQ TWO-PI PI vec2 VEC_ZERO _cocos2dx?
+             :as gx :refer [pythag pythagSQ TWO-PI PI vec2 VEC2_ZERO _cocos2dx?
                             v2-len v2-add v2-sub v2-dot Point2D Size2D
                             v2-negate v2-scale v2-cross v2-rot v2-norm v2-dist]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
@@ -28,7 +28,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ci-info
-  "" [] (atom {:depth 0 :normal VEC_ZERO :start VEC_ZERO :end VEC_ZERO}))
+  "" [] (atom {:depth 0 :normal VEC2_ZERO :start VEC2_ZERO :end VEC2_ZERO}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- chgci! "" [ci d n s]
@@ -56,13 +56,13 @@
                    :invMass (invert mass')
                    :oid (nextShapeNum)
                    :inertia 0
-                   :vel VEC_ZERO
+                   :vel VEC2_ZERO
                    :valid? true
                    :angle 0
                    :angVel 0 ;; clockwise = negative
                    :angAccel 0
                    :bxRadius 0
-                   :accel (if (zero? mass') VEC_ZERO gravity)
+                   :accel (if (zero? mass') VEC2_ZERO gravity)
                    :sticky (if (number? friction) friction 0.8)
                    :bounce (if (number? restitution) restitution 0.2)))
     (ec/addToStore! samples s) s))
@@ -83,8 +83,8 @@
            #(merge %
                    (if (pos? m)
                      {:invMass (invert m) :accel gravity}
-                     {:invMass 0 :vel VEC_ZERO
-                      :accel VEC_ZERO :angVel 0 :angAccel 0})))
+                     {:invMass 0 :vel VEC2_ZERO
+                      :accel VEC2_ZERO :angVel 0 :angAccel 0})))
     (updateInertia! s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -21,12 +21,14 @@
 (def _cocos2dx? false)
 (def PI js/Math.PI)
 (def TWO-PI (* 2 PI))
+(def PosInf js/Number.POSITIVE_INFINITY)
+(def NegInf js/Number.NEGATIVE_INFINITY)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec2 "" [x y] {:x x :y y})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def VEC_ZERO (vec2 0 0))
+(def VEC2_ZERO (vec2 0 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pythagSQ "" [x y] (+ (* x x) (* y y)))
