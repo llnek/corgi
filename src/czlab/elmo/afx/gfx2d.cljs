@@ -85,10 +85,6 @@
 (defn Area2D "" [pt sz] (merge pt sz))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Polygon "" []
-  (atom {:edges (array) :center nil}))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- cfgStyle! "" [ctx styleObj]
   (oset! ctx "!lineWidth" (oget styleObj "?line" "?width"))
   (oset! ctx "!strokeStyle" (oget styleObj "?stroke" "?style")))
