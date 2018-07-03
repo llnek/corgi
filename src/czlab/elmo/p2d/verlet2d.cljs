@@ -11,18 +11,27 @@
 
   czlab.elmo.p2d.verlet2d
 
-  (:require [czlab.elmo.afx.core :as ec]
+  (:require [czlab.elmo.afx.core :as ec :refer [invert]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [VEC2_ZERO PosInf NegInf
+                            Point2D Polygon
                             vec2 v2-scale v2-add
                             v2-sub v2-dot v2-negate v2-norm]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Point2D "" []
-  (atom {:pos VEC2_ZERO :prev VEC2_ZERO :accel VEC2_ZERO}))
+(defn Vertex "" [x y]
+  (atom {:body nil :pos (Point2D x y) :prev nil :accel VEC2_ZERO}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Edge "" [] (atom {:v1 nil :v2 nil :olen 0}))
+(defn Edge "" [v1 v2]
+  (atom {:body nil :v1 v1 :v2 v2
+         :olen (v2-dist (:pos @v1) (:pos @v2))}))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn PhysicsBody "" [mass]
+  (let [p (Polygon)]
+    (swap! p #(assoc % :invMass (invert mass)))
+    p))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn CollisionInfo "" []
