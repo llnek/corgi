@@ -520,10 +520,6 @@
           (recur (+ 1 j)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn runCollisionAlgo "" [algoIterCount posCorrection]
-  (dotimes [_ algoIterCount] (checkCollision* posCorrection)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn alterShapeAttr! "" [s attr & more]
   (let [{:keys [angVel vel]} @s
         p1 (first more)
@@ -535,9 +531,11 @@
       (swap! s #(assoc % attr v))) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- update! "" []
-  (let [{:keys [context samples frameSecs]} @*gWorld*
-        bin #js []]
+(defn runAlgo "" [algoIterCount posCorrection]
+  (dotimes [_ algoIterCount] (checkCollision* posCorrection))
+  (let [{:keys [context
+                samples
+                frameSecs]} @*gWorld* bin #js []]
     (ec/eachStore samples
                   (fn [s i]
                     (if-not (:valid? @s)
@@ -556,13 +554,13 @@
   ;;Make sure we update the game the appropriate number of times.
   ;;Update only every Milliseconds per frame.
   ;;If lag larger then update frames, update until caught up.
-  (let [{:keys [frameMillis]} @*gWorld*
+  (let [{:keys [algoRunner frameMillis]} @*gWorld*
         iterCnt (num?? algoIterCount 10)
-        posCorrect (num?? posCorrection 0.8)]
+        posCorrect (num?? posCorrection 0.8)
+        R (if (fn? algoRunner) algoRunner runAlgo)]
     (while (>= lagMillis frameMillis)
       (set! lagMillis
-            (- lagMillis frameMillis))
-      (runCollisionAlgo iterCnt posCorrect) (update! ))))
+            (- lagMillis frameMillis)) (R iterCnt posCorrect))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn step*

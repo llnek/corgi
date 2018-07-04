@@ -21,8 +21,8 @@
 (def _cocos2dx? false)
 (def PI js/Math.PI)
 (def TWO-PI (* 2 PI))
-(def PosInf js/Number.POSITIVE_INFINITY)
-(def NegInf js/Number.NEGATIVE_INFINITY)
+(def *pos-inf* js/Number.POSITIVE_INFINITY)
+(def *neg-inf* js/Number.NEGATIVE_INFINITY)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec2 "" [x y] {:x x :y y})
@@ -89,8 +89,10 @@
   (oset! ctx "!lineWidth" (oget styleObj "?line" "?width"))
   (oset! ctx "!strokeStyle" (oget styleObj "?stroke" "?style")))
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- Shape "" [pt] (atom {:pos pt}))
+(defn Edge "" [v1 v2] (atom {:v1 v1 :v2 v2}))
+(defn Polygon "" [pt] (atom {:pos pt :edges nil}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleDraw "" [c1 ctx & [styleObj]]
@@ -111,7 +113,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Circle "" [pt radius]
-  (let [s (Shape pt)]
+  (let [s (Polygon pt)]
     (swap! s #(assoc %
                      :draw circleDraw
                      :type :circle
@@ -131,7 +133,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Rectangle "" [pt sz]
-  (let [s (Shape pt)
+  (let [s (Polygon pt)
         {:keys [width height]} sz]
     (swap! s #(assoc %
                      :type :rectangle
@@ -156,7 +158,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Line "" [ptA ptB]
-  (let [s (Shape ptA)]
+  (let [s (Polygon ptA)]
     (swap! s #(assoc %
                      :draw lineDraw
                      :type :line
