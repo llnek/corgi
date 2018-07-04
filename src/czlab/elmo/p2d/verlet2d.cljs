@@ -11,7 +11,9 @@
 
   czlab.elmo.p2d.verlet2d
 
-  (:require [czlab.elmo.afx.core :as ec :refer [invert]]
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [n# nexth when-some]])
+
+  (:require [czlab.elmo.afx.core :as ec :refer [invert abs*]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [VEC2_ZERO *pos-inf* *neg-inf*
                             Point2D
@@ -46,15 +48,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- calcCenter "" [body]
   (let [{:keys [edges]} @body
-        sz (count edges)
+        sz (n# edges)
         [C M X]
         (loop [i 0 cx 0 cy 0
                xmin *pos-inf* ymin *pos-inf*
                xmax *neg-inf* ymax *neg-inf*]
           (if (>= i sz)
             [(vec2 cx cy) (vec2 xmin ymin) (vec2 xmax ymax)]
-            (let [v (:v1 (deref (nth edges i)))
-                  {:keys [x y]} (:pos @v)]
+            (let [{:keys [v1 v2]} (deref (nth edges i))
+                  {:keys [x y]} (:pos @v1)]
               (recur (inc i)
                      (+ cx x) (+ cy y)
                      (min xmin x) (min ymin y)
@@ -65,25 +67,26 @@
                    :pos (v2-scale C (invert sz)))) body))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Polygon "" [v0 v1 v2 & more]
-  (let [vs (concat [v0 v1 v2] more)
+(defn Polygon "" [vs & [mass friction restitution]]
+  (let [mass' (if (number? mass) mass 1)
         {:keys [samples]} *gWorld*
-        ret (gx/Polygon VEC2_ZERO)
-        sz (dec (count vs))
-        E
-        (loop [i 0 edges (transient [])]
-          (if (= i sz)
-            (persistent! (conj! edges
-                                (Edge ret
-                                      (nth vs i)
-                                      (nth vs 0))))
-            (let [a (nth vs i)
-                  ii (inc i)
-                  b (nth vs ii)]
-              (recur ii (conj! edges (Edge ret a b))))))]
-    (swap! p #(assoc % :edges E))
-    (ec/addToStore! samples
-                    (calcCenter p))))
+        ret (gx/Polygon nil)
+        end (dec (n# vs))
+        E (loop [i 0 edges (transient [])]
+            (if (= i end)
+              (persistent! (conj! edges
+                                  (Edge ret (nth vs i) (nth vs 0))))
+              (recur (inc i) (conj! edges
+                                    (Edge ret (nth vs i) (nexth vs i))))))]
+    (swap! ret
+           #(assoc %
+                   :valid? true
+                   :edges E
+                   :mass mass'
+                   :invMass (invert mass')
+                   :sticky (if (number? friction) friction 0.8)
+                   :bounce (if (number? restitution) restitution 0.2)))
+    (ec/addToStore! samples (calcCenter ret))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ci-info "" [&[depth normal edge vertex]]
@@ -123,7 +126,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- projectToAxis "" [body axis]
   (let [{:keys [edges]} @body
-        sz (count edges)]
+        sz (n# edges)]
     (loop [i 0
            minp *pos-inf* maxp *neg-inf*]
       (if (>= i sz)
@@ -134,35 +137,34 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- intervalDistance
-  "" [minA maxA minB maxB]
+  "" [[minA maxA] [minB maxB]]
   (if (< minA minB) (- minB maxA) (- minA maxB)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collision* "" [B1 B2 ci]
-  ;;make sure that the collision normal is pointing at B1
-  (let [{c1 :center edges :edges} @B1
-        eCnt (count edges)
-        {c2 :center} @B2
+  (let [{c1 :pos edges :edges} @B1
+        ecnt (count edges)
+        {c2 :pos} @B2
         {cn :normal} @ci
         sign (ec/sgn (v2-dot cn (v2-sub c1 c2)))
-        ;;line equation is N*( R - R0 ). We choose B2->Center
-        ;;as R0 the normal N is given by the collision normal
+        ;;line equation is N*( R - R0 ). We choose B2 ;;as R0
+        ;;the normal N is given by the collision normal
         ;;revert the collision normal if it points away from B1
-        _ (if-not (pos? sign) (swap! ci #(assoc % :normal (v2-negate cn))))]
-    (loop [i 0
-           minDist PosInf]
-      (when (< i eCnt)
-        (let [;;calc dist of the vertex from the line using the line equation
-              vi (:v1 (deref (nth edges i)))
-              ii (inc i)
-              dist (v2-dot (:normal @ci) (v2-sub (:pos @vi) c2))]
-          (if (< dist minDist)
-            (swap! ci #(assoc % :vertex vi)))
-          (recur ii
-                 (if (< dist minDist) dist minDist))))) true))
+        _ (if-not (pos? sign)
+            (swap! ci #(assoc %
+                              :normal (v2-negate cn))))
+        {cn' :normal} @ci]
+    (loop [i 0 dist *pos-inf*]
+      (when (< i ecnt)
+        ;;calc dist of the vertex from the line using the line equation
+        (let [{:keys [v1 v2]} (deref (nth edges i))
+              d (v2-dot cn' (v2-sub (:pos @v1) c2))]
+          (if (< d dist) (swap! ci #(assoc % :vertex v1)))
+          (recur (inc i) (if (< d dist) d dist)))))
+    ci))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- collisionTest?? "" [B1 B2 ci]
+(defn- collisionTest?? "" [B1 B2]
   (let [{e1 :edges} @B1
         {e2 :edges} @B2
         ec1 (count e1)
@@ -170,7 +172,7 @@
         sz (+ ec1 ec2)
         [quit? minDist axis edge]
         (loop [break? false i 0
-               minDist PosInf axis nil edge nil]
+               minDist *pos-inf* axis nil edge nil]
           (if (or break? (>= i sz))
             [break? minDist axis edge]
             (let [e' (if (< i ec1)
@@ -181,9 +183,9 @@
                   {x2 :x y2 :y} (:pos @v2)
                   ;;calc the axis normal to this edge, rotate 90deg left
                   axis' (v2-norm (vec2 (- y1 y2) (- x2 x1)))
-                  [minA maxA] (projectToAxis B1 axis')
-                  [minB maxB] (projectToAxis B2 axis')
-                  dist (intervalDistance minA maxA minB maxB)
+                  lineA (projectToAxis B1 axis')
+                  lineB (projectToAxis B2 axis')
+                  dist (intervalDistance lineA lineB)
                   dist' (js/Math.abs dist)
                   lesso? (<  dist' minDist)]
               (recur (> dist 0)
@@ -191,18 +193,21 @@
                      (if lesso? dist' minDist)
                      (if lesso? axis' axis)
                      (if lesso? e' edge)))))]
-    (if quit?
-      false
-      (do (swap! ci #(assoc % :depth minDist :normal axis :edge edge))
-          ;;ensure that the body containing the collision edge lies in
-          ;;B2 and the one containing the collision vertex in B1
-          (if (not= B2 (:body @edge))
-            (collision* B2 B1 ci) (collision* B1 B2 ci))))))
+    (when-not quit?
+      (let [ci (ci-info minDist axis edge)]
+        ;;ensure that the body containing the collision edge lies in
+        ;;B2 and the one containing the collision vertex in B1
+        (if (not= B2 (:body @edge))
+          (collision* B2 B1 ci) (collision* B1 B2 ci))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- overlap? [b1 b2]
-  (let [{minX1 :minX minY1 :minY maxX1 :maxX maxY1 :maxY} @b1
-        {minX2 :minX minY2 :minY maxX2 :maxX maxY2 :maxY} @b2]
+(defn- overlap? [B1 B2]
+  (let [{pm1 :pmin px1 :pmax} @B1
+        {pm2 :pmin px2 :pmax} @B2
+        {minX1 :x minY1 :y} pm1
+        {maxX1 :x maxY1 :y} px1
+        {minX2 :x minY2 :y} pm2
+        {maxX2 :x maxY2 :y} px2]
     (and (<= minX1 maxX2)
          (<= minY1 maxY2)
          (>= maxX1 minX2)
@@ -215,7 +220,7 @@
                           (swap! v #(assoc % :accel gravity))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- resolveCollision "" [posCorrect b1 b2 ci]
+(defn- resolveCollision "" [ci]
   (let [{:keys [vertex edge normal depth]} @ci
         {vx :x vy :y} (:pos @vertex)
         {:keys [v1 v2]} @edge
@@ -256,13 +261,12 @@
       (loop [j (inc i)]
         (when-not (>= j len)
           (let [si (ec/nthStore samples i)
-                ci (ci-info)
                 sj (ec/nthStore samples j)]
             (when (and (:valid? @si)
                        (:valid? @sj)
-                       (overlap? si sj)
-                       (collisionTest?? si sj ci))
-              (resolveCollision posCorrection si sj ci)))
+                       (overlap? si sj))
+              (when-some [ci (collisionTest?? si sj)]
+                (resolveCollision ci))))
           (recur (+ 1 j)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

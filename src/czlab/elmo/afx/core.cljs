@@ -178,6 +178,9 @@
     (oset! e "returnValue" false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn abs* "" [n] (js/Math.abs n))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn randSign
   "Randomly pick positive or negative."
   [] (if (zero? (rem (js/Math.floor (rand 10)) 2)) -1 1))
