@@ -11,18 +11,19 @@
 
   czlab.elmo.afx.gfx2d
 
-  (:require-macros [czlab.elmo.afx.core :as ec])
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [n#]])
+
   (:require [czlab.elmo.afx.core :as ec :refer [invert]]
             [oops.core :refer [oget oset! ocall oapply ocall!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def *pos-inf* js/Number.POSITIVE_INFINITY)
+(def *neg-inf* js/Number.NEGATIVE_INFINITY)
 ;(def *coordinate-system* :right-handed)
 ;(def _cocos2dx? true)
 (def _cocos2dx? false)
 (def PI js/Math.PI)
 (def TWO-PI (* 2 PI))
-(def *pos-inf* js/Number.POSITIVE_INFINITY)
-(def *neg-inf* js/Number.NEGATIVE_INFINITY)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec2 "" [x y] {:x x :y y})
@@ -53,7 +54,7 @@
 (defn v2-dot "" [v1 v2] (+ (* (:x v1) (:x v2)) (* (:y v1) (:y v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-cross "" [v1 v2] (- (* (:x v1) (:y v2)) (* (:y v1) (:x v2))))
+(defn v2-xss "" [v1 v2] (- (* (:x v1) (:y v2)) (* (:y v1) (:x v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn v2-rot "rotate counter-clockwise" [v1 center angleRad]
@@ -90,23 +91,22 @@
   (oset! ctx "!strokeStyle" (oget styleObj "?stroke" "?style")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Edge "" [v1 v2] (atom {:v1 v1 :v2 v2}))
 (defn Polygon "" [pt] (atom {:pos pt :edges nil}))
+(defn Edge "" [v1 v2] (atom {:v1 v1 :v2 v2}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleDraw "" [c1 ctx & [styleObj]]
   (let [{:keys [pos radius startPt]} @c1
-        {:keys [x y]} pos]
+        {cx :x cy :y} pos
+        {sx :x sy :y} startPt]
     (ocall! ctx "beginPath")
     (when (some? styleObj)
       (cfgStyle! ctx styleObj))
-    (ocall! ctx "arc" x y radius 0 TWO-PI true)
-    (when (some? startPt)
-      (ocall! ctx
-              "moveTo"
-              (:x startPt)
-              (:y startPt))
-      (ocall! ctx "lineTo" x y))
+    (ocall! ctx
+            "arc" cx cy radius 0 TWO-PI true)
+    (when (number? sx)
+      (ocall! ctx "moveTo" sx sy)
+      (ocall! ctx "lineTo" cx cy))
     (ocall! ctx "closePath")
     (ocall! ctx "stroke")))
 
@@ -121,8 +121,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectDraw "" [r1 ctx & [styleObj]]
   (let [{:keys [edges width height angle]} @r1
-        e0 (nth edges 0)
-        {:keys [x y]} (:v1 @e0)]
+        {:keys [x y]} (:v1 @(nth edges 0))]
     (ocall! ctx "save")
     (ocall! ctx "translate" x y)
     (ocall! ctx "rotate" angle)
@@ -134,17 +133,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- polyDraw "" [p ctx & [styleObj]]
   (let [{:keys [edges]} @p
-        sz (count edges)
-        e0 (nth edges 0)
-        {x0 :x y0 :y} (:v1 @e0)]
+        sz (n# edges)
+        {x0 :x y0 :y}
+        (:v1 @(nth edges 0))]
     (ocall! ctx "beginPath")
     (when (some? styleObj)
       (cfgStyle! ctx styleObj))
     (ocall! ctx "moveTo" x0 y0)
     (dotimes [i sz]
       (when-not (zero? i)
-        (let [e' (nth edges i)
-              {:keys [x y]}(:v1 @e')]
+        (let [{:keys [x y]}
+              (:v1 @(nth edges i))]
           (ocall! ctx "lineTo" x y))))
     (ocall! ctx "closePath")
     (ocall! ctx "stroke")))
@@ -167,8 +166,6 @@
                      :type :rectangle
                      :draw polyDraw
                      :angle 0
-                     :width_2 width_2
-                     :height_2 height_2
                      :width width
                      :height height
                      :edges [(Edge v0 v1)
@@ -177,14 +174,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- lineDraw "" [line ctx & [styleObj]]
-  (let [{:keys [pos endPt]} @line]
+  (let [{:keys [pos endPt]} @line
+        {ax :x ay :y} pos
+        {ex :x ey :y} endPt]
     (ocall! ctx "beginPath")
     (when (some? styleObj)
       (cfgStyle! ctx styleObj)
       (if-some [x (oget styleObj
                         "?line" "?cap")] (oset! ctx "!lineCap" x)))
-    (ocall! ctx "moveTo" (:x pos) (:y pos))
-    (ocall! ctx "lineTo" (:x endPt) (:y endPt))
+    (ocall! ctx "moveTo" ax ay)
+    (ocall! ctx "lineTo" ex ey)
     (ocall! ctx "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
