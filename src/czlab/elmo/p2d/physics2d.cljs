@@ -13,7 +13,9 @@
 
   (:require [czlab.elmo.afx.core :as ec :refer [num?? invert]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [pythag pythagSQ TWO-PI PI vec2 VEC2_ZERO _cocos2dx?
+             :as gx :refer [_cocos2dx? *pos-inf* *neg-inf*
+                            pythag pythagSQ TWO-PI PI
+                            Point2D vec2 VEC2_ZERO Edge
                             v2-len v2-add v2-sub v2-dot
                             v2-negate v2-scale v2-cross v2-rot v2-norm v2-dist]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
@@ -45,7 +47,7 @@
                   :start end :end start :normal (v2-negate normal)))) ci)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rigidize! "" [s & [mass friction restitution]]
+(defn rigidize! "" [s & [mass friction restitution]]
   (let [{:keys [gravity samples]} @*gWorld*
         options (get @*gWorld* (:type @s))
         {:keys [draw]} options
@@ -54,6 +56,7 @@
     (swap! s
            #(assoc %
                    :invMass (invert mass')
+                   :mass mass'
                    :oid (nextShapeNum)
                    :inertia 0
                    :vel VEC2_ZERO
@@ -126,13 +129,13 @@
 ;;rect-stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findSPoint?? "" [r1 dir ptOnEdge]
-  (let [{:keys [vertices]}
-        @r1
-        len (count vertices)]
-    (loop [spDist js/Number.NEGATIVE_INFINITY sp nil i 0]
+  (let [{:keys [edges]} @r1
+        len (count edges)]
+    (loop [spDist *neg-inf* sp nil i 0]
       (if (>= i len)
         [spDist sp]
-        (let [v' (nth vertices i)
+        (let [e' (nth edges i)
+              {v' :v1} @e'
               ii (+ i 1)
               proj (v2-dot (v2-sub v' ptOnEdge) dir)]
           ;;find the longest distance with certain edge
@@ -145,10 +148,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- hasAxisLeastPenetration?
   "Find the shortest axis that's overlapping" [r1 r2 ci]
-  (let [{:keys [vertices normals]} @r1
+  (let [{:keys [edges normals]} @r1
         len (count normals)
         [bestDist supportPoint bestIndex hasSupport?]
-        (loop [bestDist js/Number.POSITIVE_INFINITY
+        (loop [bestDist *pos-inf*
                suPt nil bestIdx nil hasSupport? true i 0]
           (if-not (and (< i len)
                        hasSupport?)
@@ -156,7 +159,8 @@
             (let [n (nth normals i)
                   ii (+ i 1)
                   dir (v2-negate n)
-                  ptOnEdge (nth vertices i)
+                  e' (nth edges i)
+                  {ptOnEdge :v1} @e'
                   [dist pt]
                   (findSPoint?? r2  dir ptOnEdge)
                   sp? (not (nil? pt))]
@@ -189,22 +193,23 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleInsideRect? "" [r1 cc1 ci nEdge bestDist]
-  (let [{:keys [normals vertices]} @r1
-        {:keys [radius pos]} @cc1
+  (let [{:keys [radius pos]} @cc1
+        {:keys [normals]} @r1
         n (nth normals nEdge)
         rVec (v2-scale n radius)]
     (chgci! ci (- radius bestDist) n (v2-sub pos rVec)) true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- nfaceToCircle?? "" [r1 cc1 ci]
-  (let [{:keys [vertices normals]} @r1
+  (let [{:keys [edges normals]} @r1
         {center :pos} @cc1
         len (count normals)]
     (loop [inside? true
-           bestDist js/Number.NEGATIVE_INFINITY nEdge 0 i 0]
+           bestDist *neg-inf* nEdge 0 i 0]
       (if (or (not inside?) (>= i len))
         [inside? bestDist nEdge]
-        (let [v (v2-sub center (nth vertices i))
+        (let [e' (nth edges i)
+              v (v2-sub center (:v1 @e'))
               ii (+ i 1)
               proj (v2-dot v (nth normals i))]
           (cond
@@ -216,14 +221,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleOutsideRect? "" [r1 cc1 ci nEdge bestDist]
   (let [{center :pos :keys [radius]} @cc1
-        {:keys [normals vertices]} @r1
-        vn (nth vertices nEdge)
+        {:keys [normals edges]} @r1
+        vn (:v1 (deref (nth edges nEdge)))
         en (nth normals nEdge)
         ;;V1 is from left vertex of face to center of circle
         ;;V2 is from left vertex of face to right vertex of face
         len (count normals)
         eX (mod (+ 1 nEdge) len)
-        vX (nth vertices eX)
+        vX (:v1 (deref (nth edges eX)))
         V1 (v2-sub center vn)
         V2 (v2-sub vX vn)
         dot (v2-dot V1 V2)]
@@ -281,29 +286,41 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectRotate "" [s angle']
-  (let [{center :pos :keys [angle vertices normals]} @s
-        [v0 v1 v2 v3] vertices
+  (let [{center :pos :keys [angle edges normals]} @s
+        [v0 v1 v2 v3]
+        (map (fn [e] (:v1 @e)) edges)
         a2 (+ angle angle')
-        vs [(v2-rot v0 center angle')
-            (v2-rot v1 center angle')
-            (v2-rot v2 center angle')
-            (v2-rot v3 center angle')]]
+        [p0 p1 p2 p3 :as vs]
+        [(v2-rot v0 center angle')
+         (v2-rot v1 center angle')
+         (v2-rot v2 center angle')
+         (v2-rot v3 center angle')]]
     (swap! s
            #(assoc %
                    :angle a2
-                   :vertices vs
+                   :edges
+                   [(Edge p0 p1)
+                    (Edge p1 p2)
+                    (Edge p2 p3)
+                    (Edge p3 p0)]
                    :normals (createFaceNormals vs))) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectMove "" [s p]
-  (let [{center :pos :keys [vertices]} @s
-        [v0 v1 v2 v3] vertices]
+  (let [{center :pos :keys [edges]} @s
+        [v0 v1 v2 v3]
+        (map (fn [e] (:v1 @e)) edges)
+        [p0 p1 p2 p3]
+        [(v2-add v0 p)
+         (v2-add v1 p)
+         (v2-add v2 p)
+         (v2-add v3 p)]]
     (swap! s #(assoc %
                      :pos (v2-add center p)
-                     :vertices [(v2-add v0 p)
-                                (v2-add v1 p)
-                                (v2-add v2 p)
-                                (v2-add v3 p)])) s))
+                     :edges [(Edge p0 p1)
+                             (Edge p1 p2)
+                             (Edge p2 p3)
+                             (Edge p3 p0)])) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectUpdateInertia "" [s]
@@ -325,8 +342,8 @@
         right (+ x width_2)
         left (- x width_2)
         [v0 v1 v2 v3 :as vs]
-        [(vec2 left top) (vec2 right top)
-         (vec2 right bottom) (vec2 left bottom)]]
+        [(Point2D left top) (Point2D right top)
+         (Point2D right bottom) (Point2D left bottom)]]
     (->>
       #(assoc %
               :updateInertia rectUpdateInertia
@@ -334,7 +351,8 @@
               :move rectMove
               :rotate rectRotate
               :bxRadius (/ (pythag width height) 2)
-              :vertices vs
+              :edges [(Edge v0 v1)(Edge v1 v2)
+                      (Edge v2 v3)(Edge v3 v0)]
               :normals (createFaceNormals vs)) (swap! s))
     (updateInertia! s)))
 

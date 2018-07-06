@@ -18,7 +18,7 @@
                             move! rotate!
                             Rectangle Circle *gWorld*]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [pythag pythagSQ TWO-PI PI vec2 VEC_ZERO _cocos2dx?
+             :as gx :refer [pythag pythagSQ TWO-PI PI vec2 VEC2_ZERO _cocos2dx?
                             v2-len v2-add v2-sub v2-dot Point2D Size2D
                             v2-negate v2-scale v2-cross v2-rot v2-norm v2-dist]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
@@ -185,8 +185,8 @@
       (-> (Circle (Point2D (rand (/ width 2))
                            (rand (/ height 2)))
                   (+ 10 (rand 20)) (rand 30) (rand) (rand))
-          (py/alterShapeAttr! (vec2 (- (rand 60) 30)
-                                    (- (rand 60) 30)))))
+          (py/alterShapeAttr! :vel (vec2 (- (rand 60) 30)
+                                         (- (rand 60) 30)))))
     (runGameLoop)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

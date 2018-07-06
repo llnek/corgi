@@ -89,7 +89,6 @@
   (oset! ctx "!lineWidth" (oget styleObj "?line" "?width"))
   (oset! ctx "!strokeStyle" (oget styleObj "?stroke" "?style")))
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Edge "" [v1 v2] (atom {:v1 v1 :v2 v2}))
 (defn Polygon "" [pt] (atom {:pos pt :edges nil}))
@@ -114,15 +113,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Circle "" [pt radius]
   (let [s (Polygon pt)]
-    (swap! s #(assoc %
+    (swap! s #(assoc (dissoc % :edges)
                      :draw circleDraw
                      :type :circle
                      :radius radius)) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectDraw "" [r1 ctx & [styleObj]]
-  (let [{:keys [vertices width height angle]} @r1
-        {:keys [x y]} (nth vertices 0)]
+  (let [{:keys [edges width height angle]} @r1
+        e0 (nth edges 0)
+        {:keys [x y]} (:v1 @e0)]
     (ocall! ctx "save")
     (ocall! ctx "translate" x y)
     (ocall! ctx "rotate" angle)
@@ -132,17 +132,48 @@
     (ocall! ctx "restore")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- polyDraw "" [p ctx & [styleObj]]
+  (let [{:keys [edges]} @p
+        sz (count edges)
+        e0 (nth edges 0)
+        {x0 :x y0 :y} (:v1 @e0)]
+    (ocall! ctx "beginPath")
+    (when (some? styleObj)
+      (cfgStyle! ctx styleObj))
+    (ocall! ctx "moveTo" x0 y0)
+    (dotimes [i sz]
+      (when-not (zero? i)
+        (let [e' (nth edges i)
+              {:keys [x y]}(:v1 @e')]
+          (ocall! ctx "lineTo" x y))))
+    (ocall! ctx "closePath")
+    (ocall! ctx "stroke")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Rectangle "" [pt sz]
-  (let [s (Polygon pt)
-        {:keys [width height]} sz]
+  (let [{:keys [width height]} sz
+        {:keys [x y]} pt
+        s (Polygon pt)
+        height_2 (/ height 2)
+        width_2 (/ width 2)
+        bottom (if _cocos2dx? (- y height_2) (+ y height_2))
+        top (if _cocos2dx? (+ y height_2) (- y height_2))
+        right (+ x width_2)
+        left (- x width_2)
+        [v0 v1 v2 v3]
+        [(Point2D left top) (Point2D right top)
+         (Point2D right bottom) (Point2D left bottom)]]
     (swap! s #(assoc %
                      :type :rectangle
-                     :draw rectDraw
+                     :draw polyDraw
                      :angle 0
-                     :width_2 (/ width 2)
-                     :height_2 (/ height 2)
+                     :width_2 width_2
+                     :height_2 height_2
                      :width width
-                     :height height)) s))
+                     :height height
+                     :edges [(Edge v0 v1)
+                             (Edge v1 v2)
+                             (Edge v2 v3)(Edge v3 v0)])) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- lineDraw "" [line ctx & [styleObj]]
@@ -159,7 +190,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Line "" [ptA ptB]
   (let [s (Polygon ptA)]
-    (swap! s #(assoc %
+    (swap! s #(assoc (dissoc % :edges)
                      :draw lineDraw
                      :type :line
                      :endPt ptB)) s))
