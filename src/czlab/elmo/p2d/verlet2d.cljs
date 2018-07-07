@@ -11,25 +11,26 @@
 
   czlab.elmo.p2d.verlet2d
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [n# nexth when-some]])
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [n# nexth]])
 
   (:require [czlab.elmo.afx.core :as ec :refer [invert abs*]]
+            [czlab.elmo.p2d.physics2d
+             :as py :refer [dynamic? rigidBody!]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [VEC2_ZERO *pos-inf* *neg-inf*
-                            Point2D
-                            vec2 v2-scale v2-add v2-dist
-                            v2-sub v2-dot v2-negate v2-norm]]))
+                            Point2D vec2
+                            v2-len v2-scale v2-add v2-dist
+                            v2-rot v2-sub v2-dot v2-negate v2-norm]]
+            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private *gWorld* (atom {:samples (ec/createStore 10)
-                               :edges (ec/createStore 10)
-                               :verts (ec/createStore 10)}))
+(def ^:private *gWorld* nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- Vertex "" [body pos]
   (let [v (atom {:body body
                  :pos pos
-                 :prev nil
+                 :prev pos
                  :accel VEC2_ZERO})
         {:keys [verts]} @*gWorld*]
     (ec/addToStore! verts v)))
@@ -55,7 +56,7 @@
                xmax *neg-inf* ymax *neg-inf*]
           (if (>= i sz)
             [(vec2 cx cy) (vec2 xmin ymin) (vec2 xmax ymax)]
-            (let [{:keys [v1 v2]} (deref (nth edges i))
+            (let [{:keys [v1 v2]} @(nth edges i)
                   {:keys [x y]} (:pos @v1)]
               (recur (inc i)
                      (+ cx x) (+ cy y)
@@ -67,26 +68,59 @@
                    :pos (v2-scale C (invert sz)))) body))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Polygon "" [vs & [mass friction restitution]]
-  (let [mass' (if (number? mass) mass 1)
-        {:keys [samples]} *gWorld*
-        ret (gx/Polygon nil)
+(defn- polyDraw "" [p ctx & [styleObj]]
+  (let [{:keys [edges]} @p
+        sz (n# edges)
+        v' (:v1 @(nth edges 0))
+        {x0 :x y0 :y} (:pos @v')]
+    (ocall! ctx "beginPath")
+    (when (some? styleObj)
+      (gx/cfgStyle! ctx styleObj))
+    (ocall! ctx "moveTo" x0 y0)
+    (dotimes [i sz]
+      (when-not (zero? i)
+        (let [v' (:v1 @(nth edges i))
+              {:keys [x y]} (:pos @v')]
+          (ocall! ctx "lineTo" x y))))
+    (ocall! ctx "closePath")
+    (ocall! ctx "stroke")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- polyRotate "" [s angle']
+  (let [{center :pos :keys [angle edges]} @s
+        vs (vec (map (fn [e] (:v1 @e)) edges))
+        sz (count vs)
+        _ (doseq [v vs
+                  :let [p (v2-rot (:pos @v) center angle')]]
+            (swap! v #(assoc % :pos p :prev p)))
+        vs' (conj vs (nth vs 0))]
+    (dotimes [i sz]
+      (let [a (nth vs' i)
+            b (nexth vs' i)
+            e (nth edges i)]
+        (swap! e #(assoc % :v1 a :v2 b))))
+    (swap! s #(assoc % :angle (+ angle angle')))
+    (calcCenter s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Polygon "" [vs & [mass friction bounce]]
+  (let [{:keys [samples]} @*gWorld*
         end (dec (n# vs))
-        E (loop [i 0 edges (transient [])]
-            (if (= i end)
-              (persistent! (conj! edges
-                                  (Edge ret (nth vs i) (nth vs 0))))
-              (recur (inc i) (conj! edges
-                                    (Edge ret (nth vs i) (nexth vs i))))))]
-    (swap! ret
-           #(assoc %
-                   :valid? true
-                   :edges E
-                   :mass mass'
-                   :invMass (invert mass')
-                   :sticky (if (number? friction) friction 0.8)
-                   :bounce (if (number? restitution) restitution 0.2)))
-    (ec/addToStore! samples (calcCenter ret))))
+        ret (gx/Polygon)
+        edges (transient [])]
+    (loop [i 0 e' edges]
+      (if (= i end)
+        (conj! e'
+               (Edge ret (nth vs i) (nth vs 0)))
+        (recur (inc i)
+               (conj! e'
+                      (Edge ret (nth vs i) (nexth vs i))))))
+    (swap! ret #(assoc %
+                       :rotate polyRotate
+                       :edges (persistent! edges)))
+    (js/console.log (str "adding new poly: " (ec/countStore samples)))
+    (-> (calcCenter ret)
+        (rigidBody! mass friction bounce))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ci-info "" [&[depth normal edge vertex]]
@@ -97,30 +131,32 @@
   (let [t2 (* dt dt)]
     (->>
       (fn [v _]
-        (let [{:keys [pos prev accel]} @v]
-          (swap! v
-                 #(assoc %
-                         :prev pos
-                         :pos (v2-add pos
-                                      (v2-add (v2-sub pos prev)
-                                              (v2-scale accel t2)))))))
+        (let [{:keys [body pos prev accel]} @v]
+          (if (dynamic? body)
+            (swap! v
+                   #(assoc %
+                           :prev pos
+                           :pos (v2-add pos
+                                        (v2-add (v2-sub pos prev)
+                                                (v2-scale accel t2))))))))
       (ec/eachStore (:verts @*gWorld*)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- updateEdges! "" []
   (->>
     (fn [e _]
-      (let [{:keys [olen v1 v2]} @e
-            {p1 :pos} @v1
-            {p2 :pos} @v2
-            v12 (v2-sub p2 p1)
-            diff (- (v2-len v12) olen)
-            n (v2-norm v12)
-            N (v2-scale n (* diff 0.5))]
-        ;;push both vertices apart by half of the difference respectively
-        ;;so the distance between them equals the original length
-        (swap! v1 #(assoc % :pos (v2-add p1 N)))
-        (swap! v2 #(assoc % :pos (v2-sub p2 N)))))
+      (let [{:keys [body olen v1 v2]} @e]
+        (if (dynamic? body)
+          (let [{p1 :pos} @v1
+                {p2 :pos} @v2
+                v12 (v2-sub p2 p1)
+                diff (- (v2-len v12) olen)
+                n (v2-norm v12)
+                N (v2-scale n (* diff 0.5))]
+            ;;push both vertices apart by half of the difference respectively
+            ;;so the distance between them equals the original length
+            (swap! v1 #(assoc % :pos (v2-add p1 N)))
+            (swap! v2 #(assoc % :pos (v2-sub p2 N)))))))
     (ec/eachStore (:edges @*gWorld*))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -131,12 +167,12 @@
            minp *pos-inf* maxp *neg-inf*]
       (if (>= i sz)
         [minp maxp]
-        (let [{:keys [v1]} (deref (nth edges i))
+        (let [{:keys [v1]} @(nth edges i)
               dp (v2-dot axis (:pos @v1))]
           (recur (inc i) (min dp minp) (max dp maxp)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- intervalDistance
+(defn- intersection??
   "" [[minA maxA] [minB maxB]]
   (if (< minA minB) (- minB maxA) (- minA maxB)))
 
@@ -157,7 +193,7 @@
     (loop [i 0 dist *pos-inf*]
       (when (< i ecnt)
         ;;calc dist of the vertex from the line using the line equation
-        (let [{:keys [v1 v2]} (deref (nth edges i))
+        (let [{:keys [v1 v2]} @(nth edges i)
               d (v2-dot cn' (v2-sub (:pos @v1) c2))]
           (if (< d dist) (swap! ci #(assoc % :vertex v1)))
           (recur (inc i) (if (< d dist) d dist)))))
@@ -185,8 +221,8 @@
                   axis' (v2-norm (vec2 (- y1 y2) (- x2 x1)))
                   lineA (projectToAxis B1 axis')
                   lineB (projectToAxis B2 axis')
-                  dist (intervalDistance lineA lineB)
-                  dist' (js/Math.abs dist)
+                  dist (intersection?? lineA lineB)
+                  dist' (abs* dist)
                   lesso? (<  dist' minDist)]
               (recur (> dist 0)
                      ii
@@ -216,8 +252,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- applyActingForces! "" []
   (let [{:keys [gravity verts]} @*gWorld*]
-    (ec/eachStore verts (fn [v _]
-                          (swap! v #(assoc % :accel gravity))))))
+    (ec/eachStore verts
+                  (fn [v _]
+                    (if (dynamic? (:body @v))
+                      (swap! v #(assoc % :accel gravity)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- resolveCollision "" [ci]
@@ -242,13 +280,54 @@
         ratio2 (* edgeMass invTotalMass)
         dt' (* ratio1 offset T')
         dt (* ratio1 offset T)]
-    (swap! v1
-           #(assoc % :pos (vec2 (- x1 (* nx dt')) (- y1 (* ny dt')))))
-    (swap! v2
-           #(assoc % :pos (vec2 (- x2 (* nx dt)) (- y2 (* ny dt)))))
+    (if (dynamic? (:body @v1))
+      (swap! v1
+             #(assoc % :pos (vec2 (- x1 (* nx dt')) (- y1 (* ny dt'))))))
+    (if (dynamic? (:body @v2))
+      (swap! v2
+             #(assoc % :pos (vec2 (- x2 (* nx dt)) (- y2 (* ny dt))))))
+    (if (dynamic? (:body @vertex))
+      (swap! vertex
+             #(assoc % :pos (vec2 (+ vx (* nx ratio2)) (+ vy (* ny ratio2))))))))
 
-    (swap! vertex
-           #(assoc % :pos (vec2 (+ vx (* nx ratio2)) (+ vy (* ny ratio2)))))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- processCollision "" [ci]
+  (let [{:keys [vertex normal edge depth]} @ci
+        {e1 :v1 e2 :v2} @edge
+        B1 (:body @e1)
+        B2 (:body @e2)
+        BV (:body @vertex)
+        pv (:pos @vertex)
+        p1 (:pos @e1)
+        p2 (:pos @e2)
+        collisionVectorX (* (:x normal) depth)
+        collisionVectorY (* (:y normal) depth)
+        t
+        (if (> (abs* (- (:x p1) (:x p2)))
+               (abs* (- (:y p1) (:y p2))))
+          (/ (- (:x pv) collisionVectorX (:x p1)) (- (:x p2) (:x p1)))
+          (/ (- (:y pv) collisionVectorY (:y p1)) (- (:y p2) (:y p1))))
+        lambda (/ 1 (+ (* t t) (* (- 1 t)(- 1 t))))
+        edgeMass  (+ (* t (:mass @B2)) (* (- 1 t)(:mass @B1)))
+        invCollisionMass (/ 1 (+ edgeMass (:mass @BV)))
+        ratio1 (* (:mass @BV) invCollisionMass)
+        ratio2 (* edgeMass invCollisionMass)]
+    (when (dynamic? B1)
+      (swap! e1 #(assoc %
+                        :pos
+                        (vec2 (- (:x p1) (* collisionVectorX (* (- 1 t) ratio1 lambda)))
+                              (- (:y p1) (* collisionVectorY  (* (- 1 t) ratio1 lambda)))))))
+    (when (dynamic? B2)
+      (swap! e2 #(assoc %
+                        :pos
+                        (vec2 (- (:x p2) (* collisionVectorX (* t ratio1 lambda)))
+                              (- (:y p2) (* collisionVectorY (* t ratio1 lambda)))))))
+    (when (dynamic? BV)
+      (swap! vertex
+             #(assoc %
+                     :pos
+                     (vec2 (+ (:x pv) (* collisionVectorX ratio2))
+                           (+ (:y pv) (* collisionVectorY  ratio2))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- checkCollision* "" [posCorrection]
@@ -256,17 +335,19 @@
         len (ec/countStore samples)]
     (updateEdges!)
     (ec/eachStore samples
-                  (fn [b _] (calcCenter b)))
+                  (fn [b _]
+                    (if (dynamic? b)
+                      (calcCenter b))))
     (dotimes [i len]
       (loop [j (inc i)]
         (when-not (>= j len)
           (let [si (ec/nthStore samples i)
                 sj (ec/nthStore samples j)]
             (when (and (:valid? @si)
-                       (:valid? @sj)
-                       (overlap? si sj))
-              (when-some [ci (collisionTest?? si sj)]
-                (resolveCollision ci))))
+                       (:valid? @sj))
+              (when (overlap? si sj)
+                (when-some [ci (collisionTest?? si sj)]
+                  (processCollision ci)))))
           (recur (+ 1 j)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -275,19 +356,20 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- runAlgo "" [algoIterCount posCorrection]
-  (applyActingForces!)
-  (updateVerlet!)
-  (dotimes [_ algoIterCount]
-    (checkCollision* posCorrection))
   (let [{:keys [samples
                 edges
                 verts
                 frameSecs]} @*gWorld* bin #js []]
+    (applyActingForces!)
+    (updateVerlet! frameSecs)
+    (dotimes [_ algoIterCount]
+      (checkCollision* posCorrection))
+    (comment
     (ec/eachStore samples
                   (fn [s i]
                     (if-not (:valid? @s)
                       (.push bin s)
-                      (updateShape! s frameSecs))))
+                      (updateShape! s frameSecs)))))
     (when (pos? (count bin))
       (doseq [b bin]
         (doseq [e (:edges @b)
@@ -297,6 +379,15 @@
           (ec/delFromStore! edges e))
         (ec/delFromStore! samples b)))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn initPhysics "" [gravity fps world & [options]]
+  (set! *gWorld* (py/initPhysics gravity fps world options))
+  (swap! *gWorld* #(assoc %
+                          :polygon {:draw polyDraw}
+                          :algoRunner runAlgo
+                          :edges (ec/createStore 10)
+                          :verts (ec/createStore 10)))
+  *gWorld*)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

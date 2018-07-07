@@ -16,12 +16,15 @@
              :as py :refer [alterShapeAttr!
                             updateMass!
                             move! rotate!
-                            Rectangle Circle *gWorld*]]
+                            Rectangle Circle]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [pythag pythagSQ TWO-PI PI vec2 VEC2_ZERO _cocos2dx?
                             v2-len v2-add v2-sub v2-dot Point2D Size2D
                             v2-negate v2-scale v2-rot v2-norm v2-dist]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def gWorld nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- drawCollisionInfo "" [ci context]
@@ -39,7 +42,7 @@
 (defn- userControl "" [evt]
   (let [key (or (oget evt "?keyCode")
                 (oget evt "?which"))
-        {:keys [cur samples]} @*gWorld*
+        {:keys [cur samples]} @gWorld
         len (ec/countStore samples)
         s (ec/nthStore samples cur)
         offset (- key 48)]
@@ -47,13 +50,13 @@
       (and (>= key 48)
            (<= key 57))
       (if (< (- offset 48) len)
-        (swap! *gWorld* #(assoc % :cur offset)))
+        (swap! gWorld #(assoc % :cur offset)))
       (= key 38) ;up arrow
       (if (pos? cur)
-        (swap! *gWorld* #(assoc % :cur (dec cur))))
+        (swap! gWorld #(assoc % :cur (dec cur))))
       (= key 40) ;down arrow
       (if (< cur (- len 1))
-        (swap! *gWorld* #(assoc % :cur (inc cur))))
+        (swap! gWorld #(assoc % :cur (inc cur))))
       (= key 87) ;;W
       (move! s (vec2 0 -10))
       (= key 83) ;;S
@@ -111,7 +114,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- updateUIEcho "" []
-  (let [{:keys [uiEcho cur samples]} @*gWorld*
+  (let [{:keys [uiEcho cur samples]} @gWorld
         obj (ec/nthStore samples cur)
         {:keys [sticky bounce invMass angVel vel angle pos]} @obj]
     (->> (str "<p><b>Selected Object:</b>:</p>"
@@ -142,7 +145,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- drawGame "" []
-  (let [{:keys [cur samples width height context]} @*gWorld*]
+  (let [{:keys [cur samples width height context]} @gWorld]
     (ocall! context "clearRect" 0 0 width height)
     (ec/eachStore samples
                   (fn [s i]
@@ -160,16 +163,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- myGame "" []
-  (py/initPhysics 20 60 {:left 0 :right 799 :top 0 :bottom 449})
+  (set! gWorld (py/initPhysics 20 60 {:left 0 :right 799 :top 0 :bottom 449}))
   (let [html (js/document.getElementById "uiEchoString")
         canvas (js/document.getElementById "canvas")
         context (ocall! canvas "getContext" "2d")
-        {:keys [width height]} @*gWorld*
+        {:keys [width height]} @gWorld
         _ (oset! canvas "height" height)
         _ (oset! canvas "width" width)
-        _ (swap! *gWorld* #(assoc %
-                                  :uiEcho html
-                                  :canvas canvas :context context))
+        _ (swap! gWorld #(assoc %
+                                :uiEcho html
+                                :canvas canvas :context context))
         r1 (Rectangle (Point2D 500 200) (Size2D 400 20) 0 0.3 0)
         r2 (Rectangle (Point2D 200 400) (Size2D 400 20) 0 1 0.5)
         r3 (Rectangle (Point2D 100 200) (Size2D 200 20) 0)

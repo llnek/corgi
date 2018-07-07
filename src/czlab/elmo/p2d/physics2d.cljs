@@ -47,17 +47,24 @@
                   :start end :end start :normal (v2-negate normal)))) ci)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rigidize! "" [s & [mass friction bounce]]
-  (let [{:keys [gravity samples]} @*gWorld*
-        options (get @*gWorld* (:type @s))
-        {:keys [draw]} options
-        mass' (if (number? mass) mass 1)]
-    (if (fn? draw) (swap! s #(assoc % :draw draw)))
-    (swap! s
+(defn setFixed! "" [obj]
+  (swap! obj #(assoc % :dynamic? false)) obj)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn dynamic? "" [obj] (true? (:dynamic? @obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn rigidBody! "" [obj & [mass friction bounce]]
+  (let [{:keys [draw]} (get @*gWorld* (:type @obj))
+        mass' (if (number? mass) mass 1)
+        {:keys [gravity samples]} @*gWorld*]
+    (if (fn? draw) (swap! obj #(assoc % :draw draw)))
+    (swap! obj
            #(assoc %
                    :invMass (invert mass')
                    :oid (nextShapeNum)
                    :vel VEC2_ZERO
+                   :dynamic? true
                    :valid? true
                    :mass mass'
                    :inertia 0
@@ -68,7 +75,7 @@
                    :accel (if (zero? mass') VEC2_ZERO gravity)
                    :sticky (if (number? friction) friction 0.8)
                    :bounce (if (number? bounce) bounce 0.2)))
-    (ec/addToStore! samples s) s))
+    (ec/addToStore! samples obj) obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collisionTest?? "" [s1 s2 ci] ((:collisionTest @s1) s1 s2 ci))
@@ -333,7 +340,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Rectangle "" [pt sz & [mass friction bounce]]
   (let [s (-> (gx/Rectangle pt sz)
-              (rigidize! mass friction bounce))
+              (rigidBody! mass friction bounce))
         {:keys [edges width height]} @s]
     (->>
       #(assoc %
@@ -344,12 +351,6 @@
               :bxRadius (/ (pythag width height) 2)
               :normals (createFaceNormals edges)) (swap! s))
     (updateInertia! s)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Polygon
-  "" [edges & [mass]]
-  (let [mass' (if (number? mass) mass 1)]
-    (atom {:edges edges :mass mass' :invMass (invert mass')})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;circle-stuff
@@ -403,7 +404,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Circle "" [pt radius & [mass friction bounce]]
   (let [s (-> (gx/Circle pt radius)
-              (rigidize! mass friction bounce))
+              (rigidBody! mass friction bounce))
         {{:keys [x y]} :pos} @s
         top (if _cocos2dx? (+ y radius) (- y radius))]
     (swap! s
