@@ -15,7 +15,7 @@
             [czlab.elmo.p2d.physics2d :as py :refer [rotate!]]
             [czlab.elmo.p2d.verlet2d :as vt :refer [Polygon]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [pythag pythagSQ TWO-PI PI vec2 VEC2_ZERO _cocos2dx?
+             :as gx :refer [pythag pythagSQ TWO-PI PI vec2 V2_ZERO _cocos2dx?
                             v2-len v2-add v2-sub v2-dot Point2D
                             v2-negate v2-scale v2-norm v2-dist]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))

@@ -13,7 +13,7 @@
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [n#]])
 
-  (:require [czlab.elmo.afx.core :as ec :refer [invert]]
+  (:require [czlab.elmo.afx.core :as ec :refer [invert abs*]]
             [oops.core :refer [oget oset! ocall oapply ocall!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -29,7 +29,7 @@
 (defn vec2 "" [x y] {:x x :y y})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def VEC2_ZERO (vec2 0 0))
+(def V2_ZERO (vec2 0 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pythagSQ "" [x y] (+ (* x x) (* y y)))
@@ -86,6 +86,41 @@
 (defn Area2D "" [pt sz] (merge pt sz))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- polyArea "" [s]
+  (let [{:keys [edges]} @s
+        sz (n# edges)
+        sum (loop [i 0 area 0]
+              (if (>= i sz)
+                (abs* area)
+                (let [;;modulo to get 0 if i is last vertex
+                      {vn :v1} @(nth edges (mod (+ 1 i) sz))
+                      {vi :v1} @(nth edges i)
+                      {xi :x yi :y} vi
+                      {xn :x yn :y} vn]
+                  (recur (+ 1 i)
+                         (+ area (- (* xi yn) (* xn yi)))))))] (/ sum 2)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn calcPolyCenter "" [s]
+  (let [A (* 6 (polyArea s))
+        {:keys [edges]} @s
+        sz (n# edges)
+        [cx cy]
+        (loop [i 0 cx 0 cy 0]
+          (if (>= i sz)
+            [cx cy]
+            (let [;;modulo to get 0 if i is last vertex
+                  {vn :v1} @(nth edges (mod (+ 1 i) sz))
+                  {vi :v1} @(nth edges i)
+                  {xi :x yi :y} vi
+                  {xn :x yn :y} vn]
+              (recur (+ 1 i)
+                     (+ cx (* (+ xi xn) (- (* xi yn) (* xn yi))))
+                     (+ cy (* (+ yi yn) (- (* xi yn) (* xn yi))))))))]
+
+    (Point2D (/ cx A) (/ cy A))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn cfgStyle! "" [ctx styleObj]
   (oset! ctx "!lineWidth" (oget styleObj "?line" "?width"))
   (oset! ctx "!strokeStyle" (oget styleObj "?stroke" "?style")))
@@ -111,7 +146,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Polygon
   "" [&[pt edges]]
-  (atom {:pos (or pt VEC2_ZERO)
+  (atom {:pos (or pt V2_ZERO)
          :type :polygon :draw polyDraw  :edges (or edges [])}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

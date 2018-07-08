@@ -11,11 +11,13 @@
 
   czlab.elmo.p2d.physics2d
 
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [do->true]])
+
   (:require [czlab.elmo.afx.core :as ec :refer [n# num?? invert]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [_cocos2dx? *pos-inf* *neg-inf*
                             pythag pythagSQ TWO-PI PI
-                            Point2D vec2 VEC2_ZERO Edge
+                            Point2D vec2 V2_ZERO Edge
                             v2-len v2-add v2-sub v2-dot
                             v2-negate v2-scale v2-xss v2-rot v2-norm v2-dist]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
@@ -26,11 +28,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private *gWorld* (atom {:samples (ec/createStore 10)
-                               :context nil :cur 0 :canvas nil}))
+                               :context nil :canvas nil}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ci-info
-  "" [] (atom {:depth 0 :normal VEC2_ZERO :start VEC2_ZERO :end VEC2_ZERO}))
+  "" [] (atom {:depth 0 :normal V2_ZERO :start V2_ZERO :end V2_ZERO}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- chgci! "" [ci d n s]
@@ -47,23 +49,21 @@
                   :start end :end start :normal (v2-negate normal)))) ci)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setFixed! "" [obj]
-  (swap! obj #(assoc % :dynamic? false)) obj)
+(defn setFixed! "" [obj] (swap! obj #(assoc % :dynamic? false)) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dynamic? "" [obj] (true? (:dynamic? @obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rigidBody! "" [obj & [mass friction bounce]]
-  (let [{:keys [draw]} (get @*gWorld* (:type @obj))
+  (let [opts (get @*gWorld* (:type @obj))
         mass' (if (number? mass) mass 1)
         {:keys [gravity samples]} @*gWorld*]
-    (if (fn? draw) (swap! obj #(assoc % :draw draw)))
     (swap! obj
            #(assoc %
                    :invMass (invert mass')
                    :oid (nextShapeNum)
-                   :vel VEC2_ZERO
+                   :vel V2_ZERO
                    :dynamic? true
                    :valid? true
                    :mass mass'
@@ -72,9 +72,10 @@
                    :angVel 0 ;; clockwise = negative
                    :angAccel 0
                    :bxRadius 0
-                   :accel (if (zero? mass') VEC2_ZERO gravity)
+                   :accel (if (zero? mass') V2_ZERO gravity)
                    :sticky (if (number? friction) friction 0.8)
                    :bounce (if (number? bounce) bounce 0.2)))
+    (if (map? opts) (swap! obj #(merge % opts)))
     (ec/addToStore! samples obj) obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -93,8 +94,8 @@
            #(merge %
                    (if (pos? m)
                      {:invMass (invert m) :mass m :accel gravity}
-                     {:invMass 0 :mass 0 :vel VEC2_ZERO
-                      :accel VEC2_ZERO :angVel 0 :angAccel 0})))
+                     {:invMass 0 :mass 0 :vel V2_ZERO
+                      :accel V2_ZERO :angVel 0 :angAccel 0})))
     (updateInertia! s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -135,84 +136,74 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;rect-stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- findSPoint?? "" [r1 dir ptOnEdge]
-  (let [{:keys [edges]} @r1
-        len (n# edges)]
-    (loop [spDist *neg-inf* sp nil i 0]
+(defn- spoint?? "" [r1Pt n r2]
+  (let [{:keys [edges]} @r2
+        len (n# edges)
+        dir (v2-negate n)] ;easier to deal with +ve values
+    (loop [dist *neg-inf* sp nil i 0]
       (if (>= i len)
-        [spDist sp]
+        [(some? sp) dist sp]
         (let [{v' :v1} @(nth edges i)
               ii (+ i 1)
-              proj (v2-dot (v2-sub v' ptOnEdge) dir)]
-          ;;find the longest distance with certain edge
-          ;;dir is -n direction, so the distance should be positive
+              proj (v2-dot (v2-sub v' r1Pt) dir)]
+          ;;find the longest +ve distance with edge
           (if (and (pos? proj)
-                   (> proj spDist))
-            (recur proj v' ii)
-            (recur spDist sp ii)))))))
+                   (> proj dist))
+            (recur proj v' ii) (recur dist sp ii)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- hasAxisLeastPenetration?
-  "Find the shortest axis that's overlapping" [r1 r2 ci]
+(defn- findPenetration??
+  "Find the shortest axis that's overlapping" [r1 r2]
   (let [{:keys [edges normals]} @r1
-        len (n# normals)
-        [bestDist supportPoint bestIndex hasSupport?]
-        (loop [bestDist *pos-inf*
-               suPt nil bestIdx nil hasSupport? true i 0]
-          (if-not (and (< i len)
-                       hasSupport?)
-            [bestDist suPt bestIdx hasSupport?]
-            (let [n (nth normals i)
-                  ii (+ i 1)
-                  dir (v2-negate n)
-                  {ptOnEdge :v1} @(nth edges i)
-                  [dist pt]
-                  (findSPoint?? r2  dir ptOnEdge)
-                  sp? (not (nil? pt))]
-              (if (and sp? (< dist bestDist))
-                (recur dist pt i sp? ii)
-                (recur bestDist suPt bestIdx sp? ii)))))]
-    (when hasSupport? ;;all four directions have support points
-      (let [bn (nth normals bestIndex)
-            bv (v2-scale bn bestDist)]
-        (chgci! ci bestDist bn (v2-add supportPoint bv)))) hasSupport?))
+        len (n# normals)]
+    ;;all vertices have corresponding support points?
+    (loop [depth *pos-inf*
+           vert nil n' nil support? true i 0]
+      (if-not (and support? (< i len))
+        (if support?
+          (chgci! (ci-info) depth n'
+                  (v2-add vert (v2-scale n' depth))))
+        (let [{v' :v1} @(nth edges i)
+              ii (+ i 1)
+              dir (nth normals i)
+              [ok? dist pt] (spoint?? v' dir r2)]
+          (if (and ok? (< dist depth))
+            (recur dist pt (nth normals i) true ii)
+            (recur depth vert n' ok? ii)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- testRectRect?
   "Check for collision between 2 rectangles"
   [r1 r2 ci]
   ;;find Axis of Separation for both rectangle
-  (let [ci_1 (ci-info)
-        ci_2 (ci-info)
-        p1? (hasAxisLeastPenetration? r1 r2 ci_1)
-        p2? (if p1? (hasAxisLeastPenetration? r2 r1 ci_2))]
-    (when p2?
-      ;;if both of rectangles are overlapping,
-      ;;choose the shorter normal as the normal
+  (let [ci_1 (findPenetration?? r1 r2)
+        ci_2 (if (some? ci_1) (findPenetration?? r2 r1))]
+    ;;if both are overlapping, choose the shorter normal
+    (when (some? ci_2)
       (let [{d1 :depth n1 :normal s1 :start} @ci_1
             {d2 :depth n2 :normal s2 :start} @ci_2]
         (if (< d1 d2)
           (chgci! ci d1 n1 (v2-sub s1 (v2-scale n1 d1)))
           (chgci! ci d2 (v2-negate n2) s2))))
-    (and p1? p2?)))
+    (and (some? ci_1)(some? ci_2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circleInsideRect? "" [r1 cc1 ci nEdge bestDist]
+(defn- circleInsideRect? "" [r1 cc1 ci nEdge depth]
   (let [{:keys [radius pos]} @cc1
         {:keys [normals]} @r1
         n (nth normals nEdge)
         rVec (v2-scale n radius)]
-    (chgci! ci (- radius bestDist) n (v2-sub pos rVec)) true))
+    (chgci! ci (- radius depth) n (v2-sub pos rVec)) true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- nfaceToCircle?? "" [r1 cc1 ci]
+(defn- nfaceToCircle?? "" [r1 cc1]
   (let [{:keys [edges normals]} @r1
         {center :pos} @cc1
         len (n# normals)]
     (loop [inside? true
-           bestDist *neg-inf* nEdge 0 i 0]
+           depth *neg-inf* nEdge 0 i 0]
       (if (or (not inside?) (>= i len))
-        [inside? bestDist nEdge]
+        [inside? depth nEdge]
         (let [e' (nth edges i)
               v (v2-sub center (:v1 @e'))
               ii (+ i 1)
@@ -220,11 +211,11 @@
           (cond
             ;;the center of circle is outside of rectangle
             (pos? proj) (recur false proj i ii)
-            (> proj bestDist) (recur inside? proj i ii)
-            :else (recur inside? bestDist nEdge ii)))))))
+            (> proj depth) (recur inside? proj i ii)
+            :else (recur inside? depth nEdge ii)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circleOutsideRect? "" [r1 cc1 ci nEdge bestDist]
+(defn- circleOutsideRect? "" [r1 cc1 ci nEdge depth]
   (let [{center :pos :keys [radius]} @cc1
         {:keys [normals edges]} @r1
         vn (:v1 @(nth edges nEdge))
@@ -261,17 +252,17 @@
               false
               (do (chgci! ci (- radius dis) n (v2-add center rVec)) true)))
           ;;the circle is in face region of face[nEdge]
-          (< bestDist radius)
+          (< depth radius)
           (let [rVec (v2-scale en radius)]
-            (do (chgci! ci (- radius bestDist) en (v2-sub center rVec)) true))
+            (do (chgci! ci (- radius depth) en (v2-sub center rVec)) true))
           :else false)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- collidedRectCirc "" [r1 cc1 ci]
-  (let [[inside? bestDist nEdge] (nfaceToCircle?? r1 cc1 ci)]
+  (let [[inside? depth nEdge] (nfaceToCircle?? r1 cc1)]
     (if inside?
-      (circleInsideRect? r1 cc1 ci nEdge bestDist)
-      (circleOutsideRect? r1 cc1 ci nEdge bestDist))))
+      (circleInsideRect? r1 cc1 ci nEdge depth)
+      (circleOutsideRect? r1 cc1 ci nEdge depth))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectCollisionTest "" [s1 s2 ci]
@@ -388,13 +379,13 @@
       (> dist rSum) ;;no overlap
       false
       (zero? dist) ;;centers overlap
-      (do (chgci! ci rSum
-                  (vec2 0 -1)
-                  (if (> r1 r2)
-                    (v2-add c1 (vec2 0 r1)) (v2-add c2 (vec2 0 r2)))) true)
+      (do->true (chgci! ci rSum (vec2 0 -1)
+                        (if (> r1 r2)
+                          (v2-add c1 (vec2 0 r1)) (v2-add c2 (vec2 0 r2)))))
       :else ;overlap
-      (let [rC2 (-> (v2-norm (v2-negate v1to2)) (v2-scale r2))]
-        (chgci! ci (- rSum dist) (v2-norm v1to2) (v2-add c2 rC2)) true))))
+      (do->true
+        (let [rC2 (-> (v2-norm (v2-negate v1to2)) (v2-scale r2))]
+          (chgci! ci (- rSum dist) (v2-norm v1to2) (v2-add c2 rC2)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleCollisionTest "" [s1 s2 ci]
@@ -435,8 +426,8 @@
   (let [{e1 :inertia b1 :bounce f1 :sticky m1 :invMass} @s1
         {e2 :inertia b2 :bounce f2 :sticky m2 :invMass} @s2
         {:keys [normal]} @ci
-        bounce' (js/Math.min b1 b2)
-        sticky' (js/Math.min f1 f2)
+        bounce' (min b1 b2)
+        sticky' (min f1 f2)
         ;;R cross N
         r1xN (v2-xss r1 normal)
         r2xN (v2-xss r2 normal)
@@ -484,8 +475,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- resolveCollision "" [posCorrection s1 s2 ci]
-  (when-not (and (zero? (:invMass @s1))
-                 (zero? (:invMass @s2)))
+  (when-not (and (zero? (:mass @s1))
+                 (zero? (:mass @s2)))
     (correctPos! posCorrection s1 s2 ci)
     ;;the direction of collisionInfo is always from s1 to s2
     ;;but the Mass is inversed, so start scale with s2 and end scale with s1

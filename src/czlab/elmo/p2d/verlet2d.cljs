@@ -17,7 +17,7 @@
             [czlab.elmo.p2d.physics2d
              :as py :refer [dynamic? rigidBody!]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [VEC2_ZERO *pos-inf* *neg-inf*
+             :as gx :refer [V2_ZERO *pos-inf* *neg-inf*
                             Point2D vec2
                             v2-len v2-scale v2-add v2-dist
                             v2-rot v2-sub v2-dot v2-negate v2-norm]]
@@ -28,7 +28,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- Vertex "" [body pos]
-  (atom {:body body :pos pos :prev pos :accel VEC2_ZERO}))
+  (atom {:body body :pos pos :prev pos :accel V2_ZERO}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- Edge "" [body v1 v2]
