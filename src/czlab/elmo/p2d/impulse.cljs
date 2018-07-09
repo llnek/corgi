@@ -3,20 +3,19 @@
 
   czlab.elmo.p2d.impulse
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [n#]])
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 n#]])
 
   (:require [czlab.elmo.afx.core :as ec :refer [invert]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [vec2]]))
+             :as gx :refer [PI TWO-PI V2_ZERO Point2D EPSILON
+                            *pos-inf* *neg-inf*
+                            vec2 v2-add v2-sub v2-dot v2-xss]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(def MaxPolyVertexCount 64)
-
-(defmulti copyShape "" (fn [a] (:type a)))
-(defmulti initShape "" (fn [a] (:type a)))
 (defmulti computeMass "" (fn [a density] (:type a)))
 (defmulti setOrient "" (fn [a radians] (:type a)))
+(defmulti copyShape "" (fn [a] (:type a)))
+(defmulti initShape "" (fn [a] (:type a)))
 (defmulti drawShape "" (fn [a] (:type a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -111,6 +110,20 @@
                           (vec2 1 0) (vec2 0 1) (vec2 -1 0)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- calcFaceNormals "" [p]
+  (let [{:keys [vertices]} @p
+        ns (transient [])
+        sz (n# vertices)]
+    (dotimes [i sz]
+      (let [i2 (mod (+ 1 i) sz)
+            face (v2-sub (nth vertices i2) (nth vertices i))]
+        ;;ensure no zero-length edges
+        (assert (> (v2-lensq face) (* EPSILON EPSILON)))
+        ;;calculate normal with 2D cross product between vector and scalar
+        (conj! ns (v2-norm (vec2 (:y face) (- (:x face)))))))
+    (swap! p #(assoc % :normals (persistent! ns)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set "" [p vertices]
   (let [sz (n# vertices)
         ;;Find the right most point on the hull
@@ -156,41 +169,188 @@
     (swap! p #(assoc % :vertices (persistent! verts)))
     (calcFaceNormals p)))
 
-(defn calcFaceNormals "" [p]
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;The extreme point along a direction within a polygon
+(defn getSupport "" [p dir]
   (let [{:keys [vertices]} @p
-        ns (transient [])
         sz (n# vertices)]
+    (loop [i 0 proj *neg-inf* bv nil]
+      (if (>= i sz)
+        bv
+        (let [v (nth vertices i)
+              p' (v2-dot v dir)
+              b? (> p' proj)]
+          (recur (inc i) (if b? p' proj) (if b? v bv)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Body "" [shape x y]
+  (let [body (atom {})]
+    (swap! body
+           #(assoc %
+                   :pos (Point2D x y)
+                   :type :body
+                   :vel V2_ZERO
+                   :ii 0
+                   :im 0
+                   :i 0
+                   :m 0
+                   :angVel 0
+                   :torque 0
+                   :angle 0
+                   :force V2_ZERO
+                   :staticFriction 0.5
+                   :dynamicFriction 0.3
+                   :bounce 0.2))
+    (swap! shape #(assoc % :body body))
+    (initShape shape)
+    body))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn applyForce "" [b f]
+  (swap! b (fn [{:keys [force] :as root}]
+             (assoc root :force (+ force f)))) b)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn applyImpulse "" [b impulse contactVector]
+  (let [{:keys [vel im ii angVel]} @b]
+    (swap! b
+           #(assoc %
+                   :vel (v2-add vel (v2-scale impulse im))
+                   :angVel (+ angVel
+                              (* ii (v2-xss contactVector impulse))))) b))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn setStatic "" [b]
+  (swap! b #(assoc %
+                   :ii 0 :im 0 :m 0 :i 0)) b)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod setOrient :body [obj radians]
+  (swap! obj #(assoc % :angle radians))
+  (setOrient (:shape @obj) radians) obj)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+(defn- integrateForces "" [b dt]
+  (let [{:keys [im ii vel force angVel torque]} @b
+        dt' (/ dt 2)
+        {:keys [gravity]} @*gWorld*]
+    (when-not (zero? im)
+      (swap! b
+             #(assoc %
+                     :angVel (+ angVel (* dt' torque ii))
+                     :vel (+ vel (* dt' (+ (* im force) gravity)))))) b))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- integrateVelocity "" [b dt]
+  (let [{:keys [pos im vel angVel angle]} @b]
+    (when-not (zero? im)
+      (swap! b
+             #(assoc %
+                     :angle (+ angle (* dt angVel))
+                     :pos (v2-add pos (v2-scale vel dt))))
+      (setOrient b (:angle @b))
+      (integrateForces b dt))
+    b))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn step "" []
+  (let [contacts (transient [])
+        {:keys [samples]} @*gWorld*
+        sz (ec/countStore samples)]
     (dotimes [i sz]
-      (let [i2 (mod (+ 1 i) sz)
-            face (v2-sub (nth vertices i2) (nth vertices i))]
-        ;;ensure no zero-length edges
-        (assert (> (v2-lensq face) (* EPSILON EPSILON)))
-        ;;calculate normal with 2D cross product between vector and scalar
-        (conj! ns (v2-norm (vec2 (:y face) (- (:x face)))))))
-    (swap! p #(assoc % :normals (persistent! ns)))))
+      (let [A (ec/nthStore samples i)]
+        (loop [j (+ i 1)]
+          (when (< j sz)
+            (let [B (ec/nthStore samples j)]
+              (when-not (and (zero? (:im @A))
+                             (zero? (:im @B)))
+                (let [m (solve (manifold A B))]
+                  (if (pos? (:contact_count m)) (conj! contacts m))))
+              (recur (inc j)))))))
 
+  // Integrate forces
+  for(uint32 i = 0; i < bodies.size( ); ++i)
+    IntegrateForces( bodies[i], m_dt );
 
+  // Initialize collision
+  for(uint32 i = 0; i < contacts.size( ); ++i)
+    contacts[i].Initialize( );
 
-  // The extreme point along a direction within a polygon
-  Vec2 GetSupport( const Vec2& dir )
+  // Solve collisions
+  for(uint32 j = 0; j < m_iterations; ++j)
+    for(uint32 i = 0; i < contacts.size( ); ++i)
+      contacts[i].ApplyImpulse( );
+
+  // Integrate velocities
+  for(uint32 i = 0; i < bodies.size( ); ++i)
+    IntegrateVelocity( bodies[i], m_dt );
+
+  // Correct positions
+  for(uint32 i = 0; i < contacts.size( ); ++i)
+    contacts[i].PositionalCorrection( );
+
+  // Clear all forces
+  for(uint32 i = 0; i < bodies.size( ); ++i)
   {
-    real bestProjection = -FLT_MAX;
-    Vec2 bestVertex;
-
-    for(uint32 i = 0; i < m_vertexCount; ++i)
-    {
-      Vec2 v = m_vertices[i];
-      real projection = Dot( v, dir );
-
-      if(projection > bestProjection)
-      {
-        bestVertex = v;
-        bestProjection = projection;
-      }
-    }
-
-    return bestVertex;
+    Body *b = bodies[i];
+    b->force.Set( 0, 0 );
+    b->torque = 0;
   }
+}
+
+void Scene::Render( void )
+{
+  for(uint32 i = 0; i < bodies.size( ); ++i)
+  {
+    Body *b = bodies[i];
+    b->shape->Draw( );
+  }
+
+  glPointSize( 4.0f );
+  glBegin( GL_POINTS );
+  glColor3f( 1.0f, 0.0f, 0.0f );
+  for(uint32 i = 0; i < contacts.size( ); ++i)
+  {
+    Manifold& m = contacts[i];
+    for(uint32 j = 0; j < m.contact_count; ++j)
+    {
+      Vec2 c = m.contacts[j];
+      glVertex2f( c.x, c.y );
+    }
+  }
+  glEnd( );
+  glPointSize( 1.0f );
+
+  glBegin( GL_LINES );
+  glColor3f( 0.0f, 1.0f, 0.0f );
+  for(uint32 i = 0; i < contacts.size( ); ++i)
+  {
+    Manifold& m = contacts[i];
+    Vec2 n = m.normal;
+    for(uint32 j = 0; j < m.contact_count; ++j)
+    {
+      Vec2 c = m.contacts[j];
+      glVertex2f( c.x, c.y );
+      n *= 0.75f;
+      c += n;
+      glVertex2f( c.x, c.y );
+    }
+  }
+  glEnd( );
+}
+
+Body *Scene::Add( Shape *shape, uint32 x, uint32 y )
+{
+  assert( shape );
+  Body *b = new Body( shape, x, y );
+  bodies.push_back( b );
+  return b;
+}
+
 
 
 
