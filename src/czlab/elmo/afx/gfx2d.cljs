@@ -122,8 +122,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn cfgStyle! "" [ctx styleObj]
-  (oset! ctx "!lineWidth" (oget styleObj "?line" "?width"))
-  (oset! ctx "!strokeStyle" (oget styleObj "?stroke" "?style")))
+  (if-some [x (get-in styleObj [:line :width])] (oset! ctx "!lineWidth" x))
+  (if-some [x (get-in styleObj [:stroke :style])] (oset! ctx "!strokeStyle" x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- polyDraw "" [p ctx & [styleObj]]
