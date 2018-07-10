@@ -11,11 +11,12 @@
 
   czlab.elmo.p2d.impulse
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 n#]])
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 _2 n#]])
 
-  (:require [czlab.elmo.afx.core :as ec :refer [invert]]
+  (:require [czlab.elmo.afx.core
+             :as ec :refer [fuzzyZero? invert EPSILON fuzzyEqual?]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [PI TWO-PI V2_ZERO Point2D EPSILON
+             :as gx :refer [PI TWO-PI V2_ZERO Point2D
                             *pos-inf* *neg-inf*
                             vec2 v2-add v2-sub v2-dot v2-xss]]))
 
@@ -644,7 +645,7 @@
         ;flip Always point from a to b
         [refPoly incPoly refIndex flip?]
         ;;Determine which shape contains reference face
-        (if (BiasGreaterThan penetrationA penetrationB )
+        (if (ec/biasGreater? penetrationA penetrationB )
           [A B faceA false]
           [B A faceB true])
         {bodyr :body} @refPoly
