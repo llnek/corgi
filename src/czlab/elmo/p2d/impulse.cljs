@@ -23,6 +23,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- nxi "" [i len] (mod (+ 1 i) len))
+(def ^:private *dispatch* (atom {}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti computeMass "" (fn [a density] (:type a)))
@@ -209,7 +210,7 @@
   (let [{:keys [A B]} @M
         {sa :shape} @A
         {sb :shape} @B]
-    ((get (get *dispatch* (:type sa)) (:type sb)) M A B)))
+    ((get (get @*dispatch* (:type sa)) (:type sb)) M A B)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn initManifold "" [M]
@@ -381,13 +382,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- integrateForces "" [b dt]
   (let [{:keys [im ii vel force angVel torque]} @b
-        dt' (/ dt 2)
+        dt2 (/ dt 2)
         {:keys [gravity]} @*gWorld*]
     (when-not (zero? im)
       (swap! b
              #(assoc %
-                     :angVel (+ angVel (* dt' torque ii))
-                     :vel (+ vel (* dt' (+ (* im force) gravity)))))) b))
+                     :angVel (+ angVel (* dt2 torque ii))
+                     :vel (v2-add vel
+                                  (v2-scale (-> gravity
+                                                (v2-add (v2-scale force im))) dt2))))) b))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- integrateVelocity "" [b dt]
@@ -398,229 +401,301 @@
                      :angle (+ angle (* dt angVel))
                      :pos (v2-add pos (v2-scale vel dt))))
       (setOrient b (:angle @b))
-      (integrateForces b dt))
-    b))
+      (integrateForces b dt)) b))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- step2 "" [contacts dt]
-  (let [{:keys [samples]} @*gWorld*]
+(defn- step2 "" [dt algoIterCount]
+  (let [{:keys [samples manifolds]} @*gWorld*]
     ;;integrate forces
     (ec/eachStore samples
                   (fn [b _] (integrateForces b dt)))
-    ;;initialize collision
-    (doseq [c contacts] (initContact c))
+    ;;initialize collisions
+    (doseq [c manifolds] (initManifold c))
     ;;solve collisions
-    (dotimes [_ XXX]
-      (doseq [c contacts] (applyImpulse! c)))
+    (dotimes [_ algoIterCount]
+      (doseq [c manifolds] (applyImpulse! c)))
     ;;integrate velocities
     (ec/eachStore samples
                   (fn [b _] (integrateVelocity b dt)))
     ;;correct positions
-    (doseq [c contacts] (positionalCorrection c))
+    (doseq [c manifolds] (positionalCorrection c))
     ;;clear all forces
     (ec/eachStore samples
                   (fn [b _]
-                    (.Set (:force @b) 0 0)
-                    (swap! b #(assoc % :torque 0))))))
+                    (swap! b #(assoc % :force V2_ZERO :torque 0))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn step "" [dt]
   (let [{:keys [samples]} @*gWorld*
         contacts (transient [])
-        sz (ec/countStore samples)]
-    (dotimes [i sz]
+        SZ (ec/countStore samples)]
+    (swap! *gWorld*
+           #(assoc % :manifolds []))
+    (dotimes [i SZ]
       (let [A (ec/nthStore samples i)]
         (loop [j (+ i 1)]
-          (when (< j sz)
+          (when (< j SZ)
             (let [B (ec/nthStore samples j)]
               (when-not (and (zero? (:im @A))
                              (zero? (:im @B)))
-                (let [m (solve (manifold A B))]
-                  (if (pos? (:contact_count m)) (conj! contacts m))))
-              (recur (inc j)))))))
-    (step2 (persistent! contacts) dt)))
+                (let [m (solveManifold (manifold A B))
+                      c? (not-empty (:contacts @m))]
+                  (if c? (conj! contacts m)))) (recur (+ 1 j)))))))
+    (swap! *gWorld*
+           #(assoc %
+                   :manifolds (persistent! contacts))) (step2 dt)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn circleToCircle "" [m B1 B2]
-  (let [{:keys []} @m
-        {A :shape} @B1
-        {B :shape} @B2
+(defn- circleToCircle "" [M B1 B2]
+  (let [{posA :pos A :shape} @B1
+        {posB :pos B :shape} @B2
+        {radA :radius} @A
+        {radB :radius} @B
+        radius (+ radA radB)
         ;;calculate translational vector, which is normal
-        normal (v2-sub (:pos @B2) (:pos @B1))
-        dist_sqr (v2-lensq normal)
-        radius (+ (:radius @A) (:radius @B))]
+        normal (v2-sub posB posA)
+        distSQ (v2-lensq normal)]
     (cond
-      (>= dist_sqr (sqr radius))
+      (>= distSQ (sqr radius))
       ;;Not in contact
       (swap! m #(assoc % :contacts []))
       :else
-      (let [distance (js/Math.sqrt dist_sqr)]
-        (if (zero? distance)
+      (let [dist (sqrt* distSQ)]
+        (if (zero? dist)
           (swap! m
                  #(assoc %
-                         :penetration (:radius @A)
-                         :normal (vec2 1 0)
-                         :contacts [(:pos @B1)]))
+                         :penetration radA
+                         :normal (vec2 1 0) :contacts [posA]))
           (swap! m
-                 #(assoc %
-                         :penetration (- radius distance)
-                         :normal (v2-scale normal (invert distance)) ;;Faster than using Normalized since we already performed sqrt
-                         :contacts [(v2-add (v2-scale (:normal @m)
-                                                       (:radius @A)) (:pos @B1))])))))))
+                 #(let [n (v2-sdiv normal dist)]
+                    (assoc %
+                           :penetration (- radius dist)
+                           :normal n
+                           :contacts [(v2-add (v2-scale n radA) posA)]))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn circleToPolygon "" [m B1 B2]
-  (swap! m #(assoc % :contacts []))
-  (let [{:keys []} @m
-        {posa :pos A :shape} @B1
-        {posb :pos B :shape} @B2
-        {bnorms :normals bverts :vertices} @B
-        {rada :radius} @A
-        sz (n# bverts)
-        ;;Transform circle center to Polygon model space
-        center (m2-mult (m2-xpose (:u @B))
-                        (v2-sub posa posb))]
-    ;;Find edge with minimum penetration
-    ;;Exact concept as using support points in Polygon vs Polygon
-    (loop [i 0 sep *neg-inf* n 0 quit? false]
-      (if (or break? (>= i sz))
-        (if-not break? (circleToPolygon* m B1 B2 sep n))
-        (let [s (v2-dot (nth bnorms i)
-                        (v2-sub center (nth bverts i)))
-              [s' n' t'] (cond (> s rada) [sep n true]
-                               (> s sep) [s i false]
-                               :else [sep n false])]
-          (recur (inc i) s' n' t'))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circleToPolygon* "" [m B1 B2 separation faceNormal]
-  (let [{:keys []} @m
-        {posa :pos A :shape} @B1
-        {posb :pos B :shape} @B2
-        {bnorms :normals bverts :vertices} @B
-        {rada :radius} @A
-        sz (n# bverts)
+(defn- circleToPolygon* "" [M B1 B2 separation faceNormal]
+  (let [{posA :pos A :shape} @B1
+        {posB :pos B :shape} @B2
+        {:keys [normals vertices] bu :u} @B
+        {radA :radius} @A
         ;;grab face's vertices
-        v1 (nth bverts faceNormal)
-        i2 (mod (+ 1 faceNormal) sz)
-        v2 (nth bverts i2)]
+        v1 (nth vertices faceNormal)
+        SZ (n# vertices)
+        i2 (nxi faceNormal SZ)
+        v2 (nth vertices i2)]
     ;;check to see if center is within polygon
     (if (< separation EPSILON)
-      (swap! m
-             #(assoc %
-                     :normal (v2-negate (m2-mult (:u @B) (nth bnorms faceNormal)))
-                     :contacts [(v2-add (v2-scale (:normal @m) rada) (:pos @B1))]
-                     :penetration rada))
+      (swap! M
+             #(let [n (v2-neg (m2-mult bu
+                                       (nth normals faceNormal)))]
+                (assoc %
+                       :normal n
+                       :penetration radA
+                       :contacts [(v2-add (v2-scale n radA) posA)])))
       ;;determine which voronoi region of the edge center of circle lies within
       (let [dot1 (v2-dot (v2-sub center v1) (v2-sub v2 v1))
             dot2 (v2-dot (v2-sub center v2) (v2-sub v1 v2))]
-        (swap! m #(assoc % :penetration (- rada separation)))
+        (swap! M #(assoc % :penetration (- radA separation)))
         (cond
           ;;Closest to v1
           (<= dot1 0)
-          (when-not (> (sqr* (v2-dist center v1)) (sqr rada))
-            (swap! m
+          (when-not (> (v2-distsq center v1) (sqr* radA))
+            (swap! M
                    #(assoc %
-                           :normal (v2-norm (m2-mult (:u @B) (v2-sub v1 center)))
-                           :contacts [(v2-add (m2-mult (:u @B) v1) (:pos @B2))])))
+                           :normal (v2-norm (m2-mult bu (v2-sub v1 center)))
+                           :contacts [(v2-add (m2-mult bu v1) posB)])))
           ;;Closest to v2
           (<= dot2 0)
-          (when-not (> (sqr* (v2-dist center v2)) (sqr* rada))
-            (swap! m
+          (when-not (> (v2-distsq center v2) (sqr* radA))
+            (swap! M
                    #(assoc %
-                           :normal (v2-norm (m2-mult (:u @B) (v2-sub v2 center)))
-                           :contacts [(v2-add (m2-mult (:u @B) v2) (:pos @B2))])))
+                           :normal (v2-norm (m2-mult bu (v2-sub v2 center)))
+                           :contacts [(v2-add (m2-mult bu v2) posB)])))
           ;;Closest to face
           :else
-          (let [n (nth bnorms faceNormal)
-                n' (v2-negate (m2-mult (:u @B) n))]
-            (when-not (> (v2-dot (v2-sub center v1) n) rada)
-              (swap! m
+          (let [n (nth normals faceNormal)
+                n' (v2-neg (m2-mult bu n))]
+            (when-not (> (v2-dot (v2-sub center v1) n) radA)
+              (swap! M
                      #(assoc %
                              :normal n'
-                             :contacts [(v2-add (v2-scale n' rada) (:pos @B1))])))))))))
+                             :contacts [(v2-add (v2-scale n' radA) posA)])))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn polygonToCircle "" [m B1 B2]
-  (circleToPolygon m B2 B1)
-  (swap! m #(assoc % :normal (v2-negate (:normal @m)))))
+(defn- circleToPolygon "" [M B1 B2]
+  (swap! M #(assoc % :contacts []))
+  (let [{posA :pos A :shape} @B1
+        {posB :pos B :shape} @B2
+        {:keys [vertices normals] bu :u} @B
+        {radA :radius} @A
+        ;;Transform circle center to Polygon model space
+        center (m2-mult (m2-xpose bu)
+                        (v2-sub posA posB))]
+    ;;Find edge with minimum penetration
+    ;;Exact concept as using support points in Polygon vs Polygon
+    (loop [i 0 SZ (n# vertices)
+           sep *neg-inf* n 0 break? false]
+      (if (or break? (>= i SZ))
+        (if-not break? (circleToPolygon* M B1 B2 sep n))
+        (let [s (v2-dot (nth normals i)
+                        (v2-sub center (nth vertices i)))
+              [s' n' t']
+              (cond (> s radA) [sep n true]
+                    (> s sep) [s i false]
+                    :else [sep n false])] (recur (+ 1 i) SZ s' n' t'))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- polygonToCircle "" [M B1 B2]
+  (circleToPolygon M B2 B1)
+  (swap! M #(assoc % :normal (v2-neg (:normal @M)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findAxisLeastPenetration "" [A B]
-  (let [{bodya :body au :u averts :vertices anorms :normals} @A
-        {bodyb :body bu :u} @B
-        sz (n# averts)]
-  (loop [i 0 bestD *neg-inf* bestIndex 0]
-    (if (>= i sz)
+  (let [{bA :body au :u :keys [vertices normals]} @A
+        {bB :body bu :u} @B
+        {posA :pos} @bA
+        {posB :pos} @bB]
+  (loop [i 0 SZ (n# vertices) bestD *neg-inf* bestIndex 0]
+    (if (>= i SZ)
       [bestD bestIndex]
-      (let [nw (->> (nth anorms i)
-                    (m2-mult au))
+      (let [nw (m2-mult au (nth normals i))
             ;;Transform face normal into B's model space
             buT (m2-xpose bu)
             n (m2-mult buT nw)
             ;;Retrieve support point from B along -n
-            s (getSupport B (v2-negate n))
+            s (findSupportPoint B (v2-neg n))
             ;;Retrieve vertex on face from A, transform into
             ;;B's model space
             v (m2-mult buT
-                       (v2-sub (v2-add (->> (nth averts i)
-                                            (m2-mult au))
-                                       (:pos @bodya))
-                               (:pos @bodyb)))
+                       (v2-sub (v2-add (->> (nth vertices i)
+                                            (m2-mult au)) posA) posB))
             ;;Compute penetration distance (in B's model space)
             d (v2-dot n (v2-sub s v))
             b? (> d bestD)]
-        (recur (inc i)
+        (recur (+ 1 i)
+               SZ
                (if b? d bestD)
                (if b? i bestIndex)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findIncidentFace "" [refPoly incPoly refIndex]
-  (let [{bodyr :body rnorms :normals rverts :vertices} @refPoly
-        {bodyi :body inorms :normals iverts :vertices} @incPoly
-        vz (n# iverts)
-        sz (n# inorms)
+  (let [{bI :body iu :u :keys [normals vertices]} @incPoly
+        {posI :pos} @bI
         ;;Calculate normal in incident's frame of reference
-        refNormal (->> (nth rnorms refIndex)
+        refNormal (->> (nth (:normals @refPoly) refIndex)
                        (m2-mult (:u @refPoly)) ;; To world space
-                       (m2-mult (m2-xpose (:u @incPoly))))]  ;To incident's model space
+                       (m2-mult (m2-xpose iu)))]  ;To incident's model space
     ;;Find most anti-normal face on incident polygon
-    (loop [i 0 iFace 0 minDot *pos-inf*]
-      (if (>= i sz)
+    (loop [i 0 SZ (n# vertices)
+           iFace 0 minDot *pos-inf*]
+      (if (>= i SZ)
         ;;Assign face vertices for incidentFace
-        [(v2-add (m2-mult (:u @incPoly) (nth iverts iFace)) (:pos @bodyi))
-         (v2-add (m2-mult (:u @incPoly)
-                          (nth iverts (mod (inc iFace) vz))) (:pos @bodyi))]
-        (let [dot (v2-dot refNormal (nth inorms i))
+        [(v2-add (m2-mult iu (nth vertices iFace)) posI)
+         (v2-add (m2-mult iu
+                          (nth vertices (nxi iFace SZ))) posI)]
+        ;loop
+        (let [dot (v2-dot refNormal (nth normals i))
               b? (< dot minDot)]
-          (recur (inc i)
+          (recur (+ 1 i)
+                 SZ
                  (if b? i iFace) (if b? dot minDot)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn clip "" [n c face]
-  (let [[face0 face1] face
+(defn clip "" [n c faces]
+  (let [[face0 face1] faces
         out (array face0 face1)
         ;;Retrieve distances from each endpoint to the line
         ;;d = ax + by - c
         d1 (- (v2-dot n face0) c)
         d2 (- (v2-dot n face1) c)
+        sp 0
         ;;If negative (behind plane) clip
-        sp (if (<= d1 0) (do (aset out 0 face0) 1) 0)
-        sp' (if (<= d2 0) (do (aset out sp face1) (inc sp) sp))
+        sp (if (<= d1 0) (do (aset out sp face0) (inc sp)) sp)
+        sp (if (<= d2 0) (do (aset out sp face1) (inc sp)) sp)
         ;;If the points are on different sides of the plane
-        sp'' (if (< (* d1 d2) 0) ;;less than to ignore -0.0f
-               (let [;;Push interesection point
-                     alpha (/ d1 (- d1 d2))]
-                 (aset out sp' (v2-add face0 (v2-scale (v2-sub face1 face0) alpha)))
-                 (inc sp'))
-               sp')]
-  (assert (not= sp'' 3))
+        sp (if (< (* d1 d2) 0) ;;less than to ignore -0.0f
+             (let [;;Push interesection point
+                   alpha (/ d1 (- d1 d2))]
+                 (aset out sp (v2-add face0 (v2-scale (v2-sub face1 face0) alpha)))
+                 (inc sp)) sp)]
+  (assert (not= sp 3))
   ;;Assign our new converted values
-  [sp'' [(aget out 0) (aget out 1)]]))
+  [sp [(aget out 0) (aget out 1)]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn polygonToPolygon "" [m B1 B2]
-  (swap! m #(assoc % :contacts []))
+(defn- polygonToPolygon*
+  "" [M B1 B2 [penetrationA faceA] [penetrationB faceB]]
+
+  (let [{A :shape} @B1
+        {B :shape} @B2
+        ;flip Always point from a to b
+        [refPoly incPoly refIndex flip?]
+        ;;Determine which shape contains reference face
+        (if (ec/biasGreater? penetrationA penetrationB)
+          [A B faceA false]
+          [B A faceB true])
+        {bR :body} @refPoly
+        {bI :body} @incPoly
+        {posR :pos} @bR
+        ;;World space incident face
+        incidentFaces (findIncidentFace refPoly incPoly refIndex)
+        {rverts :vertices ru :u} @refPoly
+        ;;Setup reference face vertices
+        v1 (nth rverts refIndex)
+        refIndex (nxi refIndex (n# rverts))
+        v2 (nth rverts refIndex)
+        ;;Transform vertices to world space
+        v1 (v2-add (m2-mult ru v1) posR)
+        v2 (v2-add (m2-mult ru v2) posR)
+        ;;Calculate reference face side normal in world space
+        sidePlaneNormal (v2-norm (v2-sub v2 v1))
+        ;;Orthogonalize
+        refFaceNormal (vec2 (:y sidePlaneNormal) (- (:x sidePlaneNormal)))
+        ;;ax + by = c
+        ;; c is distance from origin
+        refC (v2-dot refFaceNormal v1)
+        negSide (- (v2-dot sidePlaneNormal v1))
+        posSide (v2-dot sidePlaneNormal v2)
+        ;;Clip incident face to reference face side planes
+        [sp incidentFaces]
+        (clip (v2-neg sidePlaneNormal) negSide incidentFaces)
+        ;;Due to floating point error, possible to not have required points
+        quit1? (< sp 2)
+        [sp incidentFaces]
+        (if quit1?
+          [sp incidentFaces]
+          (clip sidePlaneNormal posSide incidentFaces))
+        ;Due to floating point error, possible to not have required points
+        quit2? (< sp 2)]
+    (when-not (or quit1? quit2?)
+      ;;Flip
+      (swap! M
+             #(assoc % :normal
+                     (if flip? (v2-neg refFaceNormal) refFaceNormal)))
+      ;;Keep points behind reference face
+      (let [sep (- (v2-dot refFaceNormal (_1 incidentFaces)) refC)]
+        (if (<= sep 0)
+          (swap! M
+                 (fn [{:keys [contacts] :as root}]
+                   (assoc root
+                          :contacts (conj contacts (_1 incidentFaces))
+                          :penetration (- sep))))
+          (swap! M #(assoc % :penetration 0))))
+      (let [sep (- (v2-dot refFaceNormal (_2 incidentFaces)) refC)]
+        (when (<= sep 0)
+          (swap! M
+                 (fn [{:keys [penetration contacts] :as root}]
+                   (let [cs (conj contacts (_2 incidentFaces))
+                         cz (n# cs)]
+                     (assoc root
+                            :contacts cs
+                            ;;average penetration
+                            :penetration (/ (- penetration sep) cz))))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- polygonToPolygon "" [M B1 B2]
+  (swap! M #(assoc % :contacts []))
   (let [{A :shape} @B1
         {B :shape} @B2
         ;;Check for a separating axis with A's face planes
@@ -632,79 +707,17 @@
                                (findAxisLeastPenetration B A))
         skipB? (>= penetrationB 0)]
     (when-not (or skipA? skipB?)
-      (polygonToPolygon* m B1 B2
+      (polygonToPolygon* M B1 B2
                          [penetrationA faceA] [penetrationB faceB]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- polygonToPolygon*
-  "" [m B1 B2 [penetrationA faceA] [penetrationB faceB]]
-
-  (let [{A :shape} @B1
-        {B :shape} @B2
-        ;flip Always point from a to b
-        [refPoly incPoly refIndex flip?]
-        ;;Determine which shape contains reference face
-        (if (ec/biasGreater? penetrationA penetrationB )
-          [A B faceA false]
-          [B A faceB true])
-        {bodyr :body} @refPoly
-        {bodyi :body} @incPoly
-        ;;World space incident face
-        incidentFace (findIncidentFace refPoly incPoly refIndex)
-        ;;Setup reference face vertices
-        v1 (nth (:vertices @refPoly) refIndex)
-        refIndex (mod (inc refIndex) (n# (:vertices @refPoly)))
-        v2 (nth (:vertices @refPoly) refIndex)
-        ;;Transform vertices to world space
-        v1 (v2-add (m2-mult (:u @refPoly) v1) (:pos @bodyr))
-        v2 (v2-add (m2-mult (:u @refPoly) v2) (:pos @bodyr))
-        ;;Calculate reference face side normal in world space
-        sidePlaneNormal (v2-norm (v2-sub v2 v1))
-        ;;Orthogonalize
-        refFaceNormal (vec2 (:y sidePlaneNormal) (- (:x sidePlaneNormal)))
-        ;;ax + by = c
-        ;; c is distance from origin
-        refC (v2-dot refFaceNormal v1)
-        negSide (- (v2-dot sidePlaneNormal v1))
-        posSide (v2-dot sidePlaneNormal v2)
-        ;;Clip incident face to reference face side planes
-        [sp incidentFace]
-        (Clip (v2-negate sidePlaneNormal) negSide incidentFace)
-        ;;Due to floating point error, possible to not have required points
-        quit1? (< sp 2)
-        [sp incidentFace]
-        (if quit1?
-          [sp incidentFace]
-          (Clip sidePlaneNormal posSide incidentFace))
-        ;Due to floating point error, possible to not have required points
-        quit2? (< sp 2)]
-    (when-not (or quit1? quit2?)
-      ;;Flip
-      (swap! m
-             #(assoc % :normal
-                     (if flip? (v2-negate refFaceNormal) refFaceNormal)))
-      ;;Keep points behind reference face
-      (let [sep (- (v2-dot refFaceNormal (_1 incidentFace)) refC)]
-        (if (<= sep 0)
-          (swap! m
-                 (fn [{:keys [contacts] :as root}]
-                   (assoc root
-                          :contacts (conj contacts (_1 incidentFace))
-                          :penetration (- sep))))
-          (swap! m #(assoc % :penetration 0))))
-      (let [sep (- (v2-dot refFaceNormal (_2 incidentFace)) refC)]
-        (when (<= sep 0)
-          (swap! m
-                 (fn [{:keys [penetration contacts] :as root}]
-                   (let [cs (conj contacts (_2 incidentFace))
-                         cz (n# cs)]
-                     (assoc root
-                            :contacts cs
-                            ;;average penetration
-                            :penetration (/ (- penetration sep) cz))))))))))
+(reset! *dispatch*
+        {:circle {:circle CircleToCircle :polygon CircleToPolygon}
+         :polygon {:circle PolygonToCircle :polygon PolygonToPolygon}})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+
 
 
 
