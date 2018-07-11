@@ -13,7 +13,8 @@
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [n#]])
 
-  (:require [czlab.elmo.afx.core :as ec :refer [invert abs* EPSILON]]
+  (:require [czlab.elmo.afx.core
+             :as ec :refer [num?? invert abs* EPSILON]]
             [oops.core :refer [oget oset! ocall oapply ocall!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -77,7 +78,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn v2-sxss
-  "" [v a] (let [{:keys [x y]} v] (vec2 (* a y) (* (- a) x))))
+  "" [a v] (let [{:keys [x y]} v] (vec2 (* (- a) y) (* a x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn v2-rot "rotate counter-clockwise" [v1 center angleRad]
@@ -121,7 +122,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mat2* "" [radians]
   (let [c (js/Math.cos radians)
-        s (js/Math.sin radians)] (mat2 c -s s c)))
+        s (js/Math.sin radians)] (mat2 c (- s) s c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn m2-abs "" [m]
