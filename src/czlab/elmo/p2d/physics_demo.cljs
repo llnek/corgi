@@ -20,7 +20,7 @@
             [czlab.elmo.afx.gfx2d
              :as gx :refer [pythag pythagSQ TWO-PI PI vec2 V2_ZERO _cocos2dx?
                             v2-len v2-add v2-sub v2-dot Point2D Size2D
-                            v2-negate v2-scale v2-rot v2-norm v2-dist]]
+                            v2-neg v2-scale v2-rot v2-norm v2-dist]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -78,9 +78,9 @@
       (= key 76) ;;l
       (alterShapeAttr! s :vel (vec2 1 0))
       (= key 85) ;;U
-      (alterShapeAttr! s :angVel -0.1)
+      (alterShapeAttr! s :gvel -0.1)
       (= key 79) ;O
-      (alterShapeAttr! s :angVel 0.1)
+      (alterShapeAttr! s :gvel 0.1)
       (= key 90) ;Z
       (updateMass! s -1)
       (= key 88) ;;X
@@ -116,14 +116,14 @@
 (defn- updateUIEcho "" []
   (let [{:keys [uiEcho cur samples]} @gWorld
         obj (ec/nthStore samples cur)
-        {:keys [sticky bounce invMass angVel vel angle pos]} @obj]
+        {:keys [sticky bounce invMass gvel vel angle pos]} @obj]
     (->> (str "<p><b>Selected Object:</b>:</p>"
               "<ul style=\"margin:-10px\">"
               "<li>Id: " cur "</li>"
               "<li>Center: " (:x pos) "," (:y pos) "</li>"
               "<li>Angle: " angle "</li>"
               "<li>Velocity: " (:x vel) "," (:y vel) "</li>"
-              "<li>AngluarVelocity: " angVel "</li>"
+              "<li>AngluarVelocity: " gvel "</li>"
               "<li>Mass: " (invert invMass) "</li>"
               "<li>Friction: " sticky "</li>"
               "<li>Restitution: " bounce "</li>"

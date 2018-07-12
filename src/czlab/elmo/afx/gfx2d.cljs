@@ -27,6 +27,9 @@
 (def TWO-PI (* 2 PI))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn wrap?? "" [i len] (mod (+ 1 i) len))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec2 "" [x y] {:x x :y y})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -68,7 +71,6 @@
 (defn v2-scale "" [v n] (vec2 (* n (:x v)) (* n (:y v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-negate "" [v] (v2-scale v -1))
 (defn v2-neg "" [v] (v2-scale v -1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -169,14 +171,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- polyArea "" [s]
-  (let [{:keys [edges]} @s
-        sz (n# edges)
+  (let [{:keys [vertices]} @s
+        sz (n# vertices)
         sum (loop [i 0 area 0]
               (if (>= i sz)
                 (abs* area)
                 (let [;;modulo to get 0 if i is last vertex
-                      {vn :v1} @(nth edges (mod (+ 1 i) sz))
-                      {vi :v1} @(nth edges i)
+                      vn (nth vertices (wrap?? i sz))
+                      vi (nth vertices i)
                       {xi :x yi :y} vi
                       {xn :x yn :y} vn]
                   (recur (+ 1 i)
@@ -185,15 +187,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn calcPolyCenter "" [s]
   (let [A (* 6 (polyArea s))
-        {:keys [edges]} @s
-        sz (n# edges)
+        {:keys [vertices]} @s
+        sz (n# vertices)
         [cx cy]
         (loop [i 0 cx 0 cy 0]
           (if (>= i sz)
             [cx cy]
             (let [;;modulo to get 0 if i is last vertex
-                  {vn :v1} @(nth edges (mod (+ 1 i) sz))
-                  {vi :v1} @(nth edges i)
+                  vn (nth vertices (wrap?? i sz))
+                  vi (nth vertices i)
                   {xi :x yi :y} vi
                   {xn :x yn :y} vn]
               (recur (+ 1 i)
@@ -209,10 +211,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- polyDraw "" [p ctx & [styleObj]]
-  (let [{:keys [edges]} @p
-        sz (n# edges)
+  (let [{:keys [vertices]} @p
+        sz (n# vertices)
         {x0 :x y0 :y}
-        (:v1 @(nth edges 0))]
+        (nth vertices 0)]
     (ocall! ctx "beginPath")
     (when (some? styleObj)
       (cfgStyle! ctx styleObj))
@@ -220,16 +222,16 @@
     (dotimes [i sz]
       (when-not (zero? i)
         (let [{:keys [x y]}
-              (:v1 @(nth edges i))]
+              (nth vertices i)]
           (ocall! ctx "lineTo" x y))))
     (ocall! ctx "closePath")
     (ocall! ctx "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Polygon
-  "" [&[pt edges]]
+  "" [&[pt vertices]]
   (atom {:pos (or pt V2_ZERO)
-         :type :polygon :draw polyDraw  :edges (or edges [])}))
+         :type :polygon :draw polyDraw  :vertices (or vertices [])}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Edge "" [v1 v2] (atom {:v1 v1 :v2 v2}))
@@ -253,15 +255,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Circle "" [pt radius]
   (let [s (Polygon pt)]
-    (swap! s #(assoc (dissoc % :edges)
+    (swap! s #(assoc %
                      :draw circleDraw
                      :type :circle
                      :radius radius)) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectDraw "" [r1 ctx & [styleObj]]
-  (let [{:keys [edges width height angle]} @r1
-        {:keys [x y]} (:v1 @(nth edges 0))]
+  (let [{:keys [vertices width height angle]} @r1
+        {:keys [x y]} (nth vertices 0)]
     (ocall! ctx "save")
     (ocall! ctx "translate" x y)
     (ocall! ctx "rotate" angle)
@@ -283,10 +285,7 @@
         [v0 v1 v2 v3]
         [(Point2D left top) (Point2D right top)
          (Point2D right bottom) (Point2D left bottom)]
-        s (Polygon pt
-                   [(Edge v0 v1)
-                    (Edge v1 v2)
-                    (Edge v2 v3)(Edge v3 v0)])]
+        s (Polygon pt [v0 v1 v2 v3])]
     (swap! s #(assoc %
                      :type :rectangle
                      :draw polyDraw

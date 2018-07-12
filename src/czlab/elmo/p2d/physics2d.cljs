@@ -19,7 +19,7 @@
                             pythag pythagSQ TWO-PI PI
                             Point2D vec2 V2_ZERO Edge
                             v2-len v2-add v2-sub v2-dot
-                            v2-negate v2-scale v2-xss v2-rot v2-norm v2-dist]]
+                            v2-neg v2-scale v2-xss v2-rot v2-norm v2-dist]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -46,7 +46,7 @@
   (swap! ci
          (fn [{:keys [start end normal] :as root}]
            (assoc root
-                  :start end :end start :normal (v2-negate normal)))) ci)
+                  :start end :end start :normal (v2-neg normal)))) ci)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setFixed! "" [obj] (swap! obj #(assoc % :dynamic? false)) obj)
@@ -69,8 +69,8 @@
                    :mass mass'
                    :inertia 0
                    :angle 0
-                   :angVel 0 ;; clockwise = negative
-                   :angAccel 0
+                   :gvel 0 ;; clockwise = negative
+                   :gaccel 0
                    :bxRadius 0
                    :accel (if (zero? mass') V2_ZERO gravity)
                    :sticky (if (number? friction) friction 0.8)
@@ -95,7 +95,7 @@
                    (if (pos? m)
                      {:invMass (invert m) :mass m :accel gravity}
                      {:invMass 0 :mass 0 :vel V2_ZERO
-                      :accel V2_ZERO :angVel 0 :angAccel 0})))
+                      :accel V2_ZERO :gvel 0 :gaccel 0})))
     (updateInertia! s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -120,10 +120,10 @@
       ;;move object += v*dt
       (move! s (v2-scale (:vel @s) dt))
       ;;update angular vel
-      (swap! s (fn [{:keys [angVel angAccel] :as root}]
-                 (assoc root :angVel (+ angVel (* angAccel dt)))))
+      (swap! s (fn [{:keys [gvel gaccel] :as root}]
+                 (assoc root :gvel (+ gvel (* gaccel dt)))))
       ;rotate object
-      (rotate! s (* (:angVel @s) dt)))
+      (rotate! s (* (:gvel @s) dt)))
     ;;;;;;
     (validator s)))
 
@@ -137,13 +137,13 @@
 ;;rect-stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spoint?? "" [r1Pt n r2]
-  (let [{:keys [edges]} @r2
-        len (n# edges)
-        dir (v2-negate n)] ;easier to deal with +ve values
+  (let [{:keys [vertices]} @r2
+        len (n# vertices)
+        dir (v2-neg n)] ;easier to deal with +ve values
     (loop [dist *neg-inf* sp nil i 0]
       (if (>= i len)
         [(some? sp) dist sp]
-        (let [{v' :v1} @(nth edges i)
+        (let [v' (nth vertices i)
               ii (+ i 1)
               proj (v2-dot (v2-sub v' r1Pt) dir)]
           ;;find the longest +ve distance with edge
@@ -154,7 +154,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findPenetration??
   "Find the shortest axis that's overlapping" [r1 r2]
-  (let [{:keys [edges normals]} @r1
+  (let [{:keys [vertices normals]} @r1
         len (n# normals)]
     ;;all vertices have corresponding support points?
     (loop [depth *pos-inf*
@@ -163,7 +163,7 @@
         (if support?
           (chgci! (ci-info) depth n'
                   (v2-add vert (v2-scale n' depth))))
-        (let [{v' :v1} @(nth edges i)
+        (let [v' (nth vertices i)
               ii (+ i 1)
               dir (nth normals i)
               [ok? dist pt] (spoint?? v' dir r2)]
@@ -184,7 +184,7 @@
             {d2 :depth n2 :normal s2 :start} @ci_2]
         (if (< d1 d2)
           (chgci! ci d1 n1 (v2-sub s1 (v2-scale n1 d1)))
-          (chgci! ci d2 (v2-negate n2) s2))))
+          (chgci! ci d2 (v2-neg n2) s2))))
     (and (some? ci_1)(some? ci_2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -197,15 +197,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- nfaceToCircle?? "" [r1 cc1]
-  (let [{:keys [edges normals]} @r1
+  (let [{:keys [vertices normals]} @r1
         {center :pos} @cc1
         len (n# normals)]
     (loop [inside? true
            depth *neg-inf* nEdge 0 i 0]
       (if (or (not inside?) (>= i len))
         [inside? depth nEdge]
-        (let [e' (nth edges i)
-              v (v2-sub center (:v1 @e'))
+        (let [e' (nth vertices i)
+              v (v2-sub center e')
               ii (+ i 1)
               proj (v2-dot v (nth normals i))]
           (cond
@@ -217,14 +217,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleOutsideRect? "" [r1 cc1 ci nEdge depth]
   (let [{center :pos :keys [radius]} @cc1
-        {:keys [normals edges]} @r1
-        vn (:v1 @(nth edges nEdge))
+        {:keys [normals vertices]} @r1
+        vn (nth vertices nEdge)
         en (nth normals nEdge)
         ;;V1 is from left vertex of face to center of circle
         ;;V2 is from left vertex of face to right vertex of face
         len (n# normals)
-        eX (mod (+ 1 nEdge) len)
-        vX (:v1 @(nth edges eX))
+        eX (gx/wrap?? nEdge len)
+        vX (nth vertices eX)
         V1 (v2-sub center vn)
         V2 (v2-sub vX vn)
         dot (v2-dot V1 V2)]
@@ -241,7 +241,7 @@
       ;v1 is from right vertex of face to center of circle
       ;v2 is from right vertex of face to left vertex of face
       (let [v1 (v2-sub center vX)
-            v2 (v2-negate V2)
+            v2 (v2-neg V2)
             dot (v2-dot v1 v2)]
         (cond
           (neg? dot)
@@ -275,48 +275,40 @@
 (defn- createFaceNormals
 
   "0--Top;1--Right;2--Bottom;3--Left"
-  [edges]
+  [vertices]
 
-  (let [[v0 v1 v2 v3]
-        (map (fn [e] (:v1 @e)) edges)]
+  (let [[v0 v1 v2 v3] vertices]
     [(v2-norm (v2-sub v1 v2)) (v2-norm (v2-sub v2 v3))
      (v2-norm (v2-sub v3 v0)) (v2-norm (v2-sub v0 v1))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectRotate "" [s angle']
-  (let [{center :pos :keys [angle edges normals]} @s
-        [v0 v1 v2 v3]
-        (map (fn [e] (:v1 @e)) edges)
+  (let [{center :pos :keys [angle vertices normals]} @s
+        [v0 v1 v2 v3] vertices
         a2 (+ angle angle')
-        [p0 p1 p2 p3]
+        vs'
         [(v2-rot v0 center angle')
          (v2-rot v1 center angle')
          (v2-rot v2 center angle')
-         (v2-rot v3 center angle')]
-        edges' [(Edge p0 p1) (Edge p1 p2)
-                (Edge p2 p3) (Edge p3 p0)]]
+         (v2-rot v3 center angle')]]
     (swap! s
            #(assoc %
                    :angle a2
-                   :edges edges'
-                   :normals (createFaceNormals edges'))) s))
+                   :vertices vs'
+                   :normals (createFaceNormals vs'))) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectMove "" [s p]
-  (let [{center :pos :keys [edges]} @s
-        [v0 v1 v2 v3]
-        (map (fn [e] (:v1 @e)) edges)
-        [p0 p1 p2 p3]
+  (let [{center :pos :keys [vertices]} @s
+        [v0 v1 v2 v3] vertices
+        vs'
         [(v2-add v0 p)
          (v2-add v1 p)
          (v2-add v2 p)
          (v2-add v3 p)]]
     (swap! s #(assoc %
                      :pos (v2-add center p)
-                     :edges [(Edge p0 p1)
-                             (Edge p1 p2)
-                             (Edge p2 p3)
-                             (Edge p3 p0)])) s))
+                     :vertices vs')) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectUpdateInertia "" [s]
@@ -332,7 +324,7 @@
 (defn Rectangle "" [pt sz & [mass friction bounce]]
   (let [s (-> (gx/Rectangle pt sz)
               (rigidBody! mass friction bounce))
-        {:keys [edges width height]} @s]
+        {:keys [vertices width height]} @s]
     (->>
       #(assoc %
               :updateInertia rectUpdateInertia
@@ -340,7 +332,7 @@
               :move rectMove
               :rotate rectRotate
               :bxRadius (/ (pythag width height) 2)
-              :normals (createFaceNormals edges)) (swap! s))
+              :normals (createFaceNormals vertices)) (swap! s))
     (updateInertia! s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -384,7 +376,7 @@
                           (v2-add c1 (vec2 0 r1)) (v2-add c2 (vec2 0 r2)))))
       :else ;overlap
       (do->true
-        (let [rC2 (-> (v2-norm (v2-negate v1to2)) (v2-scale r2))]
+        (let [rC2 (-> (v2-norm (v2-neg v1to2)) (v2-scale r2))]
           (chgci! ci (- rSum dist) (v2-norm v1to2) (v2-add c2 rC2)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -439,21 +431,21 @@
         ;;impulse = F dt = m * ?v , ?v = impulse / m
         impulse (v2-scale normal jN)]
     (swap! s1
-           (fn [{:keys [angVel vel] :as root}]
+           (fn [{:keys [gvel vel] :as root}]
              (assoc root
-                    :angVel (- angVel (* r1xN jN e1))
+                    :gvel (- gvel (* r1xN jN e1))
                     :vel (v2-sub vel (v2-scale impulse m1)))))
     (swap! s2
-           (fn [{:keys [angVel vel] :as root}]
+           (fn [{:keys [gvel vel] :as root}]
              (assoc root
-                    :angVel (+ angVel (* r2xN jN e2))
+                    :gvel (+ gvel (* r2xN jN e2))
                     :vel (v2-add vel (v2-scale impulse m2)))))
     ;;rVelocity.dot(tangent) should less than 0
     (let [tangent (->> (v2-dot rVelocity normal)
                        (v2-scale normal)
                        (v2-sub rVelocity)
                        (v2-norm)
-                       (v2-negate))
+                       (v2-neg))
           r1xT (v2-xss r1 tangent)
           r2xT (v2-xss r2 tangent)
           jT' (/ (* (- (+ 1 bounce')) (v2-dot rVelocity tangent) sticky')
@@ -463,14 +455,14 @@
           ;;impulse is from s1 to s2 (in opposite direction of velocity)
           impulse (v2-scale tangent jT)]
       (swap! s1
-             (fn [{:keys [angVel vel] :as root}]
+             (fn [{:keys [gvel vel] :as root}]
                (assoc root
-                      :angVel (- angVel (* r1xT jT e1))
+                      :gvel (- gvel (* r1xT jT e1))
                       :vel (v2-sub vel (v2-scale impulse m1)))))
       (swap! s2
-             (fn [{:keys [angVel vel] :as root}]
+             (fn [{:keys [gvel vel] :as root}]
                (assoc root
-                      :angVel (+ angVel (* r2xT jT e2))
+                      :gvel (+ gvel (* r2xT jT e2))
                       :vel (v2-add vel (v2-scale impulse m2))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -482,8 +474,8 @@
     ;;but the Mass is inversed, so start scale with s2 and end scale with s1
     (let
       [{:keys [normal start end]} @ci
-       {m1 :invMass c1 :pos vs1 :vel av1 :angVel} @s1
-       {m2 :invMass c2 :pos vs2 :vel av2 :angVel} @s2
+       {m1 :invMass c1 :pos vs1 :vel av1 :gvel} @s1
+       {m2 :invMass c2 :pos vs2 :vel av2 :gvel} @s2
        start' (v2-scale start (/ m2 (+ m1 m2)))
        end' (v2-scale end (/ m1 (+ m1 m2)))
        p (v2-add start' end')
@@ -521,9 +513,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn alterShapeAttr! "" [s attr & more]
-  (let [{:keys [angVel vel]} @s
+  (let [{:keys [gvel vel]} @s
         p1 (first more)
-        v (cond (= :angVel attr) (+ angVel p1)
+        v (cond (= :gvel attr) (+ gvel p1)
                 (= :vel attr) (v2-add vel p1)
                 (= :bounce attr) p1
                 (= :sticky attr) p1)]
