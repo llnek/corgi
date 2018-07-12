@@ -11,11 +11,10 @@
 
   czlab.elmo.afx.gfx2d
 
-  (:require-macros [czlab.elmo.afx.core
-                    :as ec :refer [do-with assoc!! _1 _2 n#]])
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [n#]])
 
   (:require [czlab.elmo.afx.core
-             :as ec :refer [sqrt* num?? invert abs* EPSILON]]
+             :as ec :refer [num?? invert abs* EPSILON]]
             [oops.core :refer [oget oset! ocall oapply ocall!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -28,10 +27,6 @@
 (def TWO-PI (* 2 PI))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private *shapeNum* (atom 0))
-(defn nextShapeNum "" [] (swap! *shapeNum* inc))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec2 "" [x y] {:x x :y y})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -39,7 +34,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pythagSQ "" [x y] (+ (* x x) (* y y)))
-(defn pythag "" [x y] (sqrt* (pythagSQ x y)))
+(defn pythag "" [x y] (js/Math.sqrt (pythagSQ x y)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn v2-lensq "" [v] (pythagSQ (:x v) (:y v)))
@@ -73,6 +68,7 @@
 (defn v2-scale "" [v n] (vec2 (* n (:x v)) (* n (:y v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn v2-negate "" [v] (v2-scale v -1))
 (defn v2-neg "" [v] (v2-scale v -1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -172,58 +168,68 @@
 (defn Area2D "" [pt sz] (merge pt sz))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn wrapIndex?? "" [i len] (mod (+ 1 i) len))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- polyArea "" [vertices]
-  (loop [i 0 SZ (n# vertices) area 0]
-    (if (>= i SZ)
-      (/ (abs* area) 2)
-      (let [{xi :x yi :y} (nth vertices i)
-            {xn :x yn :y} (nth vertices (wrap?? i SZ))]
-        (recur (+ 1 i) SZ (+ area (- (* xi yn) (* xn yi))))))))
+(defn- polyArea "" [s]
+  (let [{:keys [edges]} @s
+        sz (n# edges)
+        sum (loop [i 0 area 0]
+              (if (>= i sz)
+                (abs* area)
+                (let [;;modulo to get 0 if i is last vertex
+                      {vn :v1} @(nth edges (mod (+ 1 i) sz))
+                      {vi :v1} @(nth edges i)
+                      {xi :x yi :y} vi
+                      {xn :x yn :y} vn]
+                  (recur (+ 1 i)
+                         (+ area (- (* xi yn) (* xn yi)))))))] (/ sum 2)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn calcPolyCenter "" [s]
-  (let [{:keys [vertices]} @s
-        A (* 6 (polyArea vertices))]
-    (loop [i 0 SZ (n# vertices) cx 0 cy 0]
-      (if (>= i sz)
-        (Point2D (/ cx A) (/ cy A))
-        (let [{xi :x yi :y} (nth vertices i)
-              {xn :x yn :y} (nth vertices (wrap?? i SZ))]
-          (recur (+ 1 i)
-                 SZ
-                 (+ cx (* (+ xi xn) (- (* xi yn) (* xn yi))))
-                 (+ cy (* (+ yi yn) (- (* xi yn) (* xn yi))))))))))
+  (let [A (* 6 (polyArea s))
+        {:keys [edges]} @s
+        sz (n# edges)
+        [cx cy]
+        (loop [i 0 cx 0 cy 0]
+          (if (>= i sz)
+            [cx cy]
+            (let [;;modulo to get 0 if i is last vertex
+                  {vn :v1} @(nth edges (mod (+ 1 i) sz))
+                  {vi :v1} @(nth edges i)
+                  {xi :x yi :y} vi
+                  {xn :x yn :y} vn]
+              (recur (+ 1 i)
+                     (+ cx (* (+ xi xn) (- (* xi yn) (* xn yi))))
+                     (+ cy (* (+ yi yn) (- (* xi yn) (* xn yi))))))))]
+
+    (Point2D (/ cx A) (/ cy A))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn cfgStyle! "" [ctx styleObj]
   (if-some [x (get-in styleObj [:line :width])] (oset! ctx "!lineWidth" x))
-  (if-some [x (get-in styleObj [:line :cap])] (oset! ctx "!lineCap" x))
   (if-some [x (get-in styleObj [:stroke :style])] (oset! ctx "!strokeStyle" x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- polyDraw "" [p ctx & [styleObj]]
-  (let [{:keys [vertices]} @p
-        SZ (n# vertices)
-        {x0 :x y0 :y} (_1 vertices)]
+  (let [{:keys [edges]} @p
+        sz (n# edges)
+        {x0 :x y0 :y}
+        (:v1 @(nth edges 0))]
     (ocall! ctx "beginPath")
-    (cfgStyle! ctx styleObj)
+    (when (some? styleObj)
+      (cfgStyle! ctx styleObj))
     (ocall! ctx "moveTo" x0 y0)
-    (dotimes [i SZ]
+    (dotimes [i sz]
       (when-not (zero? i)
         (let [{:keys [x y]}
-              (nth vertices i)]
+              (:v1 @(nth edges i))]
           (ocall! ctx "lineTo" x y))))
     (ocall! ctx "closePath")
     (ocall! ctx "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Polygon
-  "" [&[pt vertices]]
+  "" [&[pt edges]]
   (atom {:pos (or pt V2_ZERO)
-         :type ::polygon :draw polyDraw  :vertices (or vertices [])}))
+         :type :polygon :draw polyDraw  :edges (or edges [])}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Edge "" [v1 v2] (atom {:v1 v1 :v2 v2}))
@@ -234,7 +240,8 @@
         {cx :x cy :y} pos
         {sx :x sy :y} startPt]
     (ocall! ctx "beginPath")
-    (cfgStyle! ctx styleObj)
+    (when (some? styleObj)
+      (cfgStyle! ctx styleObj))
     (ocall! ctx
             "arc" cx cy radius 0 TWO-PI true)
     (when (number? sx)
@@ -245,17 +252,21 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Circle "" [pt radius]
-  (do-with [s (Polygon pt)]
-    (assoc!! s :draw circleDraw :type ::circle :radius radius)))
+  (let [s (Polygon pt)]
+    (swap! s #(assoc (dissoc % :edges)
+                     :draw circleDraw
+                     :type :circle
+                     :radius radius)) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rectDraw "not used" [r1 ctx & [styleObj]]
-  (let [{:keys [vertices width height angle]} @r1
-        {:keys [x y]} (_1 vertices)]
+(defn- rectDraw "" [r1 ctx & [styleObj]]
+  (let [{:keys [edges width height angle]} @r1
+        {:keys [x y]} (:v1 @(nth edges 0))]
     (ocall! ctx "save")
     (ocall! ctx "translate" x y)
     (ocall! ctx "rotate" angle)
-    (cfgStyle! ctx styleObj)
+    (when (some? styleObj)
+      (cfgStyle! ctx styleObj))
     (ocall! ctx "strokeRect" 0 0 width height)
     (ocall! ctx "restore")))
 
@@ -263,21 +274,25 @@
 (defn Rectangle "" [pt sz]
   (let [{:keys [width height]} sz
         {:keys [x y]} pt
-        hh (/ height 2)
-        hw (/ width 2)
-        bottom (if _cocos2dx? (- y hh) (+ y hh))
-        top (if _cocos2dx? (+ y hh) (- y hh))
-        right (+ x hw)
-        left (- x hw)]
-    (do-with [s (Polygon pt
-                         [(Point2D left top) (Point2D right top)
-                          (Point2D right bottom) (Point2D left bottom)])]
-      (assoc!! s
-               :type ::rectangle
-               :draw polyDraw
-               :angle 0
-               :width width
-               :height height))))
+        height_2 (/ height 2)
+        width_2 (/ width 2)
+        bottom (if _cocos2dx? (- y height_2) (+ y height_2))
+        top (if _cocos2dx? (+ y height_2) (- y height_2))
+        right (+ x width_2)
+        left (- x width_2)
+        [v0 v1 v2 v3]
+        [(Point2D left top) (Point2D right top)
+         (Point2D right bottom) (Point2D left bottom)]
+        s (Polygon pt
+                   [(Edge v0 v1)
+                    (Edge v1 v2)
+                    (Edge v2 v3)(Edge v3 v0)])]
+    (swap! s #(assoc %
+                     :type :rectangle
+                     :draw polyDraw
+                     :angle 0
+                     :width width
+                     :height height)) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- lineDraw "" [line ctx & [styleObj]]
@@ -285,14 +300,17 @@
         {ax :x ay :y} v1
         {ex :x ey :y} v2]
     (ocall! ctx "beginPath")
-    (cfgStyle! ctx styleObj)
+    (when (some? styleObj)
+      (cfgStyle! ctx styleObj)
+      (if-some [x (oget styleObj
+                        "?line" "?cap")] (oset! ctx "!lineCap" x)))
     (ocall! ctx "moveTo" ax ay)
     (ocall! ctx "lineTo" ex ey)
     (ocall! ctx "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Line "" [ptA ptB]
-  (atom {:v1 ptA :v2 ptB :draw lineDraw :type ::line}))
+  (atom {:v1 ptA :v2 ptB :draw lineDraw :type :line}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn textStyle
