@@ -22,6 +22,11 @@
   (let [x (symbol (str ".-" (name p))) y (symbol "____lvars")] `(~x ~y)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro assoc!! "" [a & args]
+  (let [X (gensym)]
+    `(swap! ~a (fn [~X] (assoc ~X ~@args)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro with-local-vars "" [bindings & more]
   (let [zzz (vec (mapcat #(vector (name (first %)) (last %))
                          (partition 2 bindings)))]
