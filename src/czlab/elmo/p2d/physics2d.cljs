@@ -11,7 +11,8 @@
 
   czlab.elmo.p2d.physics2d
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [do->true]])
+  (:require-macros [czlab.elmo.afx.core
+                    :as ec :refer [do->true]])
 
   (:require [czlab.elmo.afx.core :as ec :refer [n# num?? invert]]
             [czlab.elmo.afx.gfx2d
@@ -19,20 +20,18 @@
                             pythag pythagSQ TWO-PI PI
                             Point2D vec2 V2_ZERO Edge
                             v2-len v2-add v2-sub v2-dot
-                            v2-negate v2-scale v2-xss v2-rot v2-norm v2-dist]]
+                            v2-neg v2-scale v2-xss v2-rot v2-norm v2-dist]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private *shapeNum* (atom 0))
-(defn- nextShapeNum "" [] (swap! *shapeNum* inc))
+(def ^:private *gWorld* (atom {:context nil :canvas nil
+                               :samples (ec/createStore 10)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private *gWorld* (atom {:samples (ec/createStore 10)
-                               :context nil :canvas nil}))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- ci-info
-  "" [] (atom {:depth 0 :normal V2_ZERO :start V2_ZERO :end V2_ZERO}))
+(defn- manifold "" [& [d n s e]]
+  (atom {:depth (num?? d 0)
+         :normal (or n V2_ZERO)
+         :start (or s V2_ZERO) :end (or e V2_ZERO)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- chgci! "" [ci d n s]
@@ -46,7 +45,7 @@
   (swap! ci
          (fn [{:keys [start end normal] :as root}]
            (assoc root
-                  :start end :end start :normal (v2-negate normal)))) ci)
+                  :start end :end start :normal (v2-neg normal)))) ci)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setFixed! "" [obj] (swap! obj #(assoc % :dynamic? false)) obj)
@@ -139,7 +138,7 @@
 (defn- spoint?? "" [r1Pt n r2]
   (let [{:keys [edges]} @r2
         len (n# edges)
-        dir (v2-negate n)] ;easier to deal with +ve values
+        dir (v2-neg n)] ;easier to deal with +ve values
     (loop [dist *neg-inf* sp nil i 0]
       (if (>= i len)
         [(some? sp) dist sp]
@@ -161,7 +160,7 @@
            vert nil n' nil support? true i 0]
       (if-not (and support? (< i len))
         (if support?
-          (chgci! (ci-info) depth n'
+          (chgci! (manifold) depth n'
                   (v2-add vert (v2-scale n' depth))))
         (let [{v' :v1} @(nth edges i)
               ii (+ i 1)
@@ -184,7 +183,7 @@
             {d2 :depth n2 :normal s2 :start} @ci_2]
         (if (< d1 d2)
           (chgci! ci d1 n1 (v2-sub s1 (v2-scale n1 d1)))
-          (chgci! ci d2 (v2-negate n2) s2))))
+          (chgci! ci d2 (v2-neg n2) s2))))
     (and (some? ci_1)(some? ci_2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -241,7 +240,7 @@
       ;v1 is from right vertex of face to center of circle
       ;v2 is from right vertex of face to left vertex of face
       (let [v1 (v2-sub center vX)
-            v2 (v2-negate V2)
+            v2 (v2-neg V2)
             dot (v2-dot v1 v2)]
         (cond
           (neg? dot)
@@ -384,7 +383,7 @@
                           (v2-add c1 (vec2 0 r1)) (v2-add c2 (vec2 0 r2)))))
       :else ;overlap
       (do->true
-        (let [rC2 (-> (v2-norm (v2-negate v1to2)) (v2-scale r2))]
+        (let [rC2 (-> (v2-norm (v2-neg v1to2)) (v2-scale r2))]
           (chgci! ci (- rSum dist) (v2-norm v1to2) (v2-add c2 rC2)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -453,7 +452,7 @@
                        (v2-scale normal)
                        (v2-sub rVelocity)
                        (v2-norm)
-                       (v2-negate))
+                       (v2-neg))
           r1xT (v2-xss r1 tangent)
           r2xT (v2-xss r2 tangent)
           jT' (/ (* (- (+ 1 bounce')) (v2-dot rVelocity tangent) sticky')
@@ -502,7 +501,7 @@
 (defn- checkCollision* "" [posCorrection]
   (let [{:keys [samples context]} @*gWorld*
         len (ec/countStore samples)
-        ci (ci-info)]
+        ci (manifold)]
     (dotimes [i len]
       (loop [j (inc i)]
         (when-not (>= j len)
