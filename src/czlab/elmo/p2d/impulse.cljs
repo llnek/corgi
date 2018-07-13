@@ -38,12 +38,13 @@
 (defmulti applyImpulse! "" (fn [a & more] (:type a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- Shape "" [e] (atom {:type e :body nil}))
+(defn- Shape "" [e & [pt]] (atom {:type e :body nil :pos (or pt V2_ZERO)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Circle "" [r]
-  (do-with [c (Shape ::circle)]
-           (swap! c #(assoc % :radius r))))
+(defn Circle "" [pt r]
+  (do-with [c (Shape ::circle pt)]
+           (swap! c #(assoc % :radius r))
+           (ec/addToStore! (:samples @*gWorld*) c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmethod init! ::circle [c] (calcMass! c 1))
@@ -65,9 +66,13 @@
 (defmethod drawShape ::circle [c ctx] c)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Polygon "" []
-  (do-with [s (Shape ::polygon)]
-           (swap! s #(assoc % :normals [] :vertices [] :u (mat2)))))
+(defn Polygon "" [pt]
+  (do-with [s (Shape ::polygon pt)]
+           (swap! s #(assoc %
+                            :normals []
+                            :u (mat2)
+                            :vertices []))
+           (ec/addToStore! (:samples @*gWorld*) s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmethod init! ::polygon [p] (calcMass! p 1))
