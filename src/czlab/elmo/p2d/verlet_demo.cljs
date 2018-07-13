@@ -58,10 +58,8 @@
         r1 (-> (Polygon [(Point2D 100 210)(Point2D 700 210)
                          (Point2D 700 190)(Point2D 100 190)] 100 0.3 0)
                (py/setStatic! ))
-        r2 (Polygon [(Point2D 0 410)(Point2D 400 410)
-                     (Point2D 400 390)(Point2D 0 390)] 20 1 0.5)
-        r3 (Polygon [(Point2D 0 210)(Point2D 200 210)
-                     (Point2D 200 190)(Point2D 0 190)] 10)
+        r2 (Polygon [(Point2D 0 410)(Point2D 400 410) (Point2D 400 390)(Point2D 0 390)] 20 1 0.5)
+        r3 (Polygon [(Point2D 0 210)(Point2D 200 210) (Point2D 200 190)(Point2D 0 190)] 10)
         r4 (Polygon [(Point2D 0 410) (Point2D 20 410)
                      (Point2D 20 310)(Point2D 0 310)] 10 0 1)]
     (rotate! r1 2.8)
