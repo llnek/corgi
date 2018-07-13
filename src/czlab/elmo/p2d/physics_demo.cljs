@@ -163,7 +163,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- myGame "" []
-  (set! gWorld (py/initPhysics 20 60 {:left 0 :right 799 :top 0 :bottom 449}))
+  (set! gWorld (py/initPhysics 40 60 {:left 0 :right 799 :top 0 :bottom 449}))
   (let [html (js/document.getElementById "uiEchoString")
         canvas (js/document.getElementById "canvas")
         context (ocall! canvas "getContext" "2d")
@@ -174,11 +174,14 @@
                                 :uiEcho html
                                 :cur 0
                                 :canvas canvas :context context))
-        r1 (Rectangle (Point2D 500 200) (Size2D 400 20) 0 0.3 0)
-        r2 (Rectangle (Point2D 200 400) (Size2D 400 20) 0 1 0.5)
-        r3 (Rectangle (Point2D 100 200) (Size2D 200 20) 0)
-        r4 (Rectangle (Point2D 10 360) (Size2D 20 100) 0 0 1)]
-    (rotate! r1 2.8)
+        right (Rectangle (Point2D 500 200) (Size2D 400 20) 0 0.3 0)
+        left (Rectangle (Point2D 100 200) (Size2D 200 20) 0)
+        ;r4 (Rectangle (Point2D 10 360) (Size2D 20 100) 0 0 1)]
+        bottom (Rectangle (Point2D 200 400) (Size2D 400 20) 0 1 0.5)
+        br (Rectangle (Point2D 400 360) (Size2D 20 100) 0 0 1)
+        bl (Rectangle (Point2D 10 360) (Size2D 20 100) 0 0 1)]
+    (rotate! left -2.8)
+    (rotate! right 2.8)
     (dotimes [i 4]
       (-> (Rectangle (Point2D (rand (/ width 2))
                               (rand (/ height 2)))
