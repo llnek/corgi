@@ -31,11 +31,18 @@
   (atom {:body body :pos pos :prev pos :accel V2_ZERO}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- Edge "" [body v1 v2 & [inner?]]
+(defn- XXEdge "" [body v1 v2 & [inner?]]
   (atom {:v1 (Vertex body v1)
          :v2 (Vertex body v2)
          :body body
          :olen (v2-dist v1 v2)
+         :inner? (if (true? inner?) true false)}))
+
+(defn- Edge* "" [body V1 V2 & [inner?]]
+  (atom {:v1 V1
+         :v2 V2
+         :body body
+         :olen (v2-dist (:pos @V1) (:pos @V2))
          :inner? (if (true? inner?) true false)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -81,9 +88,9 @@
           (assoc!! obj :edges (concat edges out))
           (let [[o' b'] (if-not (contains? bin i)
                           (let [i2 (mod (+ i 2) SZ)]
-                            [(conj out (Edge obj
-                                             (:pos @(nth vs i))
-                                             (:pos @(nth vs i2)) true))
+                            [(conj out (Edge* obj
+                                              (nth vs i)
+                                              (nth vs i2) true))
                              (conj bin i i2)])
                           [out bin])]
             (recur (+ 1 i) o' b'))))) obj))
@@ -93,38 +100,35 @@
   (let [outer (listOuterEdges p)
         vs (listVertices p)
         inner (listInnerEdges p)]
-    (ocall! ctx "beginPath")
     (gx/cfgStyle! ctx styleObj)
+    (ocall! ctx "beginPath")
     (dotimes [i (n# outer)]
       (let [{:keys [v1 v2]} @(nth outer i)
             {x1 :x y1 :y} (:pos @v1)
             {x2 :x y2 :y} (:pos @v2)]
         (ocall! ctx "moveTo" x1 y1)
         (ocall! ctx "lineTo" x2 y2)))
-    (ocall! ctx "closePath")
     (ocall! ctx "stroke")
     ;;inner lines...
     (when (not-empty inner)
-      (oset! ctx "!strokeStyle" "white")
       (ocall! ctx "beginPath")
+      (oset! ctx "!strokeStyle" "black")
       (dotimes [i (n# inner)]
         (let [{:keys [v1 v2]} @(nth inner i)
               {x1 :x y1 :y} (:pos @v1)
               {x2 :x y2 :y} (:pos @v2)]
           (ocall! ctx "moveTo" x1 y1)
           (ocall! ctx "lineTo" x2 y2)))
-      (ocall! ctx "closePath")
       (ocall! ctx "stroke"))
     ;; vertices...
-    (oset! ctx "!strokeStyle" "white")
-    (oset! ctx "!fillStyle" "white")
-    (ocall! ctx "beginPath")
     (doseq [v vs
             :let [{:keys [x y]} (:pos @v)]]
-      (ocall! ctx
-              "arc" x y 2 0 TWO-PI true))
-    (ocall! ctx "closePath")
-    (ocall! ctx "stroke")))
+      (ocall! ctx "beginPath")
+      (ocall! ctx "arc" x y 2 0 TWO-PI true)
+      (oset! ctx "!fillStyle" "black")
+      (ocall! ctx "fill")
+      (oset! ctx "!strokeStyle" "black")
+      (ocall! ctx "stroke"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- polyRotate "" [s angle']
@@ -140,24 +144,25 @@
                (if (>= i SZ)
                  out
                  (let [i2 (mod (+ 1 i) SZ)
-                       v1 (:pos @(nth vs i))
-                       v2 (:pos @(nth vs i2))]
+                       v1 (nth vs i)
+                       v2 (nth vs i2)]
                    (recur (+ 1 i)
-                          SZ (conj out (Edge s v1 v2)))))))
+                          SZ (conj out (Edge* s v1 v2)))))))
     (-> (ensureRigidity s) (calcCenter! ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Polygon "" [vs & [mass friction bounce]]
-  (let [ret (py/Polygon)]
+  (let [ret (py/Polygon)
+        VS (mapv #(Vertex ret %) vs)]
     (assoc!! ret
              :rotate polyRotate
              :edges
              (loop [i 0 END (dec (n# vs)) e' []]
                (if (= i END)
-                 (conj e' (Edge ret (nth vs i) (nth vs 0)))
+                 (conj e' (Edge* ret (nth VS i) (nth VS 0)))
                  (recur (+ 1 i)
                         END
-                        (conj e' (Edge ret (nth vs i) (nexth vs i)))))))
+                        (conj e' (Edge* ret (nth VS i) (nexth VS i)))))))
     (-> (ensureRigidity ret)
         (calcCenter!)
         (rigidBody! mass friction bounce))))
@@ -238,7 +243,7 @@
     ;;line equation is N*( R - R0 ). We choose B2 ;;as R0
     ;;the normal N is given by the collision normal
     ;;revert the collision normal if it points away from B1
-    (if-not (pos? sign)
+    (if (neg? sign)
       (assoc!! ci :normal (v2-neg cn)))
 
     (loop [i 0 SZ (n# edges)
@@ -346,7 +351,7 @@
               (let [sj (ec/nthStore samples j)
                     ci (ci-info)]
                 (when (and (:valid? @sj)
-                           (overlap? si sj)
+                           ;(overlap? si sj)
                            (collide? si sj ci))
                   (resolveCollision ci)
                   (resyncShape! si)
@@ -362,7 +367,7 @@
         {:keys [samples frameSecs]} @*gWorld*]
     (applyActingForces!)
     (updateVerlet! frameSecs)
-    (dotimes [_ 0];algoIterCount]
+    (dotimes [_ algoIterCount]
       (checkCollision* posCorrection))
     (comment
     (ec/eachStore samples
