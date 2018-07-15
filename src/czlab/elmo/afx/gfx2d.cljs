@@ -11,7 +11,7 @@
 
   czlab.elmo.afx.gfx2d
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 n#]])
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 n# assoc!!]])
 
   (:require [czlab.elmo.afx.core
              :as ec :refer [num?? invert abs* EPSILON]]
@@ -208,13 +208,12 @@
 (defn calcPolyCenter "" [s]
   (let [A (* 6 (polyArea s))
         {:keys [vertices]} @s
-        sz (n# vertices)
         [cx cy]
-        (loop [i 0 cx 0 cy 0]
-          (if (>= i sz)
+        (loop [i 0 SZ (n# vertices) cx 0 cy 0]
+          (if (>= i SZ)
             [cx cy]
             (let [;;modulo to get 0 if i is last vertex
-                  vn (nth vertices (wrap?? i sz))
+                  vn (nth vertices (wrap?? i SZ))
                   vi (nth vertices i)
                   {xi :x yi :y} vi
                   {xn :x yn :y} vn]
@@ -233,21 +232,17 @@
     (if-some [s (:style k)] (oset! ctx "!strokeStyle" s))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- polyDraw "" [p ctx & [styleObj]]
-  (let [{:keys [vertices]} @p
-        sz (n# vertices)
-        {x0 :x y0 :y}
-        (nth vertices 0)]
+(defn- polyDraw "" [p ctx]
+  (let [{:keys [vertices]} @p]
     (ocall! ctx "beginPath")
-    (when (some? styleObj)
-      (cfgStyle! ctx styleObj))
-    (ocall! ctx "moveTo" x0 y0)
-    (dotimes [i sz]
-      (when-not (zero? i)
-        (let [{:keys [x y]}
-              (nth vertices i)]
-          (ocall! ctx "lineTo" x y))))
-    (ocall! ctx "closePath")
+    (loop [i 0 SZ (n# vertices)]
+      (when (< i SZ)
+        (let [i2 (wrap?? i SZ)
+              {x1 :x y1 :y} (nth vertices i)
+              {x2 :x y2 :y} (nth vertices i2)]
+          (seqOps! ctx
+                   ["moveTo" x1 y1]
+                   ["lineTo" x2 y2]))))
     (ocall! ctx "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -274,53 +269,45 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Circle "" [pt radius]
   (let [s (Polygon pt)]
-    (swap! s #(assoc %
-                     :draw circleDraw
-                     :type :circle
-                     :radius radius)) s))
+    (assoc!! s
+             :draw circleDraw
+             :type :circle :radius radius) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rectDraw "" [r1 ctx & [styleObj]]
+(defn- rectDraw "not used" [r1 ctx]
   (let [{:keys [vertices width height angle]} @r1
         {:keys [x y]} (nth vertices 0)]
-    (ocall! ctx "save")
-    (ocall! ctx "translate" x y)
-    (ocall! ctx "rotate" angle)
-    (when (some? styleObj)
-      (cfgStyle! ctx styleObj))
-    (ocall! ctx "strokeRect" 0 0 width height)
-    (ocall! ctx "restore")))
+    (seqOps! ctx
+             ["save"]
+             ["translate" x y]
+             ["rotate" angle]
+             ["strokeRect" 0 0 width height] ["restore"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Rectangle "" [pt sz]
   (let [{:keys [width height]} sz
         {:keys [x y]} pt
-        height_2 (/ height 2)
-        width_2 (/ width 2)
-        bottom (if _cocos2dx? (- y height_2) (+ y height_2))
-        top (if _cocos2dx? (+ y height_2) (- y height_2))
-        right (+ x width_2)
-        left (- x width_2)
-        [v0 v1 v2 v3]
-        [(Point2D left top) (Point2D right top)
-         (Point2D right bottom) (Point2D left bottom)]
-        s (Polygon pt [v0 v1 v2 v3])]
-    (swap! s #(assoc %
-                     :type :rectangle
-                     :draw polyDraw
-                     :angle 0
-                     :width width
-                     :height height)) s))
+        hh (/ height 2)
+        hw (/ width 2)
+        bottom (if _cocos2dx? (- y hh) (+ y hh))
+        top (if _cocos2dx? (+ y hh) (- y hh))
+        right (+ x hw)
+        left (- x hw)
+        s (Polygon pt
+                   [(Point2D left top) (Point2D right top)
+                    (Point2D right bottom) (Point2D left bottom)])]
+    (assoc!! s
+             :type :rectangle
+             :draw polyDraw
+             :angle 0
+             :width width :height height) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- lineDraw "" [line ctx]
   (let [{:keys [v1 v2]} @line
         {ax :x ay :y} v1
         {ex :x ey :y} v2]
-    (ocall! ctx "beginPath")
-    (ocall! ctx "moveTo" ax ay)
-    (ocall! ctx "lineTo" ex ey)
-    (ocall! ctx "stroke")))
+    (seqOps! ctx ["beginPath"] ["moveTo" ax ay] ["lineTo" ex ey] ["stroke"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Line "" [ptA ptB]
