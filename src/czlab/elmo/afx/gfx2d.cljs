@@ -11,11 +11,11 @@
 
   czlab.elmo.afx.gfx2d
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [n#]])
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 n#]])
 
   (:require [czlab.elmo.afx.core
              :as ec :refer [num?? invert abs* EPSILON]]
-            [oops.core :refer [oget oset! ocall oapply ocall!]]))
+            [oops.core :refer [oget oset! oapply!+ ocall!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def *pos-inf* js/Number.POSITIVE_INFINITY)
@@ -29,6 +29,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private *shapeNum* (atom 0))
 (defn- nextShapeNum "" [] (swap! *shapeNum* inc))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn seqOps! "" [ctx & callArgs]
+  (doseq [a callArgs
+          :let [f (_1 a) r (rest a)]] (oapply!+ ctx (_1 a) (rest a))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn wrap?? "" [i len] (mod (+ 1 i) len))
@@ -165,6 +170,9 @@
           (+ (* a10 b01)  (* a11 b11)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;graphics
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Size2D "" [width height] {:width width :height height})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -172,6 +180,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Area2D "" [pt sz] (merge pt sz))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn textStyle
+  "" [] {:font "14px 'Arial'" :fill "#dddddd" :align "left" :base "top" })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn drawShape
+  "" [s ctx & more] (apply (:draw @s) (concat [s ctx] more)) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- polyArea "" [s]
@@ -210,8 +226,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn cfgStyle! "" [ctx styleObj]
-  (if-some [x (get-in styleObj [:line :width])] (oset! ctx "!lineWidth" x))
-  (if-some [x (get-in styleObj [:stroke :style])] (oset! ctx "!strokeStyle" x)))
+  (when-some [line (:line styleObj)]
+    (if-some [c (:cap line)] (oset! ctx "!lineCap" c))
+    (if-some [w (:width line)] (oset! ctx "!lineWidth" w)))
+  (when-some [k (:stroke styleObj)]
+    (if-some [s (:style k)] (oset! ctx "!strokeStyle" s))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- polyDraw "" [p ctx & [styleObj]]
@@ -241,20 +260,16 @@
 (defn Edge "" [v1 v2] (atom {:v1 v1 :v2 v2}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circleDraw "" [c1 ctx & [styleObj]]
+(defn- circleDraw "" [c1 ctx]
   (let [{:keys [pos radius startPt]} @c1
         {cx :x cy :y} pos
         {sx :x sy :y} startPt]
-    (ocall! ctx "beginPath")
-    (when (some? styleObj)
-      (cfgStyle! ctx styleObj))
-    (ocall! ctx
-            "arc" cx cy radius 0 TWO-PI true)
+    (seqOps! ctx
+             ["beginPath"]
+             ["arc" cx cy radius 0 TWO-PI true])
     (when (number? sx)
-      (ocall! ctx "moveTo" sx sy)
-      (ocall! ctx "lineTo" cx cy))
-    (ocall! ctx "closePath")
-    (ocall! ctx "stroke")))
+      (seqOps! ctx ["moveTo" cx cy] ["lineTo" sx sy]))
+    (seqOps! ctx ["closePath"] ["stroke"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Circle "" [pt radius]
@@ -298,15 +313,11 @@
                      :height height)) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- lineDraw "" [line ctx & [styleObj]]
+(defn- lineDraw "" [line ctx]
   (let [{:keys [v1 v2]} @line
         {ax :x ay :y} v1
         {ex :x ey :y} v2]
     (ocall! ctx "beginPath")
-    (when (some? styleObj)
-      (cfgStyle! ctx styleObj)
-      (if-some [x (oget styleObj
-                        "?line" "?cap")] (oset! ctx "!lineCap" x)))
     (ocall! ctx "moveTo" ax ay)
     (ocall! ctx "lineTo" ex ey)
     (ocall! ctx "stroke")))
@@ -314,14 +325,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Line "" [ptA ptB]
   (atom {:v1 ptA :v2 ptB :draw lineDraw :type :line}))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn textStyle
-  "" [] {:font "14px 'Arial'" :fill "#dddddd" :align "left" :base "top" })
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn drawShape
-  "" [s ctx & more] (apply (:draw @s) (concat [s ctx] more)) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
