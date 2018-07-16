@@ -27,11 +27,7 @@
 (def TWO-PI (* 2 PI))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private *shapeNum* (atom 0))
-(defn- nextShapeNum "" [] (swap! *shapeNum* inc))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn seqOps! "" [ctx & callArgs]
+(defn batchOps! "" [ctx & callArgs]
   (doseq [a callArgs
           :let [f (_1 a) r (rest a)]] (oapply!+ ctx (_1 a) (rest a))))
 
@@ -191,37 +187,33 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- polyArea "" [s]
-  (let [{:keys [vertices]} @s
-        sz (n# vertices)
-        sum (loop [i 0 area 0]
-              (if (>= i sz)
-                (abs* area)
-                (let [;;modulo to get 0 if i is last vertex
-                      vn (nth vertices (wrap?? i sz))
-                      vi (nth vertices i)
-                      {xi :x yi :y} vi
-                      {xn :x yn :y} vn]
-                  (recur (+ 1 i)
-                         (+ area (- (* xi yn) (* xn yi)))))))] (/ sum 2)))
+  (let [{:keys [vertices]} @s]
+    (loop [i 0 SZ (n# vertices) area 0]
+      (if (>= i SZ)
+        (/ (abs* area) 2)
+        (let [vn (nth vertices (wrap?? i SZ))
+              vi (nth vertices i)
+              {xi :x yi :y} vi
+              {xn :x yn :y} vn]
+          (recur (+ 1 i)
+                 SZ
+                 (+ area (- (* xi yn) (* xn yi)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn calcPolyCenter "" [s]
   (let [A (* 6 (polyArea s))
-        {:keys [vertices]} @s
-        [cx cy]
-        (loop [i 0 SZ (n# vertices) cx 0 cy 0]
-          (if (>= i SZ)
-            [cx cy]
-            (let [;;modulo to get 0 if i is last vertex
-                  vn (nth vertices (wrap?? i SZ))
-                  vi (nth vertices i)
-                  {xi :x yi :y} vi
-                  {xn :x yn :y} vn]
-              (recur (+ 1 i)
-                     (+ cx (* (+ xi xn) (- (* xi yn) (* xn yi))))
-                     (+ cy (* (+ yi yn) (- (* xi yn) (* xn yi))))))))]
-
-    (Point2D (/ cx A) (/ cy A))))
+        {:keys [vertices]} @s]
+    (loop [i 0 SZ (n# vertices) cx 0 cy 0]
+      (if (>= i SZ)
+        (Point2D (/ cx A) (/ cy A))
+        (let [vn (nth vertices (wrap?? i SZ))
+              vi (nth vertices i)
+              {xi :x yi :y} vi
+              {xn :x yn :y} vn]
+          (recur (+ 1 i)
+                 SZ
+                 (+ cx (* (+ xi xn) (- (* xi yn) (* xn yi))))
+                 (+ cy (* (+ yi yn) (- (* xi yn) (* xn yi))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn cfgStyle! "" [ctx styleObj]
@@ -240,9 +232,10 @@
         (let [i2 (wrap?? i SZ)
               {x1 :x y1 :y} (nth vertices i)
               {x2 :x y2 :y} (nth vertices i2)]
-          (seqOps! ctx
-                   ["moveTo" x1 y1]
-                   ["lineTo" x2 y2]))))
+          (batchOps! ctx
+                     ["moveTo" x1 y1]
+                     ["lineTo" x2 y2])
+          (recur (+ 1 i) SZ))))
     (ocall! ctx "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -259,25 +252,22 @@
   (let [{:keys [pos radius startPt]} @c1
         {cx :x cy :y} pos
         {sx :x sy :y} startPt]
-    (seqOps! ctx
-             ["beginPath"]
-             ["arc" cx cy radius 0 TWO-PI true])
+    (batchOps! ctx
+               ["beginPath"]
+               ["arc" cx cy radius 0 TWO-PI true])
     (when (number? sx)
-      (seqOps! ctx ["moveTo" cx cy] ["lineTo" sx sy]))
-    (seqOps! ctx ["closePath"] ["stroke"])))
+      (batchOps! ctx ["moveTo" cx cy] ["lineTo" sx sy]))
+    (batchOps! ctx ["closePath"] ["stroke"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Circle "" [pt radius]
-  (let [s (Polygon pt)]
-    (assoc!! s
-             :draw circleDraw
-             :type :circle :radius radius) s))
+  (atom {:pos pt :draw circleDraw :type :circle :radius radius}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectDraw "not used" [r1 ctx]
   (let [{:keys [vertices width height angle]} @r1
         {:keys [x y]} (nth vertices 0)]
-    (seqOps! ctx
+    (batchOps! ctx
              ["save"]
              ["translate" x y]
              ["rotate" angle]
@@ -307,7 +297,8 @@
   (let [{:keys [v1 v2]} @line
         {ax :x ay :y} v1
         {ex :x ey :y} v2]
-    (seqOps! ctx ["beginPath"] ["moveTo" ax ay] ["lineTo" ex ey] ["stroke"])))
+    (batchOps! ctx
+               ["beginPath"] ["moveTo" ax ay] ["lineTo" ex ey] ["stroke"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Line "" [ptA ptB]

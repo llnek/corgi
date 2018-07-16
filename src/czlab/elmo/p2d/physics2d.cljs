@@ -14,6 +14,9 @@
   (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 do->true assoc!!]])
 
   (:require [czlab.elmo.afx.core :as ec :refer [n# num?? invert]]
+            [czlab.elmo.p2d.core
+             :as pc :refer [*gWorld* rigidBody!
+                            static? updateInertia! draw move! rotate!]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [_cocos2dx? *pos-inf* *neg-inf*
                             pythag pythagSQ TWO-PI PI
@@ -23,8 +26,10 @@
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private *gWorld* (atom {:context nil :canvas nil
-                               :samples (ec/createStore 10)}))
+(defn- collisionTest?? "" [s1 s2 ci] ((:collisionTest @s1) s1 s2 ci))
+
+
+(def ^:private MI_SPREAD 1)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ci-info "" [&[d n s e]]
@@ -43,64 +48,6 @@
   (let [{:keys [start end normal]} @ci]
     (assoc!! ci
              :start end :end start :normal (v2-neg normal)) ci))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn static? "" [obj]
-  (let [{:keys [mass invMass]} @obj] (or (zero? mass) (zero? invMass))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dynamic? "" [obj]
-  (let [{:keys [mass invMass]} @obj] (or (pos? mass)(pos? invMass))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rigidBody! "" [obj & [mass friction bounce]]
-  (let [{:keys [gravity samples] :as www} @*gWorld*
-        mass' (num?? mass 1)
-        opts (get www (:type @obj))]
-    (assoc!! obj
-             :invMass (invert mass')
-             :oid (gx/nextShapeNum)
-             :vel V2_ZERO
-             :valid? true
-             :mass mass'
-             :inertia 0
-             :angle 0
-             :gvel 0 ;; clockwise = negative
-             :gaccel 0
-             :bxRadius 0
-             :sticky (num?? friction 0.8)
-             :bounce (num?? bounce 0.2)
-             :accel (if (zero? mass') V2_ZERO gravity))
-    (if (map? opts) (swap! obj #(merge % opts)))
-    (ec/addToStore! samples obj) obj))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn collisionTest?? "" [s1 s2 ci] ((:collisionTest @s1) s1 s2 ci))
-(defn updateInertia! "" [s] ((:updateInertia @s) s) s)
-(defn draw "" [s & more] (apply gx/drawShape (concat [s] more)))
-(defn move! "" [s p] ((:move @s) s p) s)
-(defn rotate! "" [s v] ((:rotate @s) s v) s)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setStatic! "" [obj]
-  (assoc!! obj
-           :invMass 0
-           :mass 0
-           :vel V2_ZERO
-           :accel V2_ZERO
-           :gvel 0
-           :gaccel 0)
-  (updateInertia! obj))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn updateMass! "" [s delta]
-  (let [m (+ (:mass @s) delta)
-        {:keys [gravity]} @*gWorld*]
-    (if (pos? m)
-      (do (assoc!! s
-                   :mass m
-                   :accel gravity
-                   :invMass (invert m)) (updateInertia! s))
-      (setStatic! s))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- validateShape "" [s]
@@ -129,7 +76,7 @@
       (move! s (v2-scale v' dt))
       (rotate! s (* gv' dt)))
     ;;;;;;
-    (validator s)))
+    (if (fn? validator) (validator s))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- overlap? "" [s1 s2]
@@ -271,12 +218,6 @@
     (collidedRectCirc s1 s2 ci) (testRectRect? s1 s2 ci)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Polygon
-  "" [&[pt vertices]]
-  (let [p (gx/Polygon pt vertices)]
-    (assoc!! p :updateInertia ec/noopy) p))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;rectangle stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- createFaceNormals
@@ -318,7 +259,7 @@
              :inertia (if (zero? mass)
                         0
                         (invert (/ (* mass
-                                      (pythagSQ width height)) 12)))) s))
+                                      (pythagSQ width height)) MI_SPREAD)))) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Rectangle "" [pt sz & [mass friction bounce]]
@@ -354,8 +295,7 @@
 (defn- circleUpdateInertia "" [c]
   (let [{:keys [mass radius]} @c
         n (if (zero? mass) 0 (* mass radius radius))]
-    ;;why 12?
-    (assoc!! c :inertia (/ n 12)) c))
+    (assoc!! c :inertia (/ n MI_SPREAD)) c))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- collidedCircCirc "" [cc1 cc2 ci]
@@ -518,57 +458,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn runAlgo "" [algoIterCount posCorrection]
   (dotimes [_ algoIterCount] (checkCollision* posCorrection))
-  (let [{:keys [context
-                samples
-                frameSecs]} @*gWorld* bin #js []]
-    (ec/eachStore samples
-                  (fn [s i]
-                    (if-not (:valid? @s)
-                      (.push bin s)
-                      (updateShape! s frameSecs))))
-    (when (pos? (n# bin))
-      (doseq [b bin] (ec/delFromStore! samples b)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private prevMillis (system-time))
-(def ^:private lagMillis 0)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn step "" [dt & [algoIterCount posCorrection]]
-  (set! prevMillis (system-time))
-  (set! lagMillis (+ lagMillis dt))
-  ;;Make sure we update the game the appropriate number of times.
-  ;;Update only every Milliseconds per frame.
-  ;;If lag larger then update frames, update until caught up.
-  (let [{:keys [algoRunner frameMillis]} @*gWorld*
-        iterCnt (num?? algoIterCount 10)
-        posCorrect (num?? posCorrection 0.8)
-        R (if (fn? algoRunner) algoRunner runAlgo)]
-    (while (>= lagMillis frameMillis)
-      (set! lagMillis
-            (- lagMillis frameMillis)) (R iterCnt posCorrect))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn step*
-  "" [& [algoIterCount posCorrection]]
-  (step (- (system-time) prevMillis) algoIterCount posCorrection))
+  (let [{:keys [samples frameSecs]} @*gWorld*]
+    (ec/eachStore samples (fn [s _] (updateShape! s frameSecs)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn initPhysics "" [gravity fps world & [options]]
-  (let [{:keys [cc2dx? validator]} options
-        {:keys [top right bottom left]} world
-        options' (dissoc options :cc2dx? :validator)]
-    (if (true? cc2dx?) (set! _cocos2dx? true))
-    (swap! *gWorld*
-           (fn [root]
-             (-> (merge root options')
-                 (assoc :validator (if (fn? validator) validator validateShape)
-                        :arena world
-                        :FPS fps
-                        :width (+ 1 (- right left))
-                        :height (+ 1 (if _cocos2dx? (- top bottom) (- bottom top)))
-                        :gravity (vec2 0 gravity)
-                        :frameSecs (invert fps)
-                        :frameMillis (* 1000 (invert fps)))))) *gWorld*))
+  (pc/initPhysics gravity
+                  fps
+                  world
+                  (merge options {:algoRunner runAlgo})))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

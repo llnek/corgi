@@ -14,8 +14,8 @@
   (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 n# assoc!! nexth]])
 
   (:require [czlab.elmo.afx.core :as ec :refer [invert abs* sqr* num??]]
-            [czlab.elmo.p2d.physics2d
-             :as py :refer [dynamic? rigidBody!]]
+            [czlab.elmo.p2d.core
+             :as pc :refer [*gWorld* dynamic? rigidBody!]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [V2_ZERO *pos-inf* *neg-inf*
                             Point2D vec2 PI TWO-PI
@@ -24,21 +24,11 @@
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private *gWorld* nil)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- Vertex "" [body pos]
   (atom {:body body :pos pos :prev pos :accel V2_ZERO}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- XXEdge "" [body v1 v2 & [inner?]]
-  (atom {:v1 (Vertex body v1)
-         :v2 (Vertex body v2)
-         :body body
-         :olen (v2-dist v1 v2)
-         :inner? (if (true? inner?) true false)}))
-
-(defn- Edge* "" [body V1 V2 & [inner?]]
+(defn- Edge "" [body V1 V2 & [inner?]]
   (atom {:v1 V1
          :v2 V2
          :body body
@@ -88,7 +78,7 @@
           (assoc!! obj :edges (concat edges out))
           (let [[o' b'] (if-not (contains? bin i)
                           (let [i2 (mod (+ i 2) SZ)]
-                            [(conj out (Edge* obj
+                            [(conj out (Edge obj
                                               (nth vs i)
                                               (nth vs i2) true))
                              (conj bin i i2)])
@@ -147,22 +137,22 @@
                        v1 (nth vs i)
                        v2 (nth vs i2)]
                    (recur (+ 1 i)
-                          SZ (conj out (Edge* s v1 v2)))))))
+                          SZ (conj out (Edge s v1 v2)))))))
     (-> (ensureRigidity s) (calcCenter! ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Polygon "" [vs & [mass friction bounce]]
-  (let [ret (py/Polygon)
+  (let [ret (pc/Polygon)
         VS (mapv #(Vertex ret %) vs)]
     (assoc!! ret
              :rotate polyRotate
              :edges
              (loop [i 0 END (dec (n# vs)) e' []]
                (if (= i END)
-                 (conj e' (Edge* ret (nth VS i) (nth VS 0)))
+                 (conj e' (Edge ret (nth VS i) (nth VS 0)))
                  (recur (+ 1 i)
                         END
-                        (conj e' (Edge* ret (nth VS i) (nexth VS i)))))))
+                        (conj e' (Edge ret (nth VS i) (nexth VS i)))))))
     (-> (ensureRigidity ret)
         (calcCenter!)
         (rigidBody! mass friction bounce))))
@@ -358,34 +348,21 @@
                   (resyncShape! sj))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- updateShape! "" [s dt]
-  (let [{:keys [validator]} @*gWorld*] (validator s)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- runAlgo "" [algoIterCount posCorrection]
-  (let [bin #js []
-        {:keys [samples frameSecs]} @*gWorld*]
+  (let [{:keys [samples frameSecs]} @*gWorld*]
     (applyActingForces!)
     (updateVerlet! frameSecs)
     (dotimes [_ algoIterCount]
-      (checkCollision* posCorrection))
-    (comment
-    (ec/eachStore samples
-                  (fn [s i]
-                    (if-not (:valid? @s)
-                      (.push bin s)
-                      (updateShape! s frameSecs)))))
-    (when (pos? (count bin))
-      (doseq [b bin]
-        (ec/delFromStore! samples b)))))
+      (checkCollision* posCorrection))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn initPhysics "" [gravity fps world & [options]]
-  (set! *gWorld* (py/initPhysics gravity fps world options))
-  (swap! *gWorld* #(assoc %
-                          :algoRunner runAlgo
-                          :polygon {:draw polyDraw}))
-  *gWorld*)
+  (pc/initPhysics gravity
+                  fps
+                  world
+                  (merge options
+                         {:algoRunner runAlgo
+                          :polygon {:draw polyDraw}})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

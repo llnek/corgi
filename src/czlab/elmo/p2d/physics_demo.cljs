@@ -12,11 +12,9 @@
   czlab.elmo.p2d.physics_demo
 
   (:require [czlab.elmo.afx.core :as ec :refer [invert]]
+            [czlab.elmo.p2d.core :as pc :refer [move! rotate! draw step*]]
             [czlab.elmo.p2d.physics2d
-             :as py :refer [alterShapeAttr!
-                            updateMass!
-                            move! rotate!
-                            Rectangle Circle]]
+             :as py :refer [alterShapeAttr! Rectangle Circle]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [pythag pythagSQ TWO-PI PI vec2 V2_ZERO _cocos2dx?
                             v2-len v2-add v2-sub v2-dot Point2D Size2D
@@ -82,9 +80,9 @@
       (= key 79) ;O
       (alterShapeAttr! s :gvel 0.1)
       (= key 90) ;Z
-      (updateMass! s -1)
+      (pc/updateMass! s -1)
       (= key 88) ;;X
-      (updateMass! s 1)
+      (pc/updateMass! s 1)
       (= key 67) ;C
       (alterShapeAttr! s :sticky -0.01)
       (= key 86) ;V
@@ -152,14 +150,14 @@
                     (when (:valid? @s)
                       (oset! context
                              "!strokeStyle" (if (= i cur) "red" "blue"))
-                      (py/draw s context))))))
+                      (draw s context))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- runGameLoop "" []
   (js/requestAnimationFrame #(runGameLoop))
   (updateUIEcho)
   (drawGame)
-  (py/step*))
+  (step*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- myGame "" []
@@ -180,8 +178,8 @@
         bottom (Rectangle (Point2D 200 400) (Size2D 400 20) 0 1 0.5)
         br (Rectangle (Point2D 400 360) (Size2D 20 100) 0 0 1)
         bl (Rectangle (Point2D 10 360) (Size2D 20 100) 0 0 1)]
-    (rotate! left -2.8)
-    (rotate! right 2.8)
+    (pc/rotate! left -2.8)
+    (pc/rotate! right 2.8)
     (dotimes [i 4]
       (-> (Rectangle (Point2D (rand (/ width 2))
                               (rand (/ height 2)))
