@@ -25,6 +25,18 @@
                      :samples (ec/createStore 10)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Rectangle "" [pt sz]
+  (let [s (gx/Rectangle pt sz)]
+    (assoc!! s
+             :updateInertia ec/noopy) s))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Circle "" [pt radius]
+  (let [s (gx/Circle pt radius)]
+    (assoc!! s
+             :updateInertia ec/noopy) s))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Polygon
   "" [&[pt vertices]]
   (let [p (gx/Polygon pt vertices)]

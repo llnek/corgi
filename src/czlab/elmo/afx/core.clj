@@ -26,6 +26,11 @@
   (let [X (gensym)]
     `(swap! ~a (fn [~X] (assoc ~X ~@args)))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro dissoc!! "" [a & args]
+  (let [X (gensym)]
+    `(swap! ~a (fn [~X] (dissoc ~X ~@args)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro with-local-vars "" [bindings & more]
   (let [zzz (vec (mapcat #(vector (name (first %)) (last %))

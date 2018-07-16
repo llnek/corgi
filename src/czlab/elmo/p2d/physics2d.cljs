@@ -263,7 +263,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Rectangle "" [pt sz & [mass friction bounce]]
-  (let [s (-> (gx/Rectangle pt sz)
+  (let [s (-> (pc/Rectangle pt sz)
               (rigidBody! mass friction bounce))
         {:keys [vertices width height]} @s]
     (assoc!! s
@@ -324,7 +324,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Circle "" [pt radius & [mass friction bounce]]
-  (let [s (-> (gx/Circle pt radius)
+  (let [s (-> (pc/Circle pt radius)
               (rigidBody! mass friction bounce))
         {{:keys [x y]} :pos} @s
         top (if _cocos2dx? (+ y radius) (- y radius))]

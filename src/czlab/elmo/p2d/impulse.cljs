@@ -17,18 +17,17 @@
   (:require [czlab.elmo.afx.core
              :as ec :refer [abs* sqr* sqrt* fuzzyZero?
                             invert EPSILON fuzzyEqual?]]
+            [czlab.elmo.p2d.core :as pc :refer [*gWorld*]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [PI TWO-PI V2_ZERO Point2D
-                            *pos-inf* *neg-inf*
+                            wrap?? *pos-inf* *neg-inf*
                             mat2 mat2* m2-vmult m2-xpose
                             v2-neg v2-norm v2-scale v2-sdiv
                             v2-len v2-lensq v2-dist v2-distsq
                             vec2 v2-add v2-sub v2-dot v2-xss v2-sxss]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- nxi "" [i len] (mod (+ 1 i) len))
 (def ^:private *dispatch* (atom {}))
-(def ^:private *gWorld* (atom {}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti calcMass! "" (fn [a density] (:type a)))
@@ -41,22 +40,20 @@
 (defn- Shape "" [e & [pt]] (atom {:type e :body nil :pos (or pt V2_ZERO)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Circle "" [pt r]
-  (do-with [c (Shape ::circle pt)]
-           (swap! c #(assoc % :radius r))
-           (ec/addToStore! (:samples @*gWorld*) c)))
+(defn Circle "" [pt r] (pc/Circle pt r))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod init! ::circle [c] (calcMass! c 1))
+(defmethod init! :circle [c] (calcMass! c 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod calcMass! ::circle [c density]
+(defmethod calcMass! :circle [c density]
   (let [{:keys [body radius]} @c
-        r2 (sqr* radius)]
-    (swap! body
-           #(let [m (* PI r2 density)
-                  i (* m r2)]
-              (assoc % :m m :im (invert m) :i i :ii (invert i)))) c))
+        r2 (sqr* radius)
+        m (* PI r2 density)
+        i (* m r2)]
+    (assoc!! body
+             :mass m
+             :invMass (invert m) :inertia i :invInertia (invert i)) c))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmethod setOrient!
@@ -87,7 +84,7 @@
                c V2_ZERO area 0 I 0]
           (if (>= i SZ)
             [(v2-scale c (invert area)) (* density area) (* density I)]
-            (let [{x2 :x y2 :y :as p2} (nth vertices (nxi i SZ))
+            (let [{x2 :x y2 :y :as p2} (nth vertices (wrap?? i SZ))
                   {x1 :x y1 :y :as p1} (nth vertices i)
                   D (v2-xss p1 p2)
                   ;;triangle, 3rd vertex is origin
@@ -134,7 +131,7 @@
     (loop [i 0 SZ (n# vertices) out []]
       (if (>= i SZ)
         (do (swap! p #(assoc % :normals out)) p)
-        (let [i2 (nxi i SZ)
+        (let [i2 (wrap?? i SZ)
               face (v2-sub (nth vertices i2)
                            (nth vertices i))]
           (assert (> (v2-lensq face) EE))
@@ -480,7 +477,7 @@
         ;;grab face's vertices
         v1 (nth vertices faceNormal)
         SZ (n# vertices)
-        i2 (nxi faceNormal SZ)
+        i2 (wrap?? faceNormal SZ)
         v2 (nth vertices i2)]
     ;;check to see if center is within polygon
     (if (< separation EPSILON)
@@ -588,7 +585,7 @@
         ;;Assign face vertices for incidentFace
         [(v2-add (m2-vmult iu (nth vertices iFace)) posI)
          (v2-add (m2-vmult iu
-                          (nth vertices (nxi iFace SZ))) posI)]
+                          (nth vertices (wrap?? iFace SZ))) posI)]
         ;loop
         (let [dot (v2-dot refNormal (nth normals i))
               b? (< dot minDot)]
@@ -638,7 +635,7 @@
         {rverts :vertices ru :u} @refPoly
         ;;Setup reference face vertices
         v1 (nth rverts refIndex)
-        refIndex (nxi refIndex (n# rverts))
+        refIndex (wrap?? refIndex (n# rverts))
         v2 (nth rverts refIndex)
         ;;Transform vertices to world space
         v1 (v2-add (m2-vmult ru v1) posR)
