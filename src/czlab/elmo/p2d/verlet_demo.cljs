@@ -14,7 +14,7 @@
   (:require-macros [czlab.elmo.afx.core :as ec :refer [assoc!!]])
 
   (:require [czlab.elmo.afx.core :as ec :refer [invert]]
-            [czlab.elmo.p2d.core :as pc]
+            [czlab.elmo.p2d.core :as pc :refer [addBody]]
             [czlab.elmo.p2d.verlet2d :as vt :refer [Polygon]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [pythag pythagSQ TWO-PI PI vec2 V2_ZERO _cocos2dx?
@@ -31,13 +31,11 @@
 (defn- drawGame "" []
   (let [{:keys [cur samples width height context]} @gWorld]
     (ocall! context "clearRect" 0 0 width height)
-    ;(oset! context "!fillStyle" "black")
-    ;(ocall! context "fillRect" 0 0 width height)
     (ec/eachStore samples
                   (fn [s i]
                     (when (:valid? @s)
                       (oset! context
-                             "!strokeStyle" (if (= i cur) "red" "green"))
+                             "!strokeStyle" (if (= i cur) "red" "blue"))
                       (pc/draw s context))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -56,13 +54,14 @@
         _ (oset! canvas "height" height)
         _ (oset! canvas "width" width)
         _ (swap! gWorld #(assoc % :canvas canvas :context context))
-        ;r1 (-> (Polygon [(Point2D 300 210)(Point2D 700 210) (Point2D 700 190)(Point2D 300 190)] 0 0.3 0) (pc/setStatic! ))
         r1 (-> (Polygon [(Point2D 200 310)(Point2D 700 310)
                          (Point2D 700 290)(Point2D 200 290)] 100 0.3 0)
+               (addBody )
                (pc/setStatic! ))
-        ;r2 (Polygon [(Point2D 0 410)(Point2D 400 410) (Point2D 400 390)(Point2D 0 390)] 20 1 0.5)]
-        r3 (Polygon [(Point2D 200 210)(Point2D 300 210) (Point2D 300 190)(Point2D 200 190)] 10)]
-        ;r4 (Polygon [(Point2D 0 410) (Point2D 20 410) (Point2D 20 310)(Point2D 0 310)] 10 0 1)]
+        r3 (-> (Polygon [(Point2D 200 210)
+                         (Point2D 300 210)
+                         (Point2D 300 190)(Point2D 200 190)] 10)
+               (addBody))]
     (pc/rotate! r1 2.8)
     (pc/rotate! r3 -2.8)
     (dotimes [i 4])

@@ -11,14 +11,14 @@
 
   czlab.elmo.p2d.verlet2d
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 n# assoc!! nexth]])
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [f#* _1 n# assoc!! nexth]])
 
   (:require [czlab.elmo.afx.core :as ec :refer [invert abs* sqr* num??]]
             [czlab.elmo.p2d.core
-             :as pc :refer [*gWorld* dynamic? rigidBody!]]
+             :as pc :refer [*gWorld* dynamic? Body]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [V2_ZERO *pos-inf* *neg-inf*
-                            Point2D vec2 PI TWO-PI
+             :as gx :refer [V2_ZERO *pos-inf* *neg-inf* batchOps!
+                            Point2D vec2 PI TWO-PI wrap??
                             v2-len v2-scale v2-add v2-dist v2-sdiv
                             v2-rot v2-sub v2-dot v2-neg v2-norm]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
@@ -28,45 +28,24 @@
   (atom {:body body :pos pos :prev pos :accel V2_ZERO}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- Edge "" [body V1 V2]
-  (atom {:type :edge
-         :v1 V1
-         :v2 V2
-         :body body
-         :olen (v2-dist (:pos @V1) (:pos @V2))}))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- Strut "" [body V1 V2]
-  (atom {:type :strut
-         :v1 V1
+  (atom {:v1 V1
          :v2 V2
          :body body
          :olen (v2-dist (:pos @V1) (:pos @V2))}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- listOuterEdges "" [obj]
-  (filterv #(false? (:inner? (deref %))) (:edges @obj)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- listInnerEdges "" [obj]
-  (filterv #(true? (:inner? (deref %))) (:edges @obj)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- listVertices "" [obj]
-  (mapv #(get (deref %) :v1) (listOuterEdges obj)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- calcCenter! "" [body]
-  (let [edges (listOuterEdges body)]
+(defn- calcCenter! "" [B]
+  (let [{:keys [edges]} @B]
     (loop [i 0 SZ (n# edges)
            cx 0 cy 0
            xmin *pos-inf* ymin *pos-inf*
            xmax *neg-inf* ymax *neg-inf*]
       (if (>= i SZ)
-        (do (assoc!! body
+        (do (assoc!! B
                      :pmin (vec2 xmin ymin)
                      :pmax (vec2 xmax ymax)
-                     :pos (v2-sdiv (vec2 cx cy) SZ)) body)
+                     :pos (v2-sdiv (vec2 cx cy) SZ)) B)
         (let [{:keys [v1 v2]} @(nth edges i)
               {:keys [x y]} (:pos @v1)]
           (recur (+ 1 i)
@@ -76,96 +55,76 @@
                  (max xmax x) (max ymax y)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- ensureRigidity "" [obj]
-  (let [{{:keys [vertices]} :shape} @obj
+(defn- ensureRigidity "" [B]
+  (let [{{:keys [vertices]} :shape} @B
         SZ (n# vertices)]
     (when (> SZ 3)
       (loop [i 0 out [] bin #{}]
         (if (>= i SZ)
-          (assoc!! obj :struts out)
+          (assoc!! B :struts out)
           (let [[o' b'] (if-not (contains? bin i)
                           (let [i2 (mod (+ i 2) SZ)]
-                            [(conj out (Strut obj
+                            [(conj out (Strut B
                                               (nth vertices i)
                                               (nth vertices i2)))
                              (conj bin i i2)])
                           [out bin])]
-            (recur (+ 1 i) o' b'))))) obj))
+            (recur (+ 1 i) o' b'))))) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- polyDraw "" [p ctx & [styleObj]]
-  (let [outer (listOuterEdges p)
-        vs (listVertices p)
-        inner (listInnerEdges p)]
-    (gx/cfgStyle! ctx styleObj)
+(defn- polyDraw "" [B ctx]
+  (let [{outer :edges S :shape inner :struts} @B
+        {:keys [vertices]} S]
     (ocall! ctx "beginPath")
     (dotimes [i (n# outer)]
       (let [{:keys [v1 v2]} @(nth outer i)
             {x1 :x y1 :y} (:pos @v1)
             {x2 :x y2 :y} (:pos @v2)]
-        (ocall! ctx "moveTo" x1 y1)
-        (ocall! ctx "lineTo" x2 y2)))
-    (ocall! ctx "stroke")
-    ;;inner lines...
-    (when (not-empty inner)
-      (ocall! ctx "beginPath")
-      (oset! ctx "!strokeStyle" "black")
-      (dotimes [i (n# inner)]
-        (let [{:keys [v1 v2]} @(nth inner i)
-              {x1 :x y1 :y} (:pos @v1)
-              {x2 :x y2 :y} (:pos @v2)]
-          (ocall! ctx "moveTo" x1 y1)
-          (ocall! ctx "lineTo" x2 y2)))
-      (ocall! ctx "stroke"))
-    ;; vertices...
-    (doseq [v vs
-            :let [{:keys [x y]} (:pos @v)]]
-      (ocall! ctx "beginPath")
-      (ocall! ctx "arc" x y 2 0 TWO-PI true)
-      (oset! ctx "!fillStyle" "black")
-      (ocall! ctx "fill")
-      (oset! ctx "!strokeStyle" "black")
-      (ocall! ctx "stroke"))))
+        (batchOps! ctx ["moveTo" x1 y1] ["lineTo" x2 y2])))
+    (ocall! ctx "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- polyRotate "" [s angle']
-  (let [{center :pos :keys [angle]} @s
-        vs (listVertices s)]
-    (assoc!! s :angle (+ angle angle'))
-    (doseq [v vs
+(defn- polyRotate "" [B angle']
+  (let [{S :shape center :pos :keys [angle]} @B
+        {:keys [vertices]} S]
+    (assoc!! B :angle (+ angle angle'))
+    (doseq [v vertices
             :let [p (v2-rot (:pos @v) center angle')]]
       (assoc!! v :pos p :prev p))
-    (assoc!! s
+    (assoc!! B
              :edges
-             (loop [i 0 SZ (n# vs) out []]
+             (loop [i 0 SZ (n# vertices) out []]
                (if (>= i SZ)
                  out
-                 (let [i2 (mod (+ 1 i) SZ)
-                       v1 (nth vs i)
-                       v2 (nth vs i2)]
+                 (let [i2 (wrap?? i SZ)
+                       v1 (nth vertices i)
+                       v2 (nth vertices i2)]
                    (recur (+ 1 i)
-                          SZ (conj out (Edge s v1 v2)))))))
-    (-> (ensureRigidity s) (calcCenter! ))))
+                          SZ (conj out (Strut B v1 v2)))))))
+    (-> (ensureRigidity B) (calcCenter! ))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- id1 "" [B & more] B)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Polygon "" [vs & [mass friction bounce]]
   (let [B (Body (gx/Polygon [])
-                mass friction bounce)
+                mass friction bounce
+                {:rotate polyRotate :updateInertia id1
+                 :updateMass id1 :repos id1 :draw polyDraw})
         {:keys [shape]} @B
         vs' (mapv #(Vertex B %) vs)]
     (assoc!! B
              :shape (assoc shape :vertices vs')
-             :rotate polyRotate
-             :edges (loop [i 0 END (dec (n# vs')) e' []]
-                      (if (= i END)
+             :struts []
+             :edges (loop [i 0 SZ (dec (n# vs')) e' []]
+                      (if (>= i SZ)
                         (conj e'
-                              (Edge B (nth vs' i) (nth vs' 0)))
+                              (Strut B (nth vs' i) (nth vs' 0)))
                         (recur (+ 1 i)
-                               END
-                               (conj e' (Edge B (nth vs' i) (nexth vs' i)))))))
-    (-> (ensureRigidity B)
-        (calcCenter!)
-        (rigidBody! mass friction bounce))))
+                               SZ
+                               (conj e' (Strut B (nth vs' i) (nexth vs' i)))))))
+    (-> (ensureRigidity B) (calcCenter!))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ci-info "" [&[depth normal edge vertex]]
@@ -184,7 +143,7 @@
                                   (v2-scale accel t2)))) v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- updateEdge!"" [edge]
+(defn- ensureStrut!"" [edge]
   (let [{:keys [olen v1 v2]} @edge
         {p1 :pos} @v1
         {p2 :pos} @v2
@@ -197,27 +156,28 @@
     (assoc!! v2 :pos (v2-sub p2 N)) edge))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- updateEdges! "" [obj]
-  (doseq [e (:edges @obj)] (updateEdge! e)) obj)
+(defn- updateStruts! "" [B]
+  (doseq [e (:edges @B)] (ensureStrut! e))
+  (doseq [e (:struts @B)] (ensureStrut! e)) B)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- resyncShape! "" [obj]
-  (when (dynamic? obj) (updateEdges! obj) (calcCenter! obj)) obj)
+(defn- resyncBody! "" [B]
+  (when (dynamic? B) (updateStruts! B) (calcCenter! B)) B)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- updateVerlet! "" [dt]
   (let [t2 (* dt dt)]
     (->>
-      (fn [s _]
-        (when (dynamic? s)
-          (doseq [v (listVertices s)]
-            (updateVertex! v t2))
-          (resyncShape! s)))
+      (fn [B _]
+        (when (dynamic? B)
+          (let [{{:keys [vertices]} :shape} @B]
+            (doseq [v vertices] (updateVertex! v t2))
+            (resyncBody! B))))
       (ec/eachStore (:samples @*gWorld*)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- projectToAxis "" [body axis]
-  (let [edges (listOuterEdges body)]
+(defn- projectToAxis "" [B axis]
+  (let [{:keys [edges]} @B]
     (loop [i 0 SZ (n# edges)
            minp *pos-inf* maxp *neg-inf*]
       (if (>= i SZ)
@@ -234,8 +194,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collision* "" [B1 B2 ci]
-  (let [edges (listOuterEdges B1)
-        {c1 :pos} @B1
+  (let [{:keys [edges] c1 :pos} @B1
         {c2 :pos} @B2
         {cn :normal} @ci
         sign (v2-dot cn (v2-sub c1 c2))]
@@ -262,8 +221,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- collide? "" [B1 B2 ci]
-  (let [e1 (listOuterEdges B1)
-        e2 (listOuterEdges B2)
+  (let [{e1 :edges} @B1
+        {e2 :edges} @B2
         ec1 (n# e1)
         ec2 (n# e2)]
     (loop [i 0 SZ (+ ec1 ec2)
@@ -276,7 +235,7 @@
           (if (not= B2 (:body @(:edge @ci)))
             (collision* B2 B1 ci) (collision* B1 B2 ci)))
         (let [e' (if (< i ec1) (nth e1 i) (nth e2 (- i ec1)))
-              {:keys [inner? v1 v2]} @e'
+              {:keys [v1 v2]} @e'
               {x1 :x y1 :y} (:pos @v1)
               {x2 :x y2 :y} (:pos @v2)
               axis (v2-norm (vec2 (- y1 y2) (- x2 x1)))
@@ -307,10 +266,11 @@
 (defn- applyActingForces! "" []
   (let [{:keys [gravity]} @*gWorld*]
     (->>
-      (fn [s _]
-        (if (dynamic? s)
-          (doseq [v (listVertices s)]
-            (assoc!! v :accel gravity))))
+      (fn [B _]
+        (if (dynamic? B)
+          (let [{{:keys [vertices]} :shape} @B]
+            (doseq [v vertices]
+              (assoc!! v :accel gravity)))))
       (ec/eachStore (:samples @*gWorld*)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -351,11 +311,11 @@
               (let [sj (ec/nthStore samples j)
                     ci (ci-info)]
                 (when (and (:valid? @sj)
-                           (overlap? si sj)
+                           ;(overlap? si sj)
                            (collide? si sj ci))
                   (resolveCollision ci)
-                  (resyncShape! si)
-                  (resyncShape! sj))))))))))
+                  (resyncBody! si)
+                  (resyncBody! sj))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- runAlgo "" [algoIterCount posCorrection]
