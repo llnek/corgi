@@ -28,12 +28,20 @@
   (atom {:body body :pos pos :prev pos :accel V2_ZERO}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- Edge "" [body V1 V2 & [inner?]]
-  (atom {:v1 V1
+(defn- Edge "" [body V1 V2]
+  (atom {:type :edge
+         :v1 V1
          :v2 V2
          :body body
-         :olen (v2-dist (:pos @V1) (:pos @V2))
-         :inner? (if (true? inner?) true false)}))
+         :olen (v2-dist (:pos @V1) (:pos @V2))}))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- Strut "" [body V1 V2]
+  (atom {:type :strut
+         :v1 V1
+         :v2 V2
+         :body body
+         :olen (v2-dist (:pos @V1) (:pos @V2))}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- listOuterEdges "" [obj]
@@ -69,18 +77,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ensureRigidity "" [obj]
-  (let [edges (listOuterEdges obj)
-        vs (listVertices obj)
-        SZ (n# vs)]
+  (let [{{:keys [vertices]} :shape} @obj
+        SZ (n# vertices)]
     (when (> SZ 3)
       (loop [i 0 out [] bin #{}]
         (if (>= i SZ)
-          (assoc!! obj :edges (concat edges out))
+          (assoc!! obj :struts out)
           (let [[o' b'] (if-not (contains? bin i)
                           (let [i2 (mod (+ i 2) SZ)]
-                            [(conj out (Edge obj
-                                              (nth vs i)
-                                              (nth vs i2) true))
+                            [(conj out (Strut obj
+                                              (nth vertices i)
+                                              (nth vertices i2)))
                              (conj bin i i2)])
                           [out bin])]
             (recur (+ 1 i) o' b'))))) obj))
@@ -142,18 +149,21 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Polygon "" [vs & [mass friction bounce]]
-  (let [ret (pc/Polygon)
-        VS (mapv #(Vertex ret %) vs)]
-    (assoc!! ret
+  (let [B (Body (gx/Polygon [])
+                mass friction bounce)
+        {:keys [shape]} @B
+        vs' (mapv #(Vertex B %) vs)]
+    (assoc!! B
+             :shape (assoc shape :vertices vs')
              :rotate polyRotate
-             :edges
-             (loop [i 0 END (dec (n# vs)) e' []]
-               (if (= i END)
-                 (conj e' (Edge ret (nth VS i) (nth VS 0)))
-                 (recur (+ 1 i)
-                        END
-                        (conj e' (Edge ret (nth VS i) (nexth VS i)))))))
-    (-> (ensureRigidity ret)
+             :edges (loop [i 0 END (dec (n# vs')) e' []]
+                      (if (= i END)
+                        (conj e'
+                              (Edge B (nth vs' i) (nth vs' 0)))
+                        (recur (+ 1 i)
+                               END
+                               (conj e' (Edge B (nth vs' i) (nexth vs' i)))))))
+    (-> (ensureRigidity B)
         (calcCenter!)
         (rigidBody! mass friction bounce))))
 
@@ -341,7 +351,7 @@
               (let [sj (ec/nthStore samples j)
                     ci (ci-info)]
                 (when (and (:valid? @sj)
-                           ;(overlap? si sj)
+                           (overlap? si sj)
                            (collide? si sj ci))
                   (resolveCollision ci)
                   (resyncShape! si)
@@ -361,8 +371,7 @@
                   fps
                   world
                   (merge options
-                         {:algoRunner runAlgo
-                          :polygon {:draw polyDraw}})))
+                         {:algoRunner runAlgo})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
