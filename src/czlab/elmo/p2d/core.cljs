@@ -14,92 +14,82 @@
   (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 do->true assoc!!]])
 
   (:require [czlab.elmo.afx.core :as ec :refer [n# num?? invert]]
-            [czlab.elmo.afx.gfx2d :as gx :refer [V2_ZERO vec2 _cocos2dx?]]))
+            [czlab.elmo.afx.gfx2d
+             :as gx :refer [V2_ZERO toVec2 vec2 _cocos2dx?]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private *shapeNum* (atom 0))
-(defn- nextShapeNum "" [] (swap! *shapeNum* inc))
+(def ^:private *bodyNum* (atom 0))
+(defn- nextBodyNum "" [] (swap! *bodyNum* inc))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def *gWorld* (atom {:context nil :canvas nil
                      :samples (ec/createStore 10)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Rectangle "" [pt sz]
-  (let [s (gx/Rectangle pt sz)]
-    (assoc!! s
-             :updateInertia ec/noopy) s))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Circle "" [pt radius]
-  (let [s (gx/Circle pt radius)]
-    (assoc!! s
-             :updateInertia ec/noopy) s))
+(defn- dref "" [s k] (get (if (map? s) s @s) k))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Polygon
-  "" [&[pt vertices]]
-  (let [p (gx/Polygon pt vertices)]
-    (assoc!! p
-             :updateInertia ec/noopy) p))
+(defn setPosition! "" [s & more] (apply (dref s :repos) (concat [s] more)))
+(defn draw "" [s & more] (apply (dref s :draw) (concat [s] more)))
+(defn updateMass! "" [s & [v]] ((dref s :updateMass) s v))
+(defn updateInertia! "" [s] ((dref s :updateInertia) s))
+(defn move! "" [s p] ((dref s :move) s p))
+(defn rotate! "" [s v] ((dref s :rotate) s v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn updateInertia! "" [s] ((:updateInertia @s) s) s)
-(defn draw "" [s & more] (apply gx/drawShape (concat [s] more)))
-(defn move! "" [s p] ((:move @s) s p) s)
-(defn rotate! "" [s v] ((:rotate @s) s v) s)
+(defn- rigidBody! "" [B & [mass friction bounce]]
+  (let [{:keys [gravity samples] :as www} @*gWorld*
+        mass' (num?? mass 1)]
+    (assoc!! B
+             :m mass'
+             :im (invert mass')
+             :accel (if (zero? mass') V2_ZERO gravity))
+    (updateMass! B)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Body "" [shape & [mass friction bounce options]]
+  (let [B (atom {:oid (nextBodyNum)
+                 :valid? true
+                 :type :body
+                 :accel V2_ZERO
+                 :vel V2_ZERO
+                 :bxRadius 0
+                 :ii 0 :im 0
+                 :i 0 :m 0
+                 :gaccel 0 :gvel 0
+                 :torque 0 :angle 0
+                 :statF 0.5 ; 0.8
+                 :dynaF 0.3
+                 :bounce 0.2})]
+    (assoc!! B :shape (assoc shape :body B))
+    (swap! B #(merge % (or options {})))
+    (rigidBody! B mass friction bounce)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addBody "" [B & [x y]]
+  (let [{:keys [samples]} @*gWorld*
+        pt (toVec2 x y)
+        {:keys [shape angle]} @B]
+    (setPosition! B pt angle)
+    (ec/addToStore! samples B)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setStatic! "" [obj]
   (assoc!! obj
-           :invMass 0
-           :mass 0
+           :im 0
+           :m 0
            :vel V2_ZERO
            :accel V2_ZERO
            :gvel 0
            :gaccel 0) (updateInertia! obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn updateMass! "" [s delta]
-  (let [m (+ (:mass @s) delta)
-        {:keys [gravity]} @*gWorld*]
-    (if (pos? m)
-      (do (assoc!! s
-                   :mass m
-                   :accel gravity
-                   :invMass (invert m)) (updateInertia! s))
-      (setStatic! s))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn static? "" [obj]
-  (let [{:keys [mass invMass]} @obj] (or (zero? mass) (zero? invMass))))
+  (let [{:keys [m im]} @obj] (or (zero? m) (zero? im))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dynamic? "" [obj]
-  (let [{:keys [mass invMass]} @obj] (or (pos? mass)(pos? invMass))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rigidBody! "" [obj & [mass friction bounce]]
-  (let [{:keys [gravity samples] :as www} @*gWorld*
-        mass' (num?? mass 1)
-        opts (get www (:type @obj))]
-    (assoc!! obj
-             :invMass (invert mass')
-             :oid (nextShapeNum)
-             :vel V2_ZERO
-             :valid? true
-             :mass mass'
-             :inertia 0
-             :angle 0
-             :gvel 0 ;; clockwise = negative
-             :gaccel 0
-             :bxRadius 0
-             :sticky (num?? friction 0.8)
-             :bounce (num?? bounce 0.2)
-             :accel (if (zero? mass') V2_ZERO gravity))
-    (if (map? opts)
-      (swap! obj #(merge % opts)))
-    (ec/addToStore! samples obj) obj))
+  (let [{:keys [m im]} @obj] (or (pos? m)(pos? im))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private prevMillis (system-time))

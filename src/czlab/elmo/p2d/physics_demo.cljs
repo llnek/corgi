@@ -12,9 +12,10 @@
   czlab.elmo.p2d.physics_demo
 
   (:require [czlab.elmo.afx.core :as ec :refer [invert]]
-            [czlab.elmo.p2d.core :as pc :refer [move! rotate! draw step*]]
+            [czlab.elmo.p2d.core
+             :as pc :refer [addBody move! rotate! draw step*]]
             [czlab.elmo.p2d.physics2d
-             :as py :refer [alterShapeAttr! Rectangle Circle]]
+             :as py :refer [alterBodyAttr! Rectangle Circle]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [pythag pythagSQ TWO-PI PI vec2 V2_ZERO _cocos2dx?
                             v2-len v2-add v2-sub v2-dot Point2D Size2D
@@ -23,18 +24,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def gWorld nil)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- drawCollisionInfo "" [ci context]
-  (let [{:keys [start end]} @ci
-        {sx :x sy :y} start
-        {ex :x ey :y} end]
-    (ocall! context "beginPath")
-    (ocall! context "moveTo" sx sy)
-    (ocall! context "lineTo" ex ey)
-    (ocall context "closePath")
-    (oset! context "!strokeStyle" "orange")
-    (ocall! context "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- userControl "" [evt]
@@ -68,45 +57,45 @@
       (= key 69) ;;E
       (rotate! s 0.1)
       (= key 73) ;;I
-      (alterShapeAttr! s :vel (vec2 0 -1))
+      (alterBodyAttr! s :vel (vec2 0 -1))
       (= key 75) ;;k
-      (alterShapeAttr! s :vel (vec2 0 1))
+      (alterBodyAttr! s :vel (vec2 0 1))
       (= key 74) ;;j
-      (alterShapeAttr! s :vel (vec2 -1 0))
+      (alterBodyAttr! s :vel (vec2 -1 0))
       (= key 76) ;;l
-      (alterShapeAttr! s :vel (vec2 1 0))
+      (alterBodyAttr! s :vel (vec2 1 0))
       (= key 85) ;;U
-      (alterShapeAttr! s :gvel -0.1)
+      (alterBodyAttr! s :gvel -0.1)
       (= key 79) ;O
-      (alterShapeAttr! s :gvel 0.1)
+      (alterBodyAttr! s :gvel 0.1)
       (= key 90) ;Z
       (pc/updateMass! s -1)
       (= key 88) ;;X
       (pc/updateMass! s 1)
       (= key 67) ;C
-      (alterShapeAttr! s :sticky -0.01)
+      (alterBodyAttr! s :statF -0.01)
       (= key 86) ;V
-      (alterShapeAttr! s :sticky 0.01)
+      (alterBodyAttr! s :statF 0.01)
       (= key 66) ;B
-      (alterShapeAttr! s :bounce -0.01)
+      (alterBodyAttr! s :bounce -0.01)
       (= key 78) ;N
-      (alterShapeAttr! s :bounce 0.01)
+      (alterBodyAttr! s :bounce 0.01)
       (= key 70);f
       (let [{:keys [pos]} @s
-            r1 (Rectangle pos
-                          (Size2D (+ 10 (rand 30))
-                                  (+ 10 (rand 30))) (rand 30) (rand) (rand))]
-        (alterShapeAttr! r1 (vec2 (- (rand 300) 150) (- (rand 300) 150))))
+            r1 (-> (Rectangle (Size2D (+ 10 (rand 30))
+                                      (+ 10 (rand 30))) (rand 30) (rand) (rand))
+                   (addBody pos))]
+        (alterBodyAttr! r1 (vec2 (- (rand 300) 150) (- (rand 300) 150))))
       (= key 71) ;;g
       (let [{:keys [pos]} @s
-            c1 (Circle pos
-                       (+ 20 (rand 10)) (rand 30) (rand) (rand))]
-        (alterShapeAttr! c1 (vec2 (- (rand 300) 150) (- (rand 300) 150))))
+            c1 (-> (Circle (+ 20 (rand 10)) (rand 30) (rand) (rand))
+                   (addBody pos))]
+        (alterBodyAttr! c1 (vec2 (- (rand 300) 150) (- (rand 300) 150))))
       (= key 72);H
       (ec/eachStore samples
                     (fn [s i]
-                      (if (pos? (:invMass @s))
-                        (alterShapeAttr! s
+                      (if (pos? (:m @s))
+                        (alterBodyAttr! s
                                          :vel (vec2 (- (rand 500) 250)
                                                     (- (rand 500) 250)))))))))
 
@@ -114,7 +103,7 @@
 (defn- updateUIEcho "" []
   (let [{:keys [uiEcho cur samples]} @gWorld
         obj (ec/nthStore samples cur)
-        {:keys [sticky bounce invMass gvel vel angle pos]} @obj]
+        {:keys [statF bounce m gvel vel angle pos]} @obj]
     (->> (str "<p><b>Selected Object:</b>:</p>"
               "<ul style=\"margin:-10px\">"
               "<li>Id: " cur "</li>"
@@ -122,8 +111,8 @@
               "<li>Angle: " angle "</li>"
               "<li>Velocity: " (:x vel) "," (:y vel) "</li>"
               "<li>AngluarVelocity: " gvel "</li>"
-              "<li>Mass: " (invert invMass) "</li>"
-              "<li>Friction: " sticky "</li>"
+              "<li>Mass: " m "</li>"
+              "<li>Friction: " statF "</li>"
               "<li>Restitution: " bounce "</li>"
               "</ul> <hr>"
               "<p><b>Control</b>: of selected object</p>"
@@ -172,25 +161,30 @@
                                 :uiEcho html
                                 :cur 0
                                 :canvas canvas :context context))
-        right (Rectangle (Point2D 500 200) (Size2D 400 20) 0 0.3 0)
-        left (Rectangle (Point2D 100 200) (Size2D 200 20) 0)
+        right (-> (Rectangle (Size2D 400 20) 0 0.3 0)
+                  (addBody (Point2D 500 200)))
+        left (-> (Rectangle (Size2D 200 20) 0)
+                 (addBody (Point2D 100 200)))
         ;r4 (Rectangle (Point2D 10 360) (Size2D 20 100) 0 0 1)]
-        bottom (Rectangle (Point2D 200 400) (Size2D 400 20) 0 1 0.5)
-        br (Rectangle (Point2D 400 360) (Size2D 20 100) 0 0 1)
-        bl (Rectangle (Point2D 10 360) (Size2D 20 100) 0 0 1)]
+        bottom (-> (Rectangle (Size2D 400 20) 0 1 0.5)
+                   (addBody (Point2D 200 400)))
+        br (-> (Rectangle (Size2D 20 100) 0 0 1)
+               (addBody (Point2D 400 360)))
+        bl (-> (Rectangle (Size2D 20 100) 0 0 1)
+               (addBody (Point2D 10 360)))]
     (pc/rotate! left -2.8)
     (pc/rotate! right 2.8)
     (dotimes [i 4]
-      (-> (Rectangle (Point2D (rand (/ width 2))
-                              (rand (/ height 2)))
-                     (Size2D (+ 10 (rand 50))
+      (-> (Rectangle (Size2D (+ 10 (rand 50))
                              (+ 10 (rand 50))) (rand 30) (rand) (rand))
-          (py/alterShapeAttr! :vel
+          (addBody (Point2D (rand (/ width 2))
+                              (rand (/ height 2))))
+          (py/alterBodyAttr! :vel
                               (vec2 (- (rand 60) 30) (- (rand 60) 30))))
-      (-> (Circle (Point2D (rand (/ width 2))
-                           (rand (/ height 2)))
-                  (+ 10 (rand 20)) (rand 30) (rand) (rand))
-          (py/alterShapeAttr! :vel (vec2 (- (rand 60) 30)
+      (-> (Circle (+ 10 (rand 20)) (rand 30) (rand) (rand))
+          (addBody (Point2D (rand (/ width 2))
+                           (rand (/ height 2))))
+          (py/alterBodyAttr! :vel (vec2 (- (rand 60) 30)
                                          (- (rand 60) 30)))))
     (runGameLoop)))
 
