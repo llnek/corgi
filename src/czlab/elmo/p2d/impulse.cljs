@@ -141,7 +141,8 @@
              (assoc shape
                     :vertices [(Point2D (- hw) (- hh)) (Point2D hw (- hh))
                                (Point2D hw hh) (Point2D (- hw) hh)]
-                    :normals [(vec2 0 -1) (vec2 1 0) (vec2 0 1) (vec2 -1 0)])) P))
+                    :normals [(vec2 0 -1) (vec2 1 0) (vec2 0 1) (vec2 -1 0)]))
+    (pc/updateMass! P) P))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- calcFaceNormals! "" [P]
@@ -305,14 +306,14 @@
                      (let [raCrossN (v2-xss ra normal)
                            rbCrossN (v2-xss rb normal)
                            invMass (+ imA imB
-                                      (* (sqr* raCrossN ) iiA)
-                                      (* (sqr* rbCrossN ) iiB))
+                                      (* (sqr* raCrossN) iiA)
+                                      (* (sqr* rbCrossN) iiB))
                            ;;calculate impulse scalar
                            j (-> (- (+ 1 bounce))
                                  (* contactVel) (/ invMass) (/ SZ))
                            impulse (v2-scale normal j)]
                        ;;Apply impulse
-                       (applyImpulseBody! A (- impulse) ra)
+                       (applyImpulseBody! A (v2-neg impulse) ra)
                        (applyImpulseBody! B impulse rb)
                        ;;Friction impulse
                        (let [{gvelA :gvel velA :vel} @A
@@ -348,7 +349,7 @@
       ;;infinite mass Correction
       (do (assoc!! A :vel V2_ZERO)
           (assoc!! B :vel V2_ZERO))
-      (applyImpulseOnManifold! M))))
+      (applyImpulseOnManifold! M)) M))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- positionalCorrection! "" [M]
@@ -486,8 +487,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleToPolygon "" [M B1 B2]
-  (swap! M #(assoc % :contacts []))
-  (let [{posA :pos A :shape} @B1
+  (let [_ (assoc!! M :contacts [])
+        {posA :pos A :shape} @B1
         {posB :pos B :shape} @B2
         {:keys [vertices normals] bu :u} B
         {radA :radius} A
@@ -683,17 +684,17 @@
     (loop [i 0 SZ (ec/countStore samples) ms []]
       (if (>= i SZ)
         (step2 ms algoIterCount)
-        (let [A (ec/nthStore samples i)]
+        (let [B1 (ec/nthStore samples i)]
           (recur (+ 1 i)
                  SZ
                  (loop [j (+ i 1) ms' ms]
                    (if (>= j SZ)
                      ms'
-                     (let [B (ec/nthStore samples j)]
+                     (let [B2 (ec/nthStore samples j)]
                        (recur (+ 1 j)
-                              (if-not (and (static? A)
-                                           (static? B))
-                                (let [m (solveManifold (manifold A B))
+                              (if-not (and (static? B1)
+                                           (static? B2))
+                                (let [m (solveManifold (manifold B1 B2))
                                       c? (not-empty (:contacts @m))]
                                   (if c? (conj ms' m) ms')) ms')))))))))))
 

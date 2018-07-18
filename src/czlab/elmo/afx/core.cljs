@@ -136,7 +136,10 @@
 (defn objectize "" [s] (if (string? s) (js/JSON.parse s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn jsonize "" [obj] (if (some? obj) (js/JSON.stringify obj)))
+(defn jsonize "" [obj] (if (some? obj) (js/JSON.stringify obj) ""))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn jsonize* "" [obj] (jsonize (clj->js obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fillArray "" [value len]
