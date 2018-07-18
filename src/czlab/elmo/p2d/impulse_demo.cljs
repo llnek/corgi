@@ -9,10 +9,12 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.p2d.physics_demo
+  czlab.elmo.p2d.impulse_demo
+
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [assoc!!]])
 
   (:require [czlab.elmo.afx.core :as ec :refer [invert]]
-            [czlab.elmo.p2d.physics2d :as py :refer []]
+            [czlab.elmo.p2d.core :as pc :refer [addBody]]
             [czlab.elmo.p2d.impulse :as ie :refer [Circle Polygon]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [pythag pythagSQ TWO-PI PI vec2 V2_ZERO _cocos2dx?
@@ -35,18 +37,18 @@
                     (when (:valid? @s)
                       (oset! context
                              "!strokeStyle" (if (= i cur) "red" "blue"))
-                      (py/draw s context))))))
+                      (pc/draw s context))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- runGameLoop "" []
   (js/requestAnimationFrame #(runGameLoop))
-  (updateUIEcho)
   (drawGame)
-  (py/step*))
+  (pc/step*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- myGame "" []
-  (set! gWorld (ie/initPhysics 40 60 {:left 0 :right 799 :top 0 :bottom 449}))
+  (set! gWorld (ie/initPhysics 50 60 {:left 0 :right 799 :top 0 :bottom 449}))
+  (assoc!! gWorld :cur 0)
   (let [canvas (js/document.getElementById "canvas")
         context (ocall! canvas "getContext" "2d")
         {:keys [width height]} @gWorld
@@ -54,10 +56,12 @@
         _ (oset! canvas "width" width)
         _ (swap! gWorld #(assoc %
                                 :canvas canvas :context context))
-        c (ie/setStatic! (Circle (Point2D 40 40) 5))
-        p (-> (ie/setPolygonBox! (Polygon 40 55) (Size2D 60 10))
-              (ie/setStatic! )
-              (ie/setOrient! 0))]
+        c (-> (Circle 20)
+              (addBody 200 40))
+        p (-> (ie/setPolygonBox! (Polygon) (Size2D 60 20))
+              (addBody 200 400)
+              (ie/setOrient! 0)
+              (pc/setStatic! ))]
     (runGameLoop)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -30,6 +30,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setPosition! "" [s & more] (apply (dref s :repos) (concat [s] more)))
+(defn setAngle! "" [s & more] (apply (dref s :setAngle) (concat [s] more)))
 (defn draw "" [s & more] (apply (dref s :draw) (concat [s] more)))
 (defn updateMass! "" [s & [v]] ((dref s :updateMass) s v))
 (defn updateInertia! "" [s] ((dref s :updateInertia) s))
@@ -56,8 +57,9 @@
                  :bxRadius 0
                  :ii 0 :im 0
                  :i 0 :m 0
-                 :gaccel 0 :gvel 0
-                 :torque 0 :angle 0
+                 :gvel 0
+                 :torque 0
+                 :angle 0
                  :statF 0.5 ; 0.8
                  :dynaF 0.3
                  :bounce 0.2})]
@@ -81,7 +83,7 @@
            :vel V2_ZERO
            :accel V2_ZERO
            :gvel 0
-           :gaccel 0) (updateInertia! obj))
+           :torque 0) (updateInertia! obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn static? "" [obj]

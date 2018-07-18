@@ -73,8 +73,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- updateBody! "" [B dt]
   (let [{:keys [height width samples validator]} @*gWorld*
-        {:keys [oid vel accel gvel gaccel]} @B
-        gv' (+ gvel (* gaccel dt))
+        {:keys [oid vel accel gvel torque]} @B
+        gv' (+ gvel (* torque dt))
         v' (v2-add vel (v2-scale accel dt))]
     (when true
       ;;update vel += a*t
@@ -113,8 +113,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findPenetration??
   "Find the shortest axis that's overlapping" [B1 B2]
-  (let [{:keys [normals]
-         {:keys [vertices]} :shape} @B1]
+  (let [{{:keys [normals vertices]} :shape} @B1]
     ;;all vertices have corresponding support points?
     (loop [i 0 SZ (n# normals)
            depth *pos-inf*
@@ -150,9 +149,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleInsideRect? "" [B1 C1 ci nEdge depth]
-  (let [{:keys [pos]
-         {:keys [radius]} :shape} @C1
-        {:keys [normals]} @B1
+  (let [{:keys [pos] {:keys [radius]} :shape} @C1
+        {{:keys [normals]} :shape} @B1
         n (nth normals nEdge)
         rVec (v2-scale n radius)]
     (chgci! ci (- radius depth) n (v2-sub pos rVec)) true))
@@ -160,8 +158,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- nfaceToCircle?? "" [B1 C1]
   (let [{center :pos} @C1
-        {:keys [normals]
-         {:keys [vertices]} :shape} @B1]
+        {{:keys [normals vertices]} :shape} @B1]
     (loop [i 0 SZ (n# normals)
            depth *neg-inf* nEdge 0 inside? true]
       (if (or (not inside?) (>= i SZ))
@@ -180,8 +177,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleOutsideRect? "" [B1 C1 ci nEdge depth]
   (let [{center :pos {:keys [radius]} :shape} @C1
-        {:keys [normals]
-         {:keys [vertices]} :shape} @B1
+        {{:keys [normals vertices]} :shape} @B1
         vn (nth vertices nEdge)
         en (nth normals nEdge)
         ;;V1 is from left vertex of face to center of circle
@@ -250,8 +246,10 @@
         vs' (gx/rotRectVertices vertices pos angle')]
     (assoc!! B
              :angle (+ angle angle')
-             :shape (assoc S :vertices vs')
-             :normals (createFaceNormals vs')) B))
+             :shape
+             (assoc S
+                    :vertices vs'
+                    :normals (createFaceNormals vs'))) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectMove "" [B & [x y]]
@@ -282,8 +280,10 @@
         vs (gx/calcRectVertices pt width height)]
     (assoc!! R
              :pos pt
-             :shape (assoc S :vertices vs)
-             :normals (createFaceNormals vs)) R))
+             :shape
+             (assoc S
+                    :vertices vs
+                    :normals (createFaceNormals vs))) R))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectDraw "" [R ctx]
@@ -302,7 +302,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Rectangle "" [sz & [mass friction bounce]]
   (let [{:keys [width height]} sz]
-    (Body (gx/Rectangle sz)
+    (Body (assoc (gx/Rectangle sz) :normals [])
           mass friction bounce
           (assoc RRR
                  :bxRadius (/ (pythag width height) 2)))))

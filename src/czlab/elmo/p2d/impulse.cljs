@@ -16,12 +16,15 @@
 
   (:require [czlab.elmo.afx.core
              :as ec :refer [abs* sqr* sqrt* fuzzyZero?
+                            num??
                             invert EPSILON fuzzyEqual?]]
-            [czlab.elmo.p2d.core :as pc :refer [*gWorld*]]
+            [czlab.elmo.p2d.core
+             :as pc :refer [Body *gWorld* dynamic? static?]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [PI TWO-PI V2_ZERO Point2D
                             wrap?? *pos-inf* *neg-inf*
                             mat2 mat2* m2-vmult m2-xpose
+                            polyDraw*
                             v2-neg v2-norm v2-scale v2-sdiv
                             v2-len v2-lensq v2-dist v2-distsq
                             vec2 v2-add v2-sub v2-dot v2-xss v2-sxss]]))
@@ -30,53 +33,48 @@
 (def ^:private *dispatch* (atom {}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmulti calcMass! "" (fn [a density] (:type a)))
-(defmulti setOrient! "" (fn [a radians] (:type a)))
-(defmulti init! "" (fn [a] (:type a)))
-(defmulti drawShape "" (fn [a] (:type a)))
-(defmulti applyImpulse! "" (fn [a & more] (:type a)))
+(defn setOrient! "" [B radians]
+  (let [{:keys [shape]} @B]
+    (assoc!! B
+             :angle radians
+             :shape ((:setAngle shape) shape radians)) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- Shape "" [e & [pt]] (atom {:type e :body nil :pos (or pt V2_ZERO)}))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Circle "" [pt r] (pc/Circle pt r))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod init! :circle [c] (calcMass! c 1))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod calcMass! :circle [c density]
-  (let [{:keys [body radius]} @c
+(defn- calcCircleMass [C & [density]]
+  (let [{{:keys [radius]} :shape} @C
+        density (num?? density 1)
         r2 (sqr* radius)
         m (* PI r2 density)
         i (* m r2)]
-    (assoc!! body
-             :mass m
-             :invMass (invert m) :inertia i :invInertia (invert i)) c))
+    (assoc!! C
+             :m m
+             :im (invert m) :i i :ii (invert i)) C))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod setOrient!
-  ::circle [c radians] (swap! c #(assoc % :angle radians)))
+(defn- setCircleAngle "" [C radians] C)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod drawShape ::circle [c ctx] c)
+(defn- drawCircle "" [C ctx]
+  (let [{:keys [angle pos] {:keys [radius]} :shape} @C]
+    (gx/circleDraw* pos radius angle ctx true) C))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Polygon "" [pt]
-  (do-with [s (Shape ::polygon pt)]
-           (swap! s #(assoc %
-                            :normals []
-                            :u (mat2)
-                            :vertices []))
-           (ec/addToStore! (:samples @*gWorld*) s)))
+(defn- setPosCircle "" [C pt & more] (assoc!! C :pos pt) C)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod init! ::polygon [p] (calcMass! p 1))
+(defn Circle "" [r & [mass friction bounce]]
+  (Body (assoc (gx/Circle r)
+               :setAngle setCircleAngle)
+        mass friction bounce
+        {:draw drawCircle
+         :updateInertia (fn [B & more] B)
+         :repos setPosCircle
+         :updateMass calcCircleMass }))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod calcMass! ::polygon [p density]
-  (let [{:keys [vertices]} @p
+(defn- calcPolyMass "" [P & [density]]
+  (let [{{:keys [vertices] :as S} :shape} @P
+        density (num?? density 1)
         inv3 (/ 1 3)
         ;;calculate centroid and moment of interia
         [C M I]
@@ -101,36 +99,57 @@
     ;;;translate vertices to centroid (make the centroid (0, 0)
     ;;for the polygon in model space)
     ;;Not really necessary
-    (assoc!! p
+    (assoc!! P
              :m M :im (invert M)
              :i I :ii (invert I)
-             :vertices (mapv #(v2-sub % C) vertices)) p))
+             :shape (assoc S
+                           :vertices
+                           (mapv #(v2-sub % C) vertices))) P))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod setOrient! ::polygon [p radians]
-  (swap! p #(assoc % :u (mat2* radians))) p)
+(defn- setPolyAngle
+  "" [P radians] (assoc P :u (mat2* radians)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod drawShape ::polygon [p] p)
+(defn- drawPoly "" [P ctx]
+  (let [{{:keys [u vertices]} :shape c :pos} @P]
+    (-> (mapv #(v2-add c (m2-vmult u %)) vertices) (polyDraw* ctx)) P))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setPolygonBox! "" [p sz]
+(defn- setPosPoly "" [P pt & more] (assoc!! P :pos pt) P)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Polygon "" [& [mass friction bounce]]
+  (Body (assoc (gx/Polygon [])
+               :normals []
+               :u (mat2)
+               :setAngle setPolyAngle)
+        mass friction bounce
+        {:repos setPosPoly
+         :draw drawPoly
+         :updateMass calcPolyMass
+         :updateInertia (fn [B & more] B)}))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn setPolygonBox! "" [P sz]
   (let [{:keys [width height]} sz
+        {:keys [shape]} @P
         hw (half* width)
         hh (half* height)]
-    (swap! p
-           #(assoc %
-                   :vertices [(Point2D (- hw) (- hh)) (Point2D hw (- hh))
-                              (Point2D hw hh) (Point2D (- hw) hh)]
-                   :normals [(vec2 0 -1) (vec2 1 0) (vec2 0 1) (vec2 -1 0)])) p))
+    (assoc!! P
+             :shape
+             (assoc shape
+                    :vertices [(Point2D (- hw) (- hh)) (Point2D hw (- hh))
+                               (Point2D hw hh) (Point2D (- hw) hh)]
+                    :normals [(vec2 0 -1) (vec2 1 0) (vec2 0 1) (vec2 -1 0)])) P))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- calcFaceNormals! "" [p]
-  (let [{:keys [vertices]} @p
+(defn- calcFaceNormals! "" [P]
+  (let [{{:keys [vertices] :as S} :shape} @P
         EE (sqr* EPSILON)]
     (loop [i 0 SZ (n# vertices) out []]
       (if (>= i SZ)
-        (do (swap! p #(assoc % :normals out)) p)
+        (do (assoc!! P :shape (assoc S :normals out)) P)
         (let [i2 (wrap?? i SZ)
               face (v2-sub (nth vertices i2)
                            (nth vertices i))]
@@ -155,17 +174,20 @@
                        [i cx] [right cx]))] (recur (+ 1 i) SZ r x')))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setPolyonVertices! "" [p _vertices]
-  (let [rightMost (findRightMost?? _vertices)]
+(defn setPolyonVertices! "" [P _vertices]
+  (let [{:keys [shape]} @P
+        rightMost (findRightMost?? _vertices)]
     (loop [hull [rightMost]
            curIndex rightMost break? false]
       (if break?
         (do (->> (loop [i 0 SZ (n# hull) out []]
                    (if (>= i SZ)
                      out
-                     (recur (+ 1 i) SZ (conj out (nth _vertices i)))))
-                 (assoc!! p :vertices))
-            (calcFaceNormals! p))
+                     (recur (+ 1 i)
+                            SZ
+                            (conj out (nth _vertices i)))))
+                 (assoc shape :vertices) (assoc!! P :shape))
+            (calcFaceNormals! P))
         (let [nextIndex
               (loop [i 1 SZ (n# _vertices) pos 0]
                 (if (>= i SZ)
@@ -184,12 +206,12 @@
                                              (v2-lensq e1)))) i pos))))))]
           (recur (conj hull nextIndex)
                  nextIndex
-                 (= nextIndex rightMost))))) p))
+                 (= nextIndex rightMost))))) P))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;The extreme point along a direction within a polygon
-(defn- findSupportPoint?? "" [p dir]
-  (let [{:keys [vertices]} @p]
+(defn- findSupportPoint?? "" [S dir]
+  (let [{:keys [vertices]} S]
     (loop [i 0 SZ (n# vertices) proj *neg-inf* bv nil]
       (if (>= i SZ)
         bv
@@ -197,6 +219,13 @@
               p' (v2-dot v dir)
               b? (> p' proj)]
           (recur (inc i) SZ (if b? p' proj) (if b? v bv)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- applyImpulseBody! "" [B impulse contactVector]
+  (let [{:keys [vel im ii gvel]} @B]
+    (assoc!! B
+             :vel (v2-add vel (v2-scale impulse im))
+             :gvel (+ gvel (* ii (v2-xss contactVector impulse)))) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn manifold "" [& [a b]]
@@ -221,10 +250,10 @@
   (let [{:keys [A B]} @M
         {sa :shape} @A
         {sb :shape} @B]
-    ((get (get @*dispatch* (:type @sa)) (:type @sb)) M A B)))
+    ((get (get @*dispatch* (:type sa)) (:type sb)) M A B) M))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod init! ::manifold [M]
+(defn- initManifold! "" [M]
   (let [{:keys [gravity frameSecs]} @*gWorld*
         {:keys [contacts A B]} @M
         {gvelA :gvel velA :vel posA :pos bounceA :bounce dfA :dynaF sfA :statF} @A
@@ -283,8 +312,8 @@
                                  (* contactVel) (/ invMass) (/ SZ))
                            impulse (v2-scale normal j)]
                        ;;Apply impulse
-                       (applyImpulse! A (- impulse) ra)
-                       (applyImpulse! B impulse rb)
+                       (applyImpulseBody! A (- impulse) ra)
+                       (applyImpulseBody! B impulse rb)
                        ;;Friction impulse
                        (let [{gvelA :gvel velA :vel} @A
                              {gvelB :gvel velB :vel} @B
@@ -305,12 +334,12 @@
                                    (v2-scale T jT)
                                    (v2-scale T (* dynaF (- j))))]
                              ;;Apply friction impulse
-                             (applyImpulse! A (v2-neg tangentImpulse) ra)
-                             (applyImpulse! B tangentImpulse rb)
+                             (applyImpulseBody! A (v2-neg tangentImpulse) ra)
+                             (applyImpulseBody! B tangentImpulse rb)
                              true))))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod applyImpulse! ::manifold [M]
+(defn- applyImpulse! "" [M]
   ;;Early out and positional correct if both objects have infinite mass
   (let [{:keys [A B]} @M
         {imA :im velA :vel} @A
@@ -335,77 +364,40 @@
     (assoc!! B :pos (v2-add posB (v2-scale jiggle imB))) M))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- Body "" [shape & [x y]]
-  (do-with [body (atom {})]
-    (assoc!! body
-             :pos (if (some? x)
-                    (if (number? y) (Point2D x y) x) V2_ZERO)
-             :type :body
-             :vel V2_ZERO
-             :ii 0
-             :im 0
-             :i 0
-             :m 0
-             :gvel 0
-             :torque 0
-             :angle 0
-             :force V2_ZERO
-             :statF 0.5
-             :dynaF 0.3
-             :bounce 0.2)
-    (assoc!! shape :body body)
-    (init! shape)))
+(defn applyForce "" [B f]
+  (swap! B (fn [{:keys [accel] :as root}]
+             (assoc root :accel (v2-add accel f)))) B)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn applyForce "" [b f]
-  (swap! b (fn [{:keys [force] :as root}]
-             (assoc root :force (v2-add force f)))) b)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod applyImpulse! ::body [b impulse contactVector]
-  (let [{:keys [vel im ii gvel]} @b]
-    (assoc!! b
-             :vel (v2-add vel (v2-scale impulse im))
-             :gvel (+ gvel (* ii (v2-xss contactVector impulse)))) b))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setStatic! "" [b]
-  (assoc!! b :ii 0 :im 0 :m 0 :i 0) b)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod setOrient! ::body [obj radians]
-  (assoc!! obj :angle radians)
-  (setOrient! (:shape @obj) radians) obj)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- integrateForces! "" [b dt]
-  (let [{:keys [im ii vel force gvel torque]} @b
+(defn- integrateForces! "" [B dt]
+  (let [{:keys [im ii vel accel gvel torque]} @B
         dt2 (half* dt)
         {:keys [gravity]} @*gWorld*]
     (when-not (zero? im)
-      (assoc!! b
+      (assoc!! B
                :gvel (+ gvel (* dt2 torque ii))
                :vel (v2-add vel (v2-scale (-> gravity
-                                              (v2-add (v2-scale force im))) dt2)))) b))
+                                              (v2-add (v2-scale accel im))) dt2)))) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- integrateVelocity! "" [b dt]
-  (let [{:keys [pos im vel gvel angle]} @b]
+(defn- integrateVelocity! "" [B dt]
+  (let [{:keys [pos im vel gvel angle]} @B
+        angle' (+ angle (* dt gvel))]
     (when-not (zero? im)
-      (assoc!! b
-               :angle (+ angle (* dt gvel))
+      (assoc!! B
+               :angle angle'
                :pos (v2-add pos (v2-scale vel dt)))
-      (setOrient! b (:angle @b))
-      (integrateForces! b dt)) b))
+      (setOrient! B angle')
+      (integrateForces! B dt)) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- step2 "" [dt algoIterCount]
-  (let [{:keys [samples manifolds]} @*gWorld*]
+(defn- step2 "" [manifolds algoIterCount]
+  (let [{:keys [samples] dt :frameSecs} @*gWorld*]
     ;;integrate forces
     (ec/eachStore samples
                   (fn [b _] (integrateForces! b dt)))
     ;;initialize collisions
-    (doseq [c manifolds] (init! c))
+    (doseq [c manifolds] (initManifold! c))
     ;;solve collisions
     (dotimes [_ algoIterCount]
       (doseq [c manifolds] (applyImpulse! c)))
@@ -417,36 +409,14 @@
     ;;clear all forces
     (ec/eachStore samples
                   (fn [b _]
-                    (assoc!! b :force V2_ZERO :torque 0)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn step "" [dt algoIterCount]
-  (let [{:keys [samples]} @*gWorld*]
-    (loop [i 0 SZ (ec/countStore samples) ms []]
-      (if (>= i SZ)
-        (do (assoc!! *gWorld* :manifolds ms)
-            (step2 dt algoIterCount))
-        (let [A (ec/nthStore samples i)]
-          (recur (+ 1 i)
-                 SZ
-                 (loop [j (+ i 1) ms' ms]
-                   (if (>= j SZ)
-                     ms'
-                     (let [B (ec/nthStore samples j)]
-                       (recur (+ 1 j)
-                              (if-not (and (zero? (:im @A))
-                                           (zero? (:im @B)))
-                                (let [m (solveManifold (manifold A B))
-                                      c? (not-empty (:contacts @m))]
-                                  (if c? (conj ms' m) ms'))
-                                ms')))))))))))
+                    (assoc!! b :accel V2_ZERO :torque 0)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleToCircle "" [M B1 B2]
   (let [{posA :pos A :shape} @B1
         {posB :pos B :shape} @B2
-        {radA :radius} @A
-        {radB :radius} @B
+        {radA :radius} A
+        {radB :radius} B
         radius (+ radA radB)
         ;;calculate translational vector, which is normal
         normal (v2-sub posB posA)
@@ -472,8 +442,8 @@
 (defn- circleToPolygon* "" [M B1 B2 center separation faceNormal]
   (let [{posA :pos A :shape} @B1
         {posB :pos B :shape} @B2
-        {:keys [normals vertices] bu :u} @B
-        {radA :radius} @A
+        {:keys [normals vertices] bu :u} B
+        {radA :radius} A
         ;;grab face's vertices
         v1 (nth vertices faceNormal)
         SZ (n# vertices)
@@ -519,11 +489,11 @@
   (swap! M #(assoc % :contacts []))
   (let [{posA :pos A :shape} @B1
         {posB :pos B :shape} @B2
-        {:keys [vertices normals] bu :u} @B
-        {radA :radius} @A
+        {:keys [vertices normals] bu :u} B
+        {radA :radius} A
         ;;Transform circle center to Polygon model space
         center (m2-vmult (m2-xpose bu)
-                        (v2-sub posA posB))]
+                         (v2-sub posA posB))]
     ;;Find edge with minimum penetration
     ;;Exact concept as using support points in Polygon vs Polygon
     (loop [i 0 SZ (n# vertices)
@@ -544,8 +514,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findAxisLeastPenetration "" [A B]
-  (let [{bA :body au :u :keys [vertices normals]} @A
-        {bB :body bu :u} @B
+  (let [{bA :body au :u :keys [vertices normals]} A
+        {bB :body bu :u} B
         {posA :pos} @bA
         {posB :pos} @bB]
   (loop [i 0 SZ (n# vertices) bestD *neg-inf* bestIndex 0]
@@ -572,11 +542,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findIncidentFace?? "" [refPoly incPoly refIndex]
-  (let [{bI :body iu :u :keys [normals vertices]} @incPoly
+  (let [{bI :body iu :u :keys [normals vertices]} incPoly
         {posI :pos} @bI
         ;;Calculate normal in incident's frame of reference
-        refNormal (->> (nth (:normals @refPoly) refIndex)
-                       (m2-vmult (:u @refPoly)) ;; To world space
+        refNormal (->> (nth (:normals refPoly) refIndex)
+                       (m2-vmult (:u refPoly)) ;; To world space
                        (m2-vmult (m2-xpose iu)))]  ;To incident's model space
     ;;Find most anti-normal face on incident polygon
     (loop [i 0 SZ (n# vertices)
@@ -585,7 +555,7 @@
         ;;Assign face vertices for incidentFace
         [(v2-add (m2-vmult iu (nth vertices iFace)) posI)
          (v2-add (m2-vmult iu
-                          (nth vertices (wrap?? iFace SZ))) posI)]
+                           (nth vertices (wrap?? iFace SZ))) posI)]
         ;loop
         (let [dot (v2-dot refNormal (nth normals i))
               b? (< dot minDot)]
@@ -627,12 +597,12 @@
         (if (ec/biasGreater? penetrationA penetrationB)
           [A B faceA false]
           [B A faceB true])
-        {bR :body} @refPoly
-        {bI :body} @incPoly
+        {bR :body} refPoly
+        {bI :body} incPoly
         {posR :pos} @bR
         ;;World space incident face
         incidentFaces (findIncidentFace?? refPoly incPoly refIndex)
-        {rverts :vertices ru :u} @refPoly
+        {rverts :vertices ru :u} refPoly
         ;;Setup reference face vertices
         v1 (nth rverts refIndex)
         refIndex (wrap?? refIndex (n# rverts))
@@ -708,9 +678,34 @@
          :polygon {:circle polygonToCircle :polygon polygonToPolygon}})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn runAlgo "" [algoIterCount posCorrection]
+  (let [{:keys [frameSecs samples]} @*gWorld*]
+    (loop [i 0 SZ (ec/countStore samples) ms []]
+      (if (>= i SZ)
+        (step2 ms algoIterCount)
+        (let [A (ec/nthStore samples i)]
+          (recur (+ 1 i)
+                 SZ
+                 (loop [j (+ i 1) ms' ms]
+                   (if (>= j SZ)
+                     ms'
+                     (let [B (ec/nthStore samples j)]
+                       (recur (+ 1 j)
+                              (if-not (and (static? A)
+                                           (static? B))
+                                (let [m (solveManifold (manifold A B))
+                                      c? (not-empty (:contacts @m))]
+                                  (if c? (conj ms' m) ms')) ms')))))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn initPhysics "" [gravity fps world & [options]]
+  (pc/initPhysics gravity
+                  fps
+                  world
+                  (merge options {:algoRunner runAlgo})))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
-
 
 
 

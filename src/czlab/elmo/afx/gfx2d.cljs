@@ -236,19 +236,21 @@
     (if-some [s (:style k)] (oset! ctx "!strokeStyle" s))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- polyDraw "" [p ctx]
-  (let [{:keys [vertices]} p]
-    (ocall! ctx "beginPath")
-    (loop [i 0 SZ (n# vertices)]
-      (when (< i SZ)
-        (let [i2 (wrap?? i SZ)
-              {x1 :x y1 :y} (nth vertices i)
-              {x2 :x y2 :y} (nth vertices i2)]
-          (batchOps! ctx
-                     ["moveTo" x1 y1]
-                     ["lineTo" x2 y2])
-          (recur (+ 1 i) SZ))))
-    (ocall! ctx "stroke")))
+(defn polyDraw* "" [vs ctx]
+  (ocall! ctx "beginPath")
+  (loop [i 0 SZ (n# vs)]
+    (when (< i SZ)
+      (let [i2 (wrap?? i SZ)
+            {x1 :x y1 :y} (nth vs i)
+            {x2 :x y2 :y} (nth vs i2)]
+        (batchOps! ctx
+                   ["moveTo" x1 y1]
+                   ["lineTo" x2 y2])
+        (recur (+ 1 i) SZ))))
+  (ocall! ctx "stroke"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- polyDraw "" [p ctx] (polyDraw* (:vertices p) ctx))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Polygon
@@ -261,19 +263,24 @@
 (defn Edge "" [v1 v2] {:v1 v1 :v2 v2})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circleDraw "" [C ctx & [center angle startPt?]]
-  (let [{:keys [radius pos]} C
-        {cx :x cy :y :as c}
-        (or pos center V2_ZERO)]
+(defn circleDraw* "" [center radius angle ctx & [startPt?]]
+  (let [{cx :x cy :y} center]
     (batchOps! ctx
                ["beginPath"]
                ["arc" cx cy radius 0 TWO-PI true])
     (when startPt?
       (let [sp (Point2D cx (if _cocos2dx?
                              (+ cy radius) (- cy radius)))
-            {:keys [x y]} (v2-rot sp c angle)]
+            {:keys [x y]} (v2-rot sp center angle)]
         (batchOps! ctx ["moveTo" cx cy] ["lineTo" x y])))
     (batchOps! ctx ["closePath"] ["stroke"])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- circleDraw "" [C ctx & [center angle startPt?]]
+  (let [{:keys [radius pos]} C
+        {cx :x cy :y :as c}
+        (or pos center V2_ZERO)]
+    (circleDraw* c radius angle ctx startPt?)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Circle "" [radius & [x y]]
