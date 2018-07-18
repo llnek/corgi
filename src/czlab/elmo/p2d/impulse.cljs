@@ -658,8 +658,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- polygonToPolygon "" [M B1 B2]
-  (swap! M #(assoc % :contacts []))
-  (let [{A :shape} @B1
+  (let [_ (assoc!! M :contacts [])
+        {A :shape} @B1
         {B :shape} @B2
         ;;Check for a separating axis with A's face planes
         [penetrationA faceA] (findAxisLeastPenetration A B)
