@@ -56,13 +56,11 @@
         _ (oset! canvas "width" width)
         _ (swap! gWorld #(assoc %
                                 :canvas canvas :context context))
-        c (-> (Circle 20) (addBody 180 40))
-        r (-> (ie/setPolygonBox! (Polygon) (Size2D 50 50))
-              (addBody 200 100)
-              (ie/setOrient! -2.8))
+        c (-> (Circle 20) (addBody 200 40))
+        r (-> (ie/setPolygonBox! (Polygon) (Size2D 50 50)) (addBody 220 100) (ie/setOrient! -2.8))
         p (-> (ie/setPolygonBox! (Polygon) (Size2D 400 20))
               (addBody 200 300)
-              (ie/setOrient! 0)
+              (ie/setOrient! 2.8)
               (pc/setStatic! ))]
     (runGameLoop)))
 
