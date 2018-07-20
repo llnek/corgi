@@ -175,20 +175,22 @@
                        [i cx] [right cx]))] (recur (+ 1 i) SZ r x')))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setPolyonVertices! "" [P _vertices]
+(defn setPolygonVertices! "" [P _vertices]
   (let [{:keys [shape]} @P
         rightMost (findRightMost?? _vertices)]
     (loop [hull [rightMost]
            curIndex rightMost break? false]
       (if break?
-        (do (->> (loop [i 0 SZ (n# hull) out []]
-                   (if (>= i SZ)
-                     out
-                     (recur (+ 1 i)
-                            SZ
-                            (conj out (nth _vertices i)))))
+        (do
+          (->> (loop [i 0 SZ (n# hull) out []]
+                 (if (>= i SZ)
+                   out
+                   (recur (+ 1 i)
+                          SZ
+                          (conj out (nth _vertices (nth hull i))))))
                  (assoc shape :vertices) (assoc!! P :shape))
-            (calcFaceNormals! P))
+          (calcFaceNormals! P)
+          (pc/updateMass! P))
         (let [nextIndex
               (loop [i 1 SZ (n# _vertices) pos 0]
                 (if (>= i SZ)
@@ -204,10 +206,9 @@
                              (if (or (neg? c)
                                      (and (zero? c)
                                           (> (v2-lensq e2)
-                                             (v2-lensq e1)))) i pos))))))]
-          (recur (conj hull nextIndex)
-                 nextIndex
-                 (= nextIndex rightMost))))) P))
+                                             (v2-lensq e1)))) i pos))))))
+              q? (= nextIndex rightMost)]
+          (recur (if q? hull (conj hull nextIndex)) nextIndex q?)))) P))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;The extreme point along a direction within a polygon

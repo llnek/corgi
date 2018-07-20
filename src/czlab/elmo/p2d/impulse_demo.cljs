@@ -24,9 +24,28 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def gWorld nil)
-
+(def XXX 1)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- userControl "" [evt])
+(defn- mouseControl "" [evt]
+  (let [x (oget evt "clientX")
+        btn? (= 0 (mod XXX 2))
+        y (oget evt "clientY")]
+    (set! XXX (+ 1 XXX))
+    (if btn?
+      (let [e (ec/randRange 50 100)
+            ne (- e)
+            vs (transient [])
+            _ (dotimes [_ (ec/randRange 3 6)]
+                (conj! vs (vec2 (ec/randRange ne e) (ec/randRange ne e))))
+            p (ie/setPolygonVertices! (Polygon) (persistent! vs))]
+        (ie/setOrient! p (ec/randRange (- PI) PI))
+        (assoc!! p
+                 :bounce 0.2
+                 :dynaF 0.2 :statF 0.4)
+        (addBody p x y))
+      (let [c (-> (Circle (+ 4 (rand 20)))
+                  (addBody x y))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- drawGame "" []
@@ -47,7 +66,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- myGame "" []
-  (set! gWorld (ie/initPhysics 50 60 {:left 0 :right 799 :top 0 :bottom 449}))
+  (set! gWorld (ie/initPhysics 50 60 {:left 0 :right 799 :top 0 :bottom 639}))
   (assoc!! gWorld :cur 0)
   (let [canvas (js/document.getElementById "canvas")
         context (ocall! canvas "getContext" "2d")
@@ -57,15 +76,16 @@
         _ (swap! gWorld #(assoc %
                                 :canvas canvas :context context))
         c (-> (Circle 20) (addBody 200 40))
-        r (-> (ie/setPolygonBox! (Polygon) (Size2D 50 50)) (addBody 220 100) (ie/setOrient! -2.8))
+        ;r (-> (ie/setPolygonBox! (Polygon) (Size2D 50 50)) (addBody 220 100) (ie/setOrient! -2.8))
         p (-> (ie/setPolygonBox! (Polygon) (Size2D 400 20))
-              (addBody 200 300)
-              (ie/setOrient! 2.8)
+              (addBody 200 600)
+              (ie/setOrient! 0);2.8)
               (pc/setStatic! ))]
     (runGameLoop)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+(set! js/mouseControl mouseControl)
 (set! js/userControl userControl)
 (set! js/ImpulseGame myGame)
 
