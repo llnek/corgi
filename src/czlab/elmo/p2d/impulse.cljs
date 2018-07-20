@@ -506,8 +506,8 @@
                         (v2-sub center (nth vertices i)))
               [s' n' t']
               (cond (> s radA) [sep n true]
-                    (> s sep) [s i false]
-                    :else [sep n false])] (recur (+ 1 i) SZ s' n' t'))))))
+                    (> s sep) [s i break?]
+                    :else [sep n break?])] (recur (+ 1 i) SZ s' n' t'))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- polygonToCircle "" [M B1 B2]
@@ -596,7 +596,7 @@
         ;flip Always point from a to b
         [refPoly incPoly refIndex flip?]
         ;;Determine which shape contains reference face
-        (if (ec/biasGreater? penetrationA penetrationB)
+        (if (gx/biasGreater? penetrationA penetrationB)
           [A B faceA false]
           [B A faceB true])
         {bR :body} refPoly
@@ -640,11 +640,9 @@
       ;;Keep points behind reference face
       (let [sep (- (v2-dot refFaceNormal (_1 incidentFaces)) refC)]
         (if (<= sep 0)
-          (swap! M
-                 (fn [{:keys [contacts] :as root}]
-                   (assoc root
-                          :contacts (conj contacts (_1 incidentFaces))
-                          :penetration (- sep))))
+          (assoc!! M
+                   :contacts [(_1 incidentFaces)]
+                   :penetration (- sep))
           (assoc!! M :penetration 0)))
       (let [sep (- (v2-dot refFaceNormal (_2 incidentFaces)) refC)]
         (when (<= sep 0)

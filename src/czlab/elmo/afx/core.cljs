@@ -199,12 +199,6 @@
   (if (< a low) low (if (> a high) high a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn biasGreater? "" [a b]
-  (let [biasRelative 0.95
-        biasAbsolute 0.01]
-    (>= a (+ (* b biasRelative) (* a biasAbsolute)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn randSign
   "Randomly pick positive or negative."
   [] (if (zero? (rem (js/Math.floor (rand 10)) 2)) -1 1))

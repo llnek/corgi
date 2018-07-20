@@ -77,8 +77,8 @@
                                 :canvas canvas :context context))
         c (-> (Circle 20) (addBody 200 40))
         ;r (-> (ie/setPolygonBox! (Polygon) (Size2D 50 50)) (addBody 220 100) (ie/setOrient! -2.8))
-        p (-> (ie/setPolygonBox! (Polygon) (Size2D 400 20))
-              (addBody 200 600)
+        p (-> (ie/setPolygonBox! (Polygon) (Size2D 600 40))
+              (addBody 400 600)
               (ie/setOrient! 0);2.8)
               (pc/setStatic! ))]
     (runGameLoop)))
