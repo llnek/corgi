@@ -22,7 +22,7 @@
                             pythag pythagSQ TWO-PI PI
                             Point2D vec2 V2_ZERO
                             v2-len v2-add v2-sub v2-dot
-                            v2-neg v2-scale v2-xss v2-rot v2-norm v2-dist]]
+                            v2-neg v2-scale v2-xss v2-rot v2-unit v2-dist]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -191,7 +191,7 @@
     ;;the circle is in corner region of vertex[nEdge]
     (if (neg? dot)
       (let [dis (v2-len V1)
-            n (v2-norm V1)
+            n (v2-unit V1)
             rVec (v2-scale n (- radius))]
         (if-not (> dis radius)
           (do->true (chgci! ci (- radius dis) n (v2-add center rVec)))))
@@ -205,7 +205,7 @@
         (cond
           (neg? dot)
           (let [dis (v2-len v1)
-                n (v2-norm v1)
+                n (v2-unit v1)
                 rVec (v2-scale n (- radius))]
             (if-not (> dis radius)
               (do->true (chgci! ci (- radius dis) n (v2-add center rVec)))))
@@ -236,8 +236,8 @@
   [vertices]
 
   (let [[v0 v1 v2 v3] vertices]
-    [(v2-norm (v2-sub v1 v2)) (v2-norm (v2-sub v2 v3))
-     (v2-norm (v2-sub v3 v0)) (v2-norm (v2-sub v0 v1))]))
+    [(v2-unit (v2-sub v1 v2)) (v2-unit (v2-sub v2 v3))
+     (v2-unit (v2-sub v3 v0)) (v2-unit (v2-sub v0 v1))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectRotate "" [B angle']
@@ -344,8 +344,8 @@
       :else ;overlap
       (do->true
         (let [rC2 (-> (v2-neg v1to2)
-                      (v2-norm) (v2-scale r2))]
-          (chgci! ci (- rSum dist) (v2-norm v1to2) (v2-add c2 rC2)))))))
+                      (v2-unit) (v2-scale r2))]
+          (chgci! ci (- rSum dist) (v2-unit v1to2) (v2-add c2 rC2)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleCollisionTest "" [B1 B2 ci]
@@ -417,7 +417,7 @@
     (let [tangent (->> (v2-dot rVelocity normal)
                        (v2-scale normal)
                        (v2-sub rVelocity)
-                       (v2-norm)
+                       (v2-unit)
                        (v2-neg))
           r1xT (v2-xss r1 tangent)
           r2xT (v2-xss r2 tangent)

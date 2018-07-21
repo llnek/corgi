@@ -12,7 +12,8 @@
   czlab.elmo.p2d.impulse
 
   (:require-macros [czlab.elmo.afx.core
-                    :as ec :refer [assoc!! half* _1 _2 n# do-with]])
+                    :as ec :refer [do->false do->true
+                                   assoc!! half* _1 _2 n# do-with]])
 
   (:require [czlab.elmo.afx.core
              :as ec :refer [abs* sqr* sqrt* fuzzyZero?
@@ -24,8 +25,8 @@
              :as gx :refer [PI TWO-PI V2_ZERO Point2D
                             wrap?? *pos-inf* *neg-inf*
                             mat2 mat2* m2-vmult m2-xpose
-                            polyDraw*
-                            v2-neg v2-norm v2-scale v2-sdiv
+                            v2-normal polyDraw*
+                            v2-neg v2-unit v2-scale v2-sdiv
                             v2-len v2-lensq v2-dist v2-distsq
                             vec2 v2-add v2-sub v2-dot v2-xss v2-sxss]]))
 
@@ -148,6 +149,7 @@
 (defn- calcFaceNormals! "" [P]
   (let [{{:keys [vertices] :as S} :shape} @P
         EE (sqr* EPSILON)]
+    ;;counter-clockwise so normals point out from edge to world
     (loop [i 0 SZ (n# vertices) out []]
       (if (>= i SZ)
         (do (assoc!! P :shape (assoc S :normals out)) P)
@@ -157,8 +159,7 @@
           (assert (> (v2-lensq face) EE))
           (recur (+ 1 i)
                  SZ
-                 (conj out (v2-norm (vec2 (:y face)
-                                          (- (:x face)))))))))))
+                 (conj out (v2-unit (v2-normal face)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findRightMost?? "" [vertices]
@@ -178,6 +179,7 @@
 (defn setPolygonVertices! "" [P _vertices]
   (let [{:keys [shape]} @P
         rightMost (findRightMost?? _vertices)]
+    ;;sort out vertices right most then counter-clockwise
     (loop [hull [rightMost]
            curIndex rightMost break? false]
       (if break?
@@ -248,11 +250,12 @@
          :statF 0}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn solveManifold "" [M]
+(defn- solveManifold? "" [M]
   (let [{:keys [A B]} @M
         {sa :shape} @A
         {sb :shape} @B]
-    ((get (get @*dispatch* (:type sa)) (:type sb)) M A B) M))
+    ((get (get @*dispatch* (:type sa)) (:type sb)) M A B)
+    (not-empty (:contacts @M))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- initManifold! "" [M]
@@ -324,7 +327,7 @@
                                         (v2-sxss gvelA ra))
                              T (->> (v2-dot rv normal)
                                     (v2-scale normal)
-                                    (v2-sub rv) (v2-norm))
+                                    (v2-sub rv) (v2-unit))
                              ;; j tangent magnitude
                              jT (-> (- (v2-dot rv T)) (/ invMass) (/ SZ))]
                          ;; Don't apply tiny friction impulses
@@ -337,8 +340,7 @@
                                    (v2-scale T (* dynaF (- j))))]
                              ;;Apply friction impulse
                              (applyImpulseBody! A (v2-neg tangentImpulse) ra)
-                             (applyImpulseBody! B tangentImpulse rb)
-                             true))))))))))))
+                             (applyImpulseBody! B tangentImpulse rb) true))))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- applyImpulse! "" [M]
@@ -469,13 +471,13 @@
           (<= dot1 0)
           (when-not (> (v2-distsq center v1) (sqr* radA))
             (assoc!! M
-                     :normal (v2-norm (m2-vmult bu (v2-sub v1 center)))
+                     :normal (v2-unit (m2-vmult bu (v2-sub v1 center)))
                      :contacts [(v2-add (m2-vmult bu v1) posB)]))
           ;;Closest to v2
           (<= dot2 0)
           (when-not (> (v2-distsq center v2) (sqr* radA))
             (assoc!! M
-                     :normal (v2-norm (m2-vmult bu (v2-sub v2 center)))
+                     :normal (v2-unit (m2-vmult bu (v2-sub v2 center)))
                      :contacts [(v2-add (m2-vmult bu v2) posB)]))
           ;;Closest to face
           :else
@@ -613,7 +615,7 @@
         v1 (v2-add (m2-vmult ru v1) posR)
         v2 (v2-add (m2-vmult ru v2) posR)
         ;;Calculate reference face side normal in world space
-        sidePlaneNormal (v2-norm (v2-sub v2 v1))
+        sidePlaneNormal (v2-unit (v2-sub v2 v1))
         ;;Orthogonalize
         refFaceNormal (vec2 (:y sidePlaneNormal) (- (:x sidePlaneNormal)))
         ;;ax + by = c
@@ -689,13 +691,13 @@
                  (loop [j (+ i 1) ms' ms]
                    (if (>= j SZ)
                      ms'
-                     (let [B2 (ec/nthStore samples j)]
+                     (let [B2 (ec/nthStore samples j)
+                           m (manifold B1 B2)]
                        (recur (+ 1 j)
-                              (if-not (and (static? B1)
-                                           (static? B2))
-                                (let [m (solveManifold (manifold B1 B2))
-                                      c? (not-empty (:contacts @m))]
-                                  (if c? (conj ms' m) ms')) ms')))))))))))
+                              (if (and (or (dynamic? B1)
+                                           (dynamic? B2))
+                                       (solveManifold? m))
+                                (conj ms' m) ms')))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn initPhysics "" [gravity fps world & [options]]

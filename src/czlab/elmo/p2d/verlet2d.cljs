@@ -20,7 +20,7 @@
              :as gx :refer [V2_ZERO *pos-inf* *neg-inf* batchOps!
                             Point2D vec2 PI TWO-PI wrap??
                             v2-len v2-scale v2-add v2-dist v2-sdiv
-                            v2-rot v2-sub v2-dot v2-neg v2-norm]]
+                            v2-rot v2-sub v2-dot v2-neg v2-unit]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -149,7 +149,7 @@
         {p2 :pos} @v2
         v12 (v2-sub p2 p1)
         diff (- (v2-len v12) olen)
-        N (-> (v2-norm v12)
+        N (-> (v2-unit v12)
               (v2-scale (* diff 0.5)))]
     ;;push apart by half of the difference
     (assoc!! v1 :pos (v2-add p1 N))
@@ -238,7 +238,7 @@
               {:keys [v1 v2]} @e'
               {x1 :x y1 :y} (:pos @v1)
               {x2 :x y2 :y} (:pos @v2)
-              axis (v2-norm (vec2 (- y1 y2) (- x2 x1)))
+              axis (v2-unit (vec2 (- y1 y2) (- x2 x1)))
               lineA (projectToAxis B1 axis)
               lineB (projectToAxis B2 axis)
               dist (intersection?? lineA lineB)

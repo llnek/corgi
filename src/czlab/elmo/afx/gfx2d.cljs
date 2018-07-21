@@ -101,11 +101,21 @@
 (defn v2-dot "" [v1 v2] (+ (* (:x v1) (:x v2)) (* (:y v1) (:y v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-xss "" [v1 v2] (- (* (:x v1) (:y v2)) (* (:y v1) (:x v2))))
+(defn v2-xss
+  "If positive, v2 is on top of v1,
+  if negative, v2 below v1. Take the absolute value then it will
+  be the sine of the angle between them."
+  [v1 v2] (- (* (:x v1) (:y v2)) (* (:y v1) (:x v2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn v2-sxss
-  "" [a v] (let [{:keys [x y]} v] (vec2 (* (- a) y) (* a x))))
+  "normal to vector" [a v]
+  (assert (number? a))
+  (let [{:keys [x y]} v] (vec2 (* (- a) y) (* a x))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn v2-normal "" [v]
+  (let [{:keys [x y]} v] (vec2 y (- x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn v2-rot "rotate counter-clockwise" [v1 center angleRad]
@@ -118,7 +128,7 @@
           (+ cy (+ (* x sin) (* y cos))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-norm "" [v]
+(defn v2-unit "" [v]
   (let [z (v2-len v)
         {:keys [x y]} v]
     (if (> z EPSILON) (vec2 (/ x z) (/ y z)) v)))

@@ -80,6 +80,8 @@
   (assoc!! obj
            :im 0
            :m 0
+           :i 0
+           :ii 0
            :vel V2_ZERO
            :accel V2_ZERO
            :gvel 0
