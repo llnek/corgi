@@ -26,6 +26,9 @@
 (def gWorld nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- mouseControl "" [evt] )
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- userControl "" [evt]
   (let [key (or (oget evt "?keyCode")
                 (oget evt "?which"))
@@ -69,9 +72,9 @@
       (= key 79) ;O
       (alterBodyAttr! s :gvel 0.1)
       (= key 90) ;Z
-      (pc/updateMass! s -1)
+      nil ;(pc/updateMass! s -1)
       (= key 88) ;;X
-      (pc/updateMass! s 1)
+      nil ;(pc/updateMass! s 1)
       (= key 67) ;C
       (alterBodyAttr! s :statF -0.01)
       (= key 86) ;V
@@ -150,7 +153,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- myGame "" []
-  (set! gWorld (py/initPhysics 40 60 {:left 0 :right 799 :top 0 :bottom 449}))
+  (set! gWorld (py/initPhysics 100 60 {:left 0 :right 799 :top 0 :bottom 449}))
   (let [html (js/document.getElementById "uiEchoString")
         canvas (js/document.getElementById "canvas")
         context (ocall! canvas "getContext" "2d")
@@ -161,27 +164,27 @@
                                 :uiEcho html
                                 :cur 0
                                 :canvas canvas :context context))
-        right (-> (Rectangle (Size2D 400 20) 0 0.3 0)
+        right (-> (Rectangle (Size2D 400 20) {:mass 0 :friction 0.3 :bounce 0})
                   (addBody (Point2D 500 200)))
-        left (-> (Rectangle (Size2D 200 20) 0)
+        left (-> (Rectangle (Size2D 200 20) {:mass 0})
                  (addBody (Point2D 100 200)))
         ;r4 (Rectangle (Point2D 10 360) (Size2D 20 100) 0 0 1)]
-        bottom (-> (Rectangle (Size2D 400 20) 0 1 0.5)
+        bottom (-> (Rectangle (Size2D 400 20) {:mass 0 :friction 1 :bounce 0.5})
                    (addBody (Point2D 200 400)))
-        br (-> (Rectangle (Size2D 20 100) 0 0 1)
+        br (-> (Rectangle (Size2D 20 100) {:mass 0 :friction 0 :bounce 1})
                (addBody (Point2D 400 360)))
-        bl (-> (Rectangle (Size2D 20 100) 0 0 1)
+        bl (-> (Rectangle (Size2D 20 100) {:mass 0 :friction 0 :bounce 1})
                (addBody (Point2D 10 360)))]
     (pc/rotate! left -2.8)
     (pc/rotate! right 2.8)
     (dotimes [i 4]
       (-> (Rectangle (Size2D (+ 10 (rand 50))
-                             (+ 10 (rand 50))) (rand 30) (rand) (rand))
+                             (+ 10 (rand 50))) {:mass (rand 30) :friction (rand) :bounce (rand)})
           (addBody (Point2D (rand (/ width 2))
                               (rand (/ height 2))))
           (py/alterBodyAttr! :vel
                               (vec2 (- (rand 60) 30) (- (rand 60) 30))))
-      (-> (Circle (+ 10 (rand 20)) (rand 30) (rand) (rand))
+      (-> (Circle (+ 10 (rand 20)) {:mass (rand 30) :friction (rand) :bounce (rand)})
           (addBody (Point2D (rand (/ width 2))
                            (rand (/ height 2))))
           (py/alterBodyAttr! :vel (vec2 (- (rand 60) 30)
@@ -191,6 +194,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
 (set! js/userControl userControl)
+(set! js/mouseControl mouseControl)
 (set! js/MyGame myGame)
 
 

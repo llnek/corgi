@@ -107,11 +107,9 @@
 (defn- id1 "" [B & more] B)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Polygon "" [vs & [mass friction bounce]]
+(defn Polygon "" [vs & [options]]
   (let [B (Body (gx/Polygon [])
-                mass friction bounce
-                {:rotate polyRotate :updateInertia id1
-                 :updateMass id1 :repos id1 :draw polyDraw})
+                {:rotate polyRotate :repos id1 :draw polyDraw})
         {:keys [shape]} @B
         vs' (mapv #(Vertex B %) vs)]
     (assoc!! B
@@ -124,7 +122,9 @@
                         (recur (+ 1 i)
                                SZ
                                (conj e' (Strut B (nth vs' i) (nexth vs' i)))))))
-    (-> (ensureRigidity B) (calcCenter!))))
+    (ensureRigidity B)
+    (calcCenter! B)
+    (pc/setBodyAttrs! B options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ci-info "" [&[depth normal edge vertex]]

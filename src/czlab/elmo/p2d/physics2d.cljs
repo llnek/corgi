@@ -16,7 +16,7 @@
   (:require [czlab.elmo.afx.core :as ec :refer [n# num?? invert]]
             [czlab.elmo.p2d.core
              :as pc :refer [*gWorld* Body
-                            static? updateInertia! draw move! rotate!]]
+                            static? draw move! rotate!]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [_cocos2dx? *pos-inf* *neg-inf*
                             pythag pythagSQ TWO-PI PI
@@ -27,19 +27,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- collisionTest?? "" [s1 s2 ci] ((:collisionTest @s1) s1 s2 ci))
-(def ^:private MI_SPREAD 12)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- updateBodyMass "" [B & [delta]]
-  (let [m (+ (:m @B) (num?? delta 0))
-        {:keys [gravity]} @*gWorld*]
-    (if (pos? m)
-      (do (assoc!! B
-                   :im (invert m)
-                   :m m
-                   :accel gravity)
-          (updateInertia! B))
-      (pc/setStatic! B))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ci-info "" [&[d n s e]]
@@ -266,15 +253,6 @@
              :shape (assoc S :vertices vs')) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rectUpdateInertia "" [B]
-  (let [{:keys [m im]
-         {:keys [width height]} :shape} @B
-        h (pythagSQ width height)
-        i (if (zero? m)
-            0 (invert (/ (* m h) MI_SPREAD)))]
-    (assoc!! B :i i :ii (invert i)) B))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rectRepos "" [R pt angle]
   (let [{{:keys [width height] :as S} :shape} @R
         vs (gx/calcRectVertices pt width height)]
@@ -291,21 +269,19 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private RRR
-  {:updateInertia rectUpdateInertia
-   :updateMass updateBodyMass
-   :collisionTest rectCollisionTest
+  {:collisionTest rectCollisionTest
    :repos rectRepos
    :draw rectDraw
    :move rectMove
    :rotate rectRotate})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Rectangle "" [sz & [mass friction bounce]]
-  (let [{:keys [width height]} sz]
-    (Body (assoc (gx/Rectangle sz) :normals [])
-          mass friction bounce
-          (assoc RRR
-                 :bxRadius (/ (pythag width height) 2)))))
+(defn Rectangle "" [sz & [options]]
+  (let [{:keys [width height]} sz
+        B (Body (assoc (gx/Rectangle sz) :normals [])
+                (assoc RRR
+                       :bxRadius (/ (pythag width height) 2)))]
+    (pc/setBodyAttrs! B options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;circle-stuff
@@ -319,13 +295,6 @@
 (defn- circleRotate "rotate angle in counterclockwise" [C angle']
   (let [{:keys [angle]} @C]
     (assoc!! C :angle (+ angle angle')) C))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circleUpdateInertia "" [C]
-  (let [{:keys [m] {:keys [radius]} :shape} @C
-        n (if (zero? m) 0 (* m radius radius))
-        i (/ n MI_SPREAD)]
-    (assoc!! C :i i :ii (invert i)) C))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- collidedCircCirc "" [CC1 CC2 ci]
@@ -363,17 +332,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private CCC
   {:collisionTest circleCollisionTest
-   :updateInertia circleUpdateInertia
-   :updateMass updateBodyMass
    :repos circleRepos
    :draw circleDraw
    :rotate  circleRotate
    :move circleMove})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Circle "" [radius & [mass friction bounce]]
-  (Body (gx/Circle radius)
-        mass friction bounce (assoc CCC :bxRadius radius)))
+(defn Circle "" [radius & [options]]
+  (-> (Body (gx/Circle radius)
+            (assoc CCC :bxRadius radius)) (pc/setBodyAttrs! options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- correctPos! "" [posCorrection B1 B2 ci]
@@ -390,8 +357,8 @@
 (defn- resolveCollision*
   "compute and apply response impulses for each object"
   [B1 B2 r1 r2 ci rVelocity rVelocityInNormal]
-  (let [{e1 :i b1 :bounce f1 :statF m1 :im} @B1
-        {e2 :i b2 :bounce f2 :statF m2 :im} @B2
+  (let [{e1 :ii b1 :bounce f1 :statF m1 :im} @B1
+        {e2 :ii b2 :bounce f2 :statF m2 :im} @B2
         {:keys [normal]} @ci
         bounce' (min b1 b2)
         sticky' (min f1 f2)

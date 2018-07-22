@@ -13,9 +13,11 @@
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 do->true assoc!!]])
 
-  (:require [czlab.elmo.afx.core :as ec :refer [n# num?? invert]]
+  (:require [czlab.elmo.afx.core :as ec :refer [sqr* n# num?? invert]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [V2_ZERO toVec2 vec2 _cocos2dx?]]))
+             :as gx :refer [PI V2_ZERO wrap??
+                            v2-add v2-scale
+                            v2-xss toVec2 vec2 _cocos2dx?]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private *bodyNum* (atom 0))
@@ -32,40 +34,27 @@
 (defn setPosition! "" [s & more] (apply (dref s :repos) (concat [s] more)))
 (defn setAngle! "" [s & more] (apply (dref s :setAngle) (concat [s] more)))
 (defn draw "" [s & more] (apply (dref s :draw) (concat [s] more)))
-(defn updateMass! "" [s & [v]] ((dref s :updateMass) s v))
-(defn updateInertia! "" [s] ((dref s :updateInertia) s))
 (defn move! "" [s p] ((dref s :move) s p))
 (defn rotate! "" [s v] ((dref s :rotate) s v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rigidBody! "" [B & [mass friction bounce]]
-  (let [{:keys [gravity samples] :as www} @*gWorld*
-        mass' (num?? mass 1)]
+(defn Body "" [shape & [options]]
+  (let [B (atom (merge {:oid (nextBodyNum)
+                        :valid? true
+                        :type :body
+                        :accel V2_ZERO
+                        :vel V2_ZERO
+                        :bxRadius 0
+                        :ii 0 :im 0
+                        :i 0 :m 0
+                        :gvel 0
+                        :torque 0
+                        :angle 0
+                        :statF 0.5 ; 0.8
+                        :dynaF 0.3
+                        :bounce 0.2} (or options {})))]
     (assoc!! B
-             :m mass'
-             :im (invert mass')
-             :accel (if (zero? mass') V2_ZERO gravity))
-    (updateMass! B)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Body "" [shape & [mass friction bounce options]]
-  (let [B (atom {:oid (nextBodyNum)
-                 :valid? true
-                 :type :body
-                 :accel V2_ZERO
-                 :vel V2_ZERO
-                 :bxRadius 0
-                 :ii 0 :im 0
-                 :i 0 :m 0
-                 :gvel 0
-                 :torque 0
-                 :angle 0
-                 :statF 0.5 ; 0.8
-                 :dynaF 0.3
-                 :bounce 0.2})]
-    (assoc!! B :shape (assoc shape :body B))
-    (swap! B #(merge % (or options {})))
-    (rigidBody! B mass friction bounce)))
+             :shape (assoc shape :body B)) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addBody "" [B & [x y]]
@@ -76,16 +65,76 @@
     (ec/addToStore! samples B)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setStatic! "" [obj]
-  (assoc!! obj
-           :im 0
-           :m 0
-           :i 0
-           :ii 0
-           :vel V2_ZERO
-           :accel V2_ZERO
-           :gvel 0
-           :torque 0) (updateInertia! obj))
+(defn- calcCircleMass [C density]
+  (let [{{:keys [radius]} :shape} @C
+        density (num?? density 1)
+        r2 (sqr* radius)
+        m (* PI r2 density)] [m  (* m r2)]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- calcPolyonMass "" [P density]
+  (let [{{:keys [vertices] :as S} :shape} @P
+        inv3 (/ 1 3)
+        density (num?? density 1)]
+    ;;calculate centroid and moment of interia
+    (loop [i 0 SZ (n# vertices)
+           c V2_ZERO area 0 I 0]
+      (if (>= i SZ)
+        ;[(v2-scale c (invert area)) (* density area) (* density I)]
+        [(* density area) (* density I)]
+        (let [{x2 :x y2 :y :as p2} (nth vertices (wrap?? i SZ))
+              {x1 :x y1 :y :as p1} (nth vertices i)
+              D (v2-xss p1 p2)
+              ;;triangle, 3rd vertex is origin
+              triArea (* 0.5 D)
+              x' (+ (sqr* x1) (* x2 x1) (sqr* x2))
+              y' (+ (sqr* y1) (* y2 y1) (sqr* y2))]
+          ;;use area to weight the centroid average, not just vertex position
+          (recur (+ 1 i)
+                 SZ
+                 (v2-add c (v2-scale (v2-add p1 p2)
+                                     (* triArea inv3)))
+                 (+ area triArea)
+                 (+ I (* 0.25 inv3 D (+ x' y')))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn setMassViaDensity! "" [B density]
+  (let [{{:keys [type]} :shape} @B
+        [M I] (if (= type :circle)
+                (calcCircleMass B density)
+                (calcPolyonMass B density))]
+    (assoc!! B :m M :im (invert M) :i I :ii (invert I)) B))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn setMass! "" [B mass]
+  (let [{{:keys [type]} :shape} @B
+        d (if (pos? mass) 1 0)
+        [_ I] (if (= type :circle)
+                (calcCircleMass B d)
+                (calcPolyonMass B d))]
+    (assoc!! B
+             :i I :ii (invert I)
+             :m mass :im (invert mass)) B))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn setBodyAttrs! "" [B options]
+  (let [{:keys [mass density friction bounce]} options]
+    (cond
+      (number? mass) (setMass! B mass)
+      (number? density) (setMassViaDensity! B density)
+      :else (setMass! B 1))
+    (if (number? bounce) (assoc!! B :bounce bounce))
+    (if (number? friction) (assoc!! B :statF friction))
+    (let [{:keys [m]} @B
+          {:keys [gravity]} @*gWorld*]
+      (assoc!! B :accel (if (zero? m) V2_ZERO gravity))) B))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn setStatic! "" [B]
+  (assoc!! B
+           :im 0 :m 0
+           :i 0 :ii 0
+           :vel V2_ZERO :accel V2_ZERO :gvel 0 :torque 0) B)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn static? "" [obj]

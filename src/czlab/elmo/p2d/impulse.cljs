@@ -63,17 +63,14 @@
 (defn- setPosCircle "" [C pt & more] (assoc!! C :pos pt) C)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Circle "" [r & [mass friction bounce]]
-  (Body (assoc (gx/Circle r)
-               :setAngle setCircleAngle)
-        mass friction bounce
-        {:draw drawCircle
-         :updateInertia (fn [B & more] B)
-         :repos setPosCircle
-         :updateMass calcCircleMass }))
+(defn Circle "" [r & [options]]
+  (-> (Body (assoc (gx/Circle r)
+                   :setAngle setCircleAngle)
+            {:draw drawCircle
+             :repos setPosCircle}) (pc/setBodyAttrs! options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- calcPolyMass "" [P & [density]]
+(defn- XcalcPolyMass "" [P & [density]]
   (let [{{:keys [vertices] :as S} :shape} @P
         density (num?? density 1)
         inv3 (/ 1 3)
@@ -120,20 +117,16 @@
 (defn- setPosPoly "" [P pt & more] (assoc!! P :pos pt) P)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Polygon "" [& [mass friction bounce]]
+(defn- Polygon "" [& [mass friction bounce]]
   (Body (assoc (gx/Polygon [])
                :normals []
                :u (mat2)
-               :setAngle setPolyAngle)
-        mass friction bounce
-        {:repos setPosPoly
-         :draw drawPoly
-         :updateMass calcPolyMass
-         :updateInertia (fn [B & more] B)}))
+               :setAngle setPolyAngle) {:repos setPosPoly :draw drawPoly}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setPolygonBox! "" [P sz]
+(defn setPolygonBox! "" [sz & [options]]
   (let [{:keys [width height]} sz
+        P (Polygon)
         {:keys [shape]} @P
         hw (half* width)
         hh (half* height)]
@@ -143,7 +136,7 @@
                     :vertices [(Point2D (- hw) (- hh)) (Point2D hw (- hh))
                                (Point2D hw hh) (Point2D (- hw) hh)]
                     :normals [(vec2 0 -1) (vec2 1 0) (vec2 0 1) (vec2 -1 0)]))
-    (pc/updateMass! P) P))
+    (pc/setBodyAttrs! P options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- calcFaceNormals! "" [P]
@@ -176,9 +169,10 @@
                        [i cx] [right cx]))] (recur (+ 1 i) SZ r x')))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setPolygonVertices! "" [P _vertices]
-  (let [{:keys [shape]} @P
-        rightMost (findRightMost?? _vertices)]
+(defn setPolygonVertices! "" [vertices & [options]]
+  (let [rightMost (findRightMost?? vertices)
+        P (Polygon)
+        {:keys [shape]} @P]
     ;;sort out vertices right most then counter-clockwise
     (loop [hull [rightMost]
            curIndex rightMost break? false]
@@ -189,21 +183,21 @@
                    out
                    (recur (+ 1 i)
                           SZ
-                          (conj out (nth _vertices (nth hull i))))))
+                          (conj out (nth vertices (nth hull i))))))
                  (assoc shape :vertices) (assoc!! P :shape))
           (calcFaceNormals! P)
-          (pc/updateMass! P))
+          (pc/setBodyAttrs! P options))
         (let [nextIndex
-              (loop [i 1 SZ (n# _vertices) pos 0]
+              (loop [i 1 SZ (n# vertices) pos 0]
                 (if (>= i SZ)
                   pos
                   (recur (+ 1 i)
                          SZ
                          (if (= pos curIndex)
                            i
-                           (let [v' (nth _vertices (last hull))
-                                 e1 (v2-sub (nth _vertices pos) v')
-                                 e2 (v2-sub (nth _vertices i) v')
+                           (let [v' (nth vertices (last hull))
+                                 e1 (v2-sub (nth vertices pos) v')
+                                 e2 (v2-sub (nth vertices i) v')
                                  c (v2-xss e1 e2)]
                              (if (or (neg? c)
                                      (and (zero? c)

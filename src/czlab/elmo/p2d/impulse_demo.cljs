@@ -15,7 +15,7 @@
 
   (:require [czlab.elmo.afx.core :as ec :refer [invert]]
             [czlab.elmo.p2d.core :as pc :refer [addBody]]
-            [czlab.elmo.p2d.impulse :as ie :refer [Circle Polygon]]
+            [czlab.elmo.p2d.impulse :as ie :refer [Circle]]
             [czlab.elmo.afx.gfx2d
              :as gx :refer [pythag pythagSQ TWO-PI PI vec2 V2_ZERO _cocos2dx?
                             v2-len v2-add v2-sub v2-dot Point2D Size2D
@@ -38,7 +38,7 @@
             vs (transient [])
             _ (dotimes [_ (ec/randRange 3 6)]
                 (conj! vs (vec2 (ec/randRange ne e) (ec/randRange ne e))))
-            p (ie/setPolygonVertices! (Polygon) (persistent! vs))]
+            p (ie/setPolygonVertices! (persistent! vs))]
         (ie/setOrient! p (ec/randRange (- PI) PI))
         (assoc!! p
                  :bounce 0.2
@@ -77,7 +77,7 @@
                                 :canvas canvas :context context))
         c (-> (Circle 20) (addBody 400 40))
         ;r (-> (ie/setPolygonBox! (Polygon) (Size2D 50 50)) (addBody 220 100) (ie/setOrient! -2.8))
-        p (-> (ie/setPolygonBox! (Polygon) (Size2D 600 40))
+        p (-> (ie/setPolygonBox! (Size2D 600 40))
               (addBody 400 600)
               (ie/setOrient! 0);2.8)
               (pc/setStatic! ))]
