@@ -41,17 +41,6 @@
              :shape ((:setAngle shape) shape radians)) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- calcCircleMass [C & [density]]
-  (let [{{:keys [radius]} :shape} @C
-        density (num?? density 1)
-        r2 (sqr* radius)
-        m (* PI r2 density)
-        i (* m r2)]
-    (assoc!! C
-             :m m
-             :im (invert m) :i i :ii (invert i)) C))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- setCircleAngle "" [C radians] C)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -70,41 +59,6 @@
              :repos setPosCircle}) (pc/setBodyAttrs! options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- XcalcPolyMass "" [P & [density]]
-  (let [{{:keys [vertices] :as S} :shape} @P
-        density (num?? density 1)
-        inv3 (/ 1 3)
-        ;;calculate centroid and moment of interia
-        [C M I]
-        (loop [i 0 SZ (n# vertices)
-               c V2_ZERO area 0 I 0]
-          (if (>= i SZ)
-            [(v2-scale c (invert area)) (* density area) (* density I)]
-            (let [{x2 :x y2 :y :as p2} (nth vertices (wrap?? i SZ))
-                  {x1 :x y1 :y :as p1} (nth vertices i)
-                  D (v2-xss p1 p2)
-                  ;;triangle, 3rd vertex is origin
-                  triArea (* 0.5 D)
-                  x' (+ (sqr* x1) (* x2 x1) (sqr* x2))
-                  y' (+ (sqr* y1) (* y2 y1) (sqr* y2))]
-              ;;use area to weight the centroid average, not just vertex position
-              (recur (+ 1 i)
-                     SZ
-                     (v2-add c (v2-scale (v2-add p1 p2)
-                                         (* triArea inv3)))
-                     (+ area triArea)
-                     (+ I (* 0.25 inv3 D (+ x' y')))))))]
-    ;;;translate vertices to centroid (make the centroid (0, 0)
-    ;;for the polygon in model space)
-    ;;Not really necessary
-    (assoc!! P
-             :m M :im (invert M)
-             :i I :ii (invert I)
-             :shape (assoc S
-                           :vertices
-                           (mapv #(v2-sub % C) vertices))) P))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- setPolyAngle
   "" [P radians] (assoc P :u (mat2* radians)))
 
@@ -117,16 +71,16 @@
 (defn- setPosPoly "" [P pt & more] (assoc!! P :pos pt) P)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- Polygon "" [& [mass friction bounce]]
+(defn- polygon* "" []
   (Body (assoc (gx/Polygon [])
                :normals []
                :u (mat2)
                :setAngle setPolyAngle) {:repos setPosPoly :draw drawPoly}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setPolygonBox! "" [sz & [options]]
+(defn PolygonBox "" [sz & [attrs]]
   (let [{:keys [width height]} sz
-        P (Polygon)
+        P (polygon*)
         {:keys [shape]} @P
         hw (half* width)
         hh (half* height)]
@@ -136,7 +90,7 @@
                     :vertices [(Point2D (- hw) (- hh)) (Point2D hw (- hh))
                                (Point2D hw hh) (Point2D (- hw) hh)]
                     :normals [(vec2 0 -1) (vec2 1 0) (vec2 0 1) (vec2 -1 0)]))
-    (pc/setBodyAttrs! P options)))
+    (pc/setBodyAttrs! P attrs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- calcFaceNormals! "" [P]
@@ -155,56 +109,14 @@
                  (conj out (v2-unit (v2-normal face)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- findRightMost?? "" [vertices]
-  (loop [i 1 SZ (n# vertices)
-         right 0 cx (:x (_1 vertices))]
-    (if (>= i SZ)
-      right
-      (let [x (:x (nth vertices i))
-            [r x'] (if (> x cx)
-                     [i x]
-                     (if (and (= x cx)
-                              (< (:y (nth vertices i))
-                                 (:y (nth vertices right))))
-                       [i cx] [right cx]))] (recur (+ 1 i) SZ r x')))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setPolygonVertices! "" [vertices & [options]]
-  (let [rightMost (findRightMost?? vertices)
-        P (Polygon)
+(defn Polygon "" [vertices & [attrs]]
+  (let [P (polygon*)
         {:keys [shape]} @P]
-    ;;sort out vertices right most then counter-clockwise
-    (loop [hull [rightMost]
-           curIndex rightMost break? false]
-      (if break?
-        (do
-          (->> (loop [i 0 SZ (n# hull) out []]
-                 (if (>= i SZ)
-                   out
-                   (recur (+ 1 i)
-                          SZ
-                          (conj out (nth vertices (nth hull i))))))
-                 (assoc shape :vertices) (assoc!! P :shape))
-          (calcFaceNormals! P)
-          (pc/setBodyAttrs! P options))
-        (let [nextIndex
-              (loop [i 1 SZ (n# vertices) pos 0]
-                (if (>= i SZ)
-                  pos
-                  (recur (+ 1 i)
-                         SZ
-                         (if (= pos curIndex)
-                           i
-                           (let [v' (nth vertices (last hull))
-                                 e1 (v2-sub (nth vertices pos) v')
-                                 e2 (v2-sub (nth vertices i) v')
-                                 c (v2-xss e1 e2)]
-                             (if (or (neg? c)
-                                     (and (zero? c)
-                                          (> (v2-lensq e2)
-                                             (v2-lensq e1)))) i pos))))))
-              q? (= nextIndex rightMost)]
-          (recur (if q? hull (conj hull nextIndex)) nextIndex q?)))) P))
+    (->> (apply pc/sort?? vertices)
+         (assoc shape :vertices)
+         (assoc!! P :shape))
+    (calcFaceNormals! P)
+    (pc/setBodyAttrs! P attrs) P))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;The extreme point along a direction within a polygon

@@ -15,8 +15,8 @@
 
   (:require [czlab.elmo.afx.core :as ec :refer [sqr* n# num?? invert]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [PI V2_ZERO wrap??
-                            v2-add v2-scale
+             :as gx :refer [PI V2_ZERO v2-len v2-lensq wrap??
+                            v2-add v2-scale v2-sub
                             v2-xss toVec2 vec2 _cocos2dx?]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -63,6 +63,54 @@
         {:keys [shape angle]} @B]
     (setPosition! B pt angle)
     (ec/addToStore! samples B)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- findRightMost?? "" [vertices]
+  (loop [i 1 SZ (n# vertices)
+         right 0 cx (:x (_1 vertices))]
+    (if (>= i SZ)
+      right
+      (let [x (:x (nth vertices i))
+            [r x'] (if (> x cx)
+                     [i x]
+                     (if (and (= x cx)
+                              (< (:y (nth vertices i))
+                                 (:y (nth vertices right))))
+                       [i cx] [right cx]))] (recur (+ 1 i) SZ r x')))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sort?? "" [v1 v2 v3 & more]
+  (let [vertices (vec (concat [v1 v2 v3] more))
+        rightMost (findRightMost?? vertices)]
+    ;;sort out vertices right most then counter-clockwise
+    (loop [hull [rightMost]
+           curIndex rightMost break? false]
+      (if break?
+        (loop [i 0 SZ (n# hull) out []]
+          (if (>= i SZ)
+            out
+            (recur (+ 1 i)
+                   SZ
+                   (conj out (nth vertices (nth hull i))))))
+        (let [nextIndex
+              (loop [i 1 SZ (n# vertices) pos 0]
+                (if (>= i SZ)
+                  pos
+                  (recur (+ 1 i)
+                         SZ
+                         (if (= pos curIndex)
+                           i
+                           (let [v' (nth vertices (last hull))
+                                 e1 (v2-sub (nth vertices pos) v')
+                                 e2 (v2-sub (nth vertices i) v')
+                                 c (v2-xss e1 e2)]
+                             (if (or (neg? c)
+                                     (and (zero? c)
+                                          (> (v2-lensq e2)
+                                             (v2-lensq e1)))) i pos))))))
+              q? (= nextIndex rightMost)]
+          (recur (if q? hull (conj hull nextIndex)) nextIndex q?))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- calcCircleMass [C density]

@@ -36,9 +36,9 @@
       (let [e (ec/randRange 50 100)
             ne (- e)
             vs (transient [])
-            _ (dotimes [_ (ec/randRange 3 6)]
+            _ (dotimes [_ (ec/randRange 3 12)]
                 (conj! vs (vec2 (ec/randRange ne e) (ec/randRange ne e))))
-            p (ie/setPolygonVertices! (persistent! vs))]
+            p (ie/Polygon (persistent! vs))]
         (ie/setOrient! p (ec/randRange (- PI) PI))
         (assoc!! p
                  :bounce 0.2
@@ -76,8 +76,8 @@
         _ (swap! gWorld #(assoc %
                                 :canvas canvas :context context))
         c (-> (Circle 20) (addBody 400 40))
-        ;r (-> (ie/setPolygonBox! (Polygon) (Size2D 50 50)) (addBody 220 100) (ie/setOrient! -2.8))
-        p (-> (ie/setPolygonBox! (Size2D 600 40))
+        ;r (-> (ie/PolygonBox (Size2D 50 50)) (addBody 220 100) (ie/setOrient! -2.8))
+        p (-> (ie/PolygonBox (Size2D 600 40))
               (addBody 400 600)
               (ie/setOrient! 0);2.8)
               (pc/setStatic! ))]
