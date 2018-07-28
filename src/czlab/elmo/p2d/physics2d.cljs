@@ -477,8 +477,8 @@
   (pc/initPhysics gravity
                   fps
                   world
-                  (merge options {:bodyDrawer drawBody
-                                  :algoRunner runAlgo})))
+                  (merge {:bodyDrawer drawBody
+                          :algoRunner runAlgo} options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
