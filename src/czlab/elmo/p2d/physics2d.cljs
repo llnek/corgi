@@ -271,16 +271,14 @@
 (def ^:private RRR
   {:collisionTest rectCollisionTest
    :repos rectRepos
-   :draw rectDraw
    :move rectMove
    :rotate rectRotate})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Rectangle "" [sz & [options]]
   (let [{:keys [width height]} sz
-        B (Body (assoc (gx/Rectangle sz) :normals [])
-                (assoc RRR
-                       :bxRadius (/ (pythag width height) 2)))]
+        B (Body (assoc (pc/config?? (gx/Rectangle sz)) :normals [])
+                (assoc RRR :bxRadius (/ (pythag width height) 2)))]
     (pc/setBodyAttrs! B options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -333,13 +331,13 @@
 (def ^:private CCC
   {:collisionTest circleCollisionTest
    :repos circleRepos
-   :draw circleDraw
    :rotate  circleRotate
    :move circleMove})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Circle "" [radius & [options]]
-  (-> (Body (gx/Circle radius)
+  (-> (Body (pc/config??
+              (gx/Circle radius))
             (assoc CCC :bxRadius radius)) (pc/setBodyAttrs! options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -466,11 +464,21 @@
     (ec/eachStore samples (fn [b _] (updateBody! b frameSecs)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- drawBody "" [& args]
+  (let [B (_1 args)
+        {:keys [shape]} @B
+        {:keys [type]} shape]
+    (cond
+      (= :rectangle type) (apply rectDraw args)
+      (= :circle type) (apply circleDraw args)) B))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn initPhysics "" [gravity fps world & [options]]
   (pc/initPhysics gravity
                   fps
                   world
-                  (merge options {:algoRunner runAlgo})))
+                  (merge options {:bodyDrawer drawBody
+                                  :algoRunner runAlgo})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

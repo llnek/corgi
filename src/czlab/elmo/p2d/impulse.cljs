@@ -605,12 +605,22 @@
                                        (solveManifold? m))
                                 (conj ms' m) ms')))))))))))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- drawBody "" [& args]
+  (let [B (_1 args)
+        {:keys [shape]} @B
+        {:keys [type]} shape]
+    (cond
+      (= :polygon type) (apply drawPoly args)
+      (= :circle type) (apply drawCircle args)) B))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn initPhysics "" [gravity fps world & [options]]
   (pc/initPhysics gravity
                   fps
                   world
-                  (merge options {:algoRunner runAlgo})))
+                  (merge options {:bodyDrawer drawBody :algoRunner runAlgo})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

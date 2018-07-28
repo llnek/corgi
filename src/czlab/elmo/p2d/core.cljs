@@ -15,7 +15,8 @@
 
   (:require [czlab.elmo.afx.core :as ec :refer [sqr* n# num?? invert]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [PI V2_ZERO v2-len v2-lensq wrap??
+             :as gx :refer [PI V2_ZERO v2-len v2-lensq
+                            *pos-inf* *neg-inf* wrap??
                             v2-add v2-scale v2-sub
                             v2-xss toVec2 vec2 _cocos2dx?]]))
 
@@ -38,8 +39,14 @@
 (defn rotate! "" [s v] ((dref s :rotate) s v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn config?? "" [s]
+  (let [{:keys [type]} s
+        m (get @*gWorld* type)] (merge s (or m {}))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Body "" [shape & [options]]
-  (let [B (atom (merge {:oid (nextBodyNum)
+  (let [B (atom (merge {:draw (:bodyDrawer @*gWorld*)
+                        :oid (nextBodyNum)
                         :valid? true
                         :type :body
                         :accel V2_ZERO
@@ -64,6 +71,20 @@
     (setPosition! B pt angle)
     (ec/addToStore! samples B)))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn calcMinMax "" [S]
+  (let [{:keys [vertices]} S]
+    (loop [i 0 SZ (n# vertices)
+           xmin *pos-inf* ymin *pos-inf*
+           xmax *neg-inf* ymax *neg-inf*]
+      (if (>= i SZ)
+        [(vec2 xmin ymin) (vec2 xmax ymax)]
+        (let [{:keys [x y]} (nth vertices i)]
+          (recur (+ 1 i)
+                 SZ
+                 (min xmin x) (min ymin y)
+                 (max xmax x) (max ymax y)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findRightMost?? "" [vertices]

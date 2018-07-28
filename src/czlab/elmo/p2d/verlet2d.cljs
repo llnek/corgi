@@ -36,23 +36,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- calcCenter! "" [B]
-  (let [{:keys [edges]} @B]
-    (loop [i 0 SZ (n# edges)
-           cx 0 cy 0
-           xmin *pos-inf* ymin *pos-inf*
-           xmax *neg-inf* ymax *neg-inf*]
-      (if (>= i SZ)
-        (do (assoc!! B
-                     :pmin (vec2 xmin ymin)
-                     :pmax (vec2 xmax ymax)
-                     :pos (v2-sdiv (vec2 cx cy) SZ)) B)
-        (let [{:keys [v1 v2]} @(nth edges i)
-              {:keys [x y]} (:pos @v1)]
-          (recur (+ 1 i)
-                 SZ
-                 (+ cx x) (+ cy y)
-                 (min xmin x) (min ymin y)
-                 (max xmax x) (max ymax y)))))))
+  (let [{:keys [edges]} @B
+        pos (loop [i 0 SZ (n# edges) cx 0 cy 0]
+              (if (>= i SZ)
+                (v2-sdiv (vec2 cx cy) SZ)
+                (let [{:keys [v1]} @(nth edges i)
+                      {:keys [x y]} (:pos @v1)]
+                  (recur (+ 1 i) SZ (+ cx x) (+ cy y)))))
+        [pmin pmax]
+        (pc/calcMinMax (mapv #(:pos @(:v1 (deref %))) edges))]
+    (assoc!! B :pos pos :pmin pmin :pmax pmax) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ensureRigidity "" [B]
@@ -326,11 +319,18 @@
       (checkCollision* posCorrection))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- drawBody "" [B & args]
+  (let [{:keys [shape]} @B
+        {:keys [type]} shape]
+    (apply (:draw shape) (concat [shape] args)) B))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn initPhysics "" [gravity fps world & [options]]
   (pc/initPhysics gravity
                   fps
                   world
                   (merge options
+                         {:bodyDrawer drawBody}
                          {:algoRunner runAlgo})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
