@@ -280,14 +280,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn circleDraw* "" [center radius angle ctx & [startPt?]]
-  (let [{cx :x cy :y} center]
+  (let [{cx :x cy :y} center
+        angle' (num?? angle 0)]
     (batchOps! ctx
                ["beginPath"]
                ["arc" cx cy radius 0 TWO-PI true])
     (when startPt?
-      (let [sp (Point2D cx (if _cocos2dx?
-                             (+ cy radius) (- cy radius)))
-            {:keys [x y]} (v2-rot sp center angle)]
+      (let [sp (Point2D (+ cx radius) cy)
+            {:keys [x y]} (v2-rot sp center angle')]
         (batchOps! ctx ["moveTo" cx cy] ["lineTo" x y])))
     (batchOps! ctx ["closePath"] ["stroke"])))
 
