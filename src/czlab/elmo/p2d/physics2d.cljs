@@ -21,7 +21,7 @@
              :as gx :refer [_cocos2dx? *pos-inf* *neg-inf*
                             pythag pythagSQ TWO-PI PI
                             Point2D vec2 V2_ZERO
-                            v2-len v2-add v2-sub v2-dot
+                            v2-normal v2-len v2-add v2-sub v2-dot
                             v2-neg v2-scale v2-xss v2-rot v2-unit v2-dist]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
@@ -256,6 +256,7 @@
 (defn- rectRepos "" [R pt angle]
   (let [{{:keys [width height] :as S} :shape} @R
         vs (gx/calcRectVertices pt width height)]
+    (js/console.log (ec/clj->json vs))
     (assoc!! R
              :pos pt
              :shape

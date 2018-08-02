@@ -157,9 +157,11 @@
   {:m00 (num?? c00 0) :m01 (num?? c01 0) :m10 (num?? c10 0) :m11 (num?? c11 0)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn mat2* "" [radians]
-  (let [c (js/Math.cos radians)
-        s (js/Math.sin radians)] (mat2 c (- s) s c)))
+(defn mat2* "" [angleRad]
+  (let [angle (if _cocos2dx?
+                (- angleRad) angleRad)
+        c (js/Math.cos angle)
+        s (js/Math.sin angle)] (mat2 c (- s) s c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn m2-abs "" [m]
@@ -328,8 +330,7 @@
         top (if _cocos2dx? (+ y hh) (- y hh))
         right (+ x hw)
         left (- x hw)]
-    [(Point2D left top) (Point2D right top)
-     (Point2D right bottom) (Point2D left bottom)]))
+    [(Point2D left top) (Point2D right top) (Point2D right bottom) (Point2D left bottom)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Rectangle "" [sz & [x0 y0]]

@@ -55,8 +55,7 @@
 (defn Circle "" [r & [options]]
   (-> (Body (assoc (gx/Circle r)
                    :setAngle setCircleAngle)
-            {:draw drawCircle
-             :repos setPosCircle}) (pc/setBodyAttrs! options)))
+            {:repos setPosCircle}) (pc/setBodyAttrs! options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- setPolyAngle
@@ -75,7 +74,7 @@
   (Body (assoc (gx/Polygon [])
                :normals []
                :u (mat2)
-               :setAngle setPolyAngle) {:repos setPosPoly :draw drawPoly}))
+               :setAngle setPolyAngle) {:repos setPosPoly}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn PolygonBox "" [sz & [attrs]]
@@ -90,6 +89,7 @@
                     :vertices [(Point2D (- hw) (- hh)) (Point2D hw (- hh))
                                (Point2D hw hh) (Point2D (- hw) hh)]
                     :normals [(vec2 0 -1) (vec2 1 0) (vec2 0 1) (vec2 -1 0)]))
+    (setOrient! P 0)
     (pc/setBodyAttrs! P attrs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -116,7 +116,8 @@
          (assoc shape :vertices)
          (assoc!! P :shape))
     (calcFaceNormals! P)
-    (pc/setBodyAttrs! P attrs) P))
+    (setOrient! P 0)
+    (pc/setBodyAttrs! P attrs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;The extreme point along a direction within a polygon
@@ -620,7 +621,7 @@
   (pc/initPhysics gravity
                   fps
                   world
-                  (merge options {:bodyDrawer drawBody :algoRunner runAlgo})))
+                  (merge {:bodyDrawer drawBody :algoRunner runAlgo} options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

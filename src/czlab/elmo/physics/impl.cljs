@@ -13,7 +13,7 @@
 
   (:require-macros
     [czlab.elmo.afx.core
-     :as ec :refer [do->true half*
+     :as ec :refer [do->true half* assoc!!
                     nneg? f#* n# _1 _2 do-with]]
     [czlab.elmo.cc.ccsx
      :as cx :refer [oget-bottom oget-right gcbyn
@@ -21,9 +21,10 @@
                     oget-x oget-y oget-left oget-top]])
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
-    [czlab.elmo.afx.gfx2d :as gx :refer [vec2 Point2D Size2D]]
+    [czlab.elmo.afx.gfx2d :as gx :refer [PI m2-vmult v2-add vec2 Point2D Size2D]]
     [czlab.elmo.p2d.core :as pc :refer [addBody]]
-    [czlab.elmo.p2d.physics2d :as py :refer [Rectangle Circle]]
+    [czlab.elmo.p2d.physics2d :as py]
+    [czlab.elmo.p2d.impulse :as im]
     [czlab.elmo.cc.ccsx
      :as cx :refer [half-size* *game-arena*
                     cpos bbox4
@@ -39,11 +40,11 @@
     (ocall! node "drawCircle" (clj->js pos) radius angle 100 true 2 c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rectDraw "" [B node i cur]
-  (let [{{:keys [vertices]} :shape} @B
-        c (if (= i cur)
-            js/cc.color.RED js/cc.color.WHITE)]
-    (ocall! node "drawPoly" (clj->js vertices) nil 2 c)))
+(defn- polyDraw "" [B node i cur]
+  (let [{{:keys [u vertices]} :shape p :pos} @B
+        c (if (= i cur) js/cc.color.RED js/cc.color.WHITE)
+        vs (clj->js (mapv #(v2-add p (m2-vmult u %)) vertices))]
+    (ocall! node "drawPoly" vs nil 2 c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- drawBody "" [& args]
@@ -51,46 +52,97 @@
         {:keys [shape]} @B
         {:keys [type]} shape]
     (cond
-      (= type :rectangle) (apply rectDraw args)
-      (= type :circle) (apply circleDraw args)) B))
+      (= type :circle)
+      (apply circleDraw args)
+      :else
+      (apply polyDraw args)) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn init "" [state]
+(defn initXX "" [state]
   (let [pw (py/initPhysics -98 60
                           (:arena @state)
                           {:cc2dx? true
+                           :cur 0
                            :bodyDrawer drawBody})
         _ (swap! state #(assoc % :phyWorld pw))
         {:keys [width height]} @pw
         p8 (* 0.8 width)
         p2 (* 0.2 width)
-        right (-> (Rectangle (Size2D 400 20) {:mass 0 :friction 0.3 :bounce 0})
+        right (-> (py/Rectangle (Size2D 400 20) {:mass 0 :friction 0.3 :bounce 0})
                   (addBody (Point2D (* 0.7 width) 500)))
-        left (-> (Rectangle (Size2D 200 20) {:mass 0})
+        left (-> (py/Rectangle (Size2D 200 20) {:mass 0})
                  (addBody (Point2D (* 0.3 width) 500)))
-        bottom (-> (Rectangle (Size2D p8 20)
+        bottom (-> (py/Rectangle (Size2D p8 20)
                               {:mass 0 :friction 1 :bounce 0.5})
                    (addBody (Point2D (* 0.5 width) 100)))
-        br (-> (Rectangle (Size2D 20 100) {:mass 0 :friction 0 :bounce 1})
+        br (-> (py/Rectangle (Size2D 20 100) {:mass 0 :friction 0 :bounce 1})
                (addBody (Point2D p2 100)))
-        bl (-> (Rectangle (Size2D 20 100) {:mass 0 :friction 0 :bounce 1})
+        bl (-> (py/Rectangle (Size2D 20 100) {:mass 0 :friction 0 :bounce 1})
                (addBody (Point2D p8 100)))]
     (pc/rotate! left -2.8)
     (pc/rotate! right 2.8)
     (dotimes [i 4]
-      (-> (Rectangle (Size2D (+ 10 (rand 50))
+      (-> (py/Rectangle (Size2D (+ 10 (rand 50))
                              (+ 10 (rand 50)))
                      {:mass (rand 30) :friction (rand) :bounce (rand)})
           (addBody (Point2D (+ (/ width 2) (rand 100))
                             (rand (/ height 2))))
           (py/alterBodyAttr! :vel
                               (vec2 (- (rand 60) 30) (- (rand 60) 30))))
-      (-> (Circle (+ 10 (rand 20))
+      (-> (py/Circle (+ 10 (rand 20))
                   {:mass (rand 30) :friction (rand) :bounce (rand)})
           (addBody (Point2D (+ (/ width 2) (rand 100))
                             (rand (/ height 2))))
           (py/alterBodyAttr! :vel (vec2 (- (rand 60) 30)
                                          (- (rand 60) 30)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- morePoly "" [x y]
+  (let [e (ec/randRange 50 100)
+        ne (- e)
+        vs (transient [])
+        _ (dotimes [_ (ec/randRange 3 12)]
+            (conj! vs (vec2 (ec/randRange ne e) (ec/randRange ne e))))
+        p (im/Polygon (persistent! vs)
+                      {:mass (rand 30) :friction (rand) :bounce (rand)})]
+    (im/setOrient! p (ec/randRange (- PI) PI))
+    (assoc!! p :dynaF 0.2)
+    (addBody p x y)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn init "" [state]
+  (let [pw (im/initPhysics -98 60
+                          (:arena @state)
+                          {:cc2dx? true :bodyDrawer drawBody})
+        _ (swap! state #(assoc % :phyWorld pw))
+        {:keys [width height]} @pw
+        p8 (* 0.8 width)
+        p2 (* 0.2 width)
+        right (-> (im/PolygonBox (Size2D 400 20) {:mass 0 :friction 0.3 :bounce 0})
+                  (addBody (Point2D (* 0.7 width) 500))
+                  (pc/setStatic!))
+        left (-> (im/PolygonBox (Size2D 200 20) {:mass 0})
+                 (addBody (Point2D (* 0.3 width) 500))
+                 (pc/setStatic!))
+        bottom (-> (im/PolygonBox (Size2D p8 20)
+                               {:mass 0 :friction 1 :bounce 0.5})
+                   (addBody (Point2D (* 0.5 width) 100))
+                   (pc/setStatic!))
+        br (-> (im/PolygonBox (Size2D 20 100) {:mass 0 :friction 0 :bounce 1})
+               (addBody (Point2D p2 100))
+               (pc/setStatic!))
+        bl (-> (im/PolygonBox (Size2D 20 100) {:mass 0 :friction 0 :bounce 1})
+               (addBody (Point2D p8 100))
+               (pc/setStatic!))]
+    (im/setOrient! left -2.8)
+    (im/setOrient! right 2.8)
+    (dotimes [i 4]
+      (morePoly (+ (/ width 2) (rand 100))
+                (rand (/ height 2)))
+      (-> (im/Circle (+ 10 (rand 20))
+                     {:mass (rand 30) :friction (rand) :bounce (rand)})
+          (addBody (Point2D (+ (/ width 2) (rand 100))
+                            (rand (/ height 2))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateECS "" [dt]
