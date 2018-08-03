@@ -256,7 +256,6 @@
 (defn- rectRepos "" [R pt angle]
   (let [{{:keys [width height] :as S} :shape} @R
         vs (gx/calcRectVertices pt width height)]
-    (js/console.log (ec/clj->json vs))
     (assoc!! R
              :pos pt
              :shape

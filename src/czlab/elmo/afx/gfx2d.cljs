@@ -119,7 +119,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn v2-rot "rotate counter-clockwise" [v1 center angleRad]
-  (let [angle (if _cocos2dx? (- angleRad) angleRad)
+  (let [angle angleRad ;;(if _cocos2dx? (- angleRad) angleRad)
         {cx :x cy :y} center
         cos (js/Math.cos angle)
         sin (js/Math.sin angle)
@@ -158,8 +158,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mat2* "" [angleRad]
-  (let [angle (if _cocos2dx?
-                (- angleRad) angleRad)
+  (let [angle angleRad ;;(if _cocos2dx? (- angleRad) angleRad)
         c (js/Math.cos angle)
         s (js/Math.sin angle)] (mat2 c (- s) s c)))
 

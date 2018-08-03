@@ -66,8 +66,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- myGame "" []
-  (set! gWorld (ie/initPhysics 100 60 {:left 0 :right 799 :top 0 :bottom 639}))
-  (assoc!! gWorld :cur 0)
+  (set! gWorld (ie/initPhysics 100 60
+                               {:left 0 :right 799 :top 0 :bottom 639}
+                               {:cur 0}))
   (let [canvas (js/document.getElementById "canvas")
         context (ocall! canvas "getContext" "2d")
         {:keys [width height]} @gWorld

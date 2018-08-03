@@ -21,7 +21,9 @@
                     oget-x oget-y oget-left oget-top]])
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
-    [czlab.elmo.afx.gfx2d :as gx :refer [PI m2-vmult v2-add vec2 Point2D Size2D]]
+    [czlab.elmo.afx.gfx2d
+     :as gx :refer [PI m2-vmult mat2*
+                    v2-add v2-rot vec2 Point2D Size2D]]
     [czlab.elmo.p2d.core :as pc :refer [addBody]]
     [czlab.elmo.p2d.physics2d :as py]
     [czlab.elmo.p2d.impulse :as im]
@@ -37,14 +39,26 @@
          {:keys [radius]} :shape} @B
         c (if (= i cur)
             js/cc.color.RED js/cc.color.GREEN)]
-    (ocall! node "drawCircle" (clj->js pos) radius angle 100 true 2 c)))
+    ;; flip rotation for cocos2d
+    (ocall! node "drawCircle" (clj->js pos) radius (- angle) 100 true 2 c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- polyDraw "" [B node i cur]
-  (let [{{:keys [u vertices]} :shape p :pos} @B
+  (let [{{:keys [vertices]} :shape :keys[pos angle]} @B
         c (if (= i cur) js/cc.color.RED js/cc.color.WHITE)
-        vs (clj->js (mapv #(v2-add p (m2-vmult u %)) vertices))]
-    (ocall! node "drawPoly" vs nil 2 c)))
+        angle' (- (* 2 angle))
+        vs (mapv #(v2-rot % pos angle') vertices)]
+    ;;flip rotation for cocos2d
+    (ocall! node "drawPoly" (clj->js vertices) nil 2 c)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- XXpolyDraw "" [B node i cur]
+  (let [{{:keys [u vertices]} :shape :keys[pos angle]} @B
+        c (if (= i cur) js/cc.color.RED js/cc.color.WHITE)
+        ;u (mat2* (- angle))
+        vs (mapv #(v2-add pos (m2-vmult u %)) vertices)]
+    ;;flip rotation for cocos2d
+    (ocall! node "drawPoly" (clj->js vs) nil 2 c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- drawBody "" [& args]
@@ -58,7 +72,7 @@
       (apply polyDraw args)) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn initXX "" [state]
+(defn init "" [state]
   (let [pw (py/initPhysics -98 60
                           (:arena @state)
                           {:cc2dx? true
@@ -69,16 +83,21 @@
         p8 (* 0.8 width)
         p2 (* 0.2 width)
         right (-> (py/Rectangle (Size2D 400 20) {:mass 0 :friction 0.3 :bounce 0})
-                  (addBody (Point2D (* 0.7 width) 500)))
+                  (addBody (Point2D (* 0.7 width) 500))
+                  (pc/setStatic!))
         left (-> (py/Rectangle (Size2D 200 20) {:mass 0})
-                 (addBody (Point2D (* 0.3 width) 500)))
+                 (addBody (Point2D (* 0.3 width) 500))
+                 (pc/setStatic!))
         bottom (-> (py/Rectangle (Size2D p8 20)
-                              {:mass 0 :friction 1 :bounce 0.5})
-                   (addBody (Point2D (* 0.5 width) 100)))
-        br (-> (py/Rectangle (Size2D 20 100) {:mass 0 :friction 0 :bounce 1})
-               (addBody (Point2D p2 100)))
-        bl (-> (py/Rectangle (Size2D 20 100) {:mass 0 :friction 0 :bounce 1})
-               (addBody (Point2D p8 100)))]
+                              {:mass 0 :friction 1 :bounce 0.2})
+                   (addBody (Point2D (* 0.5 width) 100))
+                   (pc/setStatic!))
+        br (-> (py/Rectangle (Size2D 20 600) {:mass 0 :friction 0 :bounce 1})
+               (addBody (Point2D p2 100))
+               (pc/setStatic!))
+        bl (-> (py/Rectangle (Size2D 20 600) {:mass 0 :friction 0 :bounce 1})
+               (addBody (Point2D p8 100))
+               (pc/setStatic!))]
     (pc/rotate! left -2.8)
     (pc/rotate! right 2.8)
     (dotimes [i 4]
@@ -110,10 +129,10 @@
     (addBody p x y)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn init "" [state]
+(defn XXinit "" [state]
   (let [pw (im/initPhysics -98 60
                           (:arena @state)
-                          {:cc2dx? true :bodyDrawer drawBody})
+                          {:cc2dx? true :cur 0 :bodyDrawer drawBody})
         _ (swap! state #(assoc % :phyWorld pw))
         {:keys [width height]} @pw
         p8 (* 0.8 width)
