@@ -21,6 +21,7 @@
                     oget-x oget-y oget-left oget-top]])
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
+    [czlab.elmo.p2d.cookbook :as cb]
     [czlab.elmo.afx.gfx2d
      :as gx :refer [PI m2-vmult mat2*
                     v2-add v2-rot vec2 Point2D Size2D]]
