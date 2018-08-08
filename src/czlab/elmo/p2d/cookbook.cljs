@@ -245,6 +245,10 @@ The Projection and Orthographic projection functions product left
 handed matrices. That is, +Z goes INTO the screen.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- mx-new*
+  "" [rows cols cells] {:rows rows :cols cols :cells cells})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mx-new "" [rows cols]
   {:rows rows :cols cols :cells (make-array js/Number (* rows cols))})
 
@@ -297,115 +301,66 @@ handed matrices. That is, +Z goes INTO the screen.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mx-xpose "" [m]
-  (let [out (mx-new cols rows)
-        {:keys [rows cols cells]} m]
-    (dotimes [i (* rows cols)])))
+  (let [{:keys [rows
+                cols
+                cells]} m
+        tmp (transient [])
+        out (mx-new cols rows)]
+    (dotimes [c cols]
+      (dotimes [r rows]
+        (conj! tmp (nth cells
+                        (+ c (* rows
+                                (mod r rows)))))))
+    (assoc out :cells (clj->js (persistent! tmp)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn m3-fastInverse "" [m] (m3-xpose m))
+(defn m3-fastInverse "" [m] (mx-xpose m))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- CELL "" [rows cols r c] (+ (- c 1) (* rows (- r 1))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn m4-fastInverse "" [m]
-  (let [{:keys [_11 _12 _13 _14
-                _21 _22 _23 _24
-                _31 _32 _33 _34
-                _41 _42 _43 _44]} m
-        inverse (-> (m4-xpose m)
-                    (assoc :_41 0 :_14 0
-                           :_42 0 :_24 0
-                           :_43 0 :_34 0))
-        right (vec3 _11 _12 _13)
-        up (vec3 _21 _22 _23)
-        forward (vec3 _31 _32 _33)
-        position (vec3 _41 _42 _43)]
-    (assoc inverse
-           :_41 (- (v3-dot right position))
-           :_42 (- (v3-dot up position))
-           :_43 (- (v3-dot forward position)))))
+  (let [{:keys [cells] :as out} (mx-xpose m)
+        right (vec3 (CELL 4 4 1 1) (CELL 4 4 1 2) (CELL 4 4 1 3))
+        up (vec3 (CELL 4 4 2 1) (CELL 4 4 2 2) (CELL 4 4 2 3))
+        forward (vec3 (CELL 4 4 3 1) (CELL 4 4 3 2) (CELL 4 4 3 3))
+        position (vec3 (CELL 4 4 4 1) (CELL 4 4 4 2) (CELL 4 4 4 3))]
+    (aset cells (CELL 4 4 4 1) 0)
+    (aset cells (CELL 4 4 4 2) 0)
+    (aset cells (CELL 4 4 4 3) 0)
+    (aset cells (CELL 4 4 1 4) 0)
+    (aset cells (CELL 4 4 2 4) 0)
+    (aset cells (CELL 4 4 3 4) 0)
+    (aset cells (CELL 4 4 4 1) (- (v3-dot right position)))
+    (aset cells (CELL 4 4 4 2) (- (v3-dot up position)))
+    (aset cells (CELL 4 4 4 3) (- (v3-dot forward position))) out))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn m2-xpose "" [m]
-  (let [{:keys [_11 _12
-                _21 _22]} m] (mat2 _11 _21
-                                   _12 _22)))
+(defn mx-scale "" [m n]
+  (let [{:keys [rows cols cells]} m
+        tmp (transient [])
+        out (mx-new rows cols)]
+    (dotimes [i (* rows cols)]
+      (conj! tmp (* n (nth cells i))))
+    (assoc out :cells (clj->js (persistent! tmp)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn m3-xpose "" [m]
-  (let [{:keys [_11 _12 _13
-                _21 _22 _23
-                _31 _32 _33]} m] (mat3 _11 _21 _31
-                                       _12 _22 _32
-                                       _13 _23 _33)))
+(defn mult-AB "" [a b]
+  (let [{aRows :rows aCols :cols aCells :cells} a
+        out (make-array js/Number (* aRows bCols))
+        {bRows :rows bCols :cols bCells :cells} b]
+    (assert (= aCols bRows) "mismatch matrices")
+    (dotimes [i aRows]
+      (dotimes [j bCols]
+        (aset out
+              (+ j (* i bCols))
+              (reduce (fn [sum k]
+                        (+ sum
+                           (* (nth aCells (+ k (* i aCols)))
+                              (nth bCells (+ j (* k bCols)))))) 0 (range bRows)))))
+    (mx-new* aRows bCols out)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn m4-xpose "" [m]
-  (let [{:keys [_11 _12 _13 _14
-                _21 _22 _23 _24
-                _31 _32 _33 _34
-                _41 _42 _43 _44]} m] (mat4 _11 _21 _31 _41
-                                           _12 _22 _32 _42
-                                           _13 _23 _33 _43
-                                           _14 _24 _34 _44)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn m2-scale "" [m n]
-  (let [{:keys [_11 _12
-                _21 _22]} m] (mat2 (* n _11) (* n _21)
-                                   (* n _12) (* n _22))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn m3-scale "" [m n]
-  (let [{:keys [_11 _12 _13
-                _21 _22 _23
-                _31 _32 _33]} m] (mat3 (* n _11) (* n _21) (* n _31)
-                                       (* n _12) (* n _22) (* n _32)
-                                       (* n _13) (* n _23) (* n _33))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn m4-scale "" [m n]
-  (let [{:keys [_11 _12 _13 _14
-                _21 _22 _23 _24
-                _31 _32 _33 _34
-                _41 _42 _43 _44]} m] (mat4 (* n _11) (* n _21) (* n _31) (* n _41)
-                                           (* n _12) (* n _22) (* n _32) (* n _42)
-                                           (* n _13) (* n _23) (* n _33) (* n _43)
-                                           (* n _14) (* n _24) (* n _34) (* n _44))))
-
-
-bool Multiply(float* out, const float* matA, int aRows, int aCols, const float* matB, int bRows, int bCols) {
-  if (aCols != bRows) {
-    return false;
-  }
-
-  for (int i = 0; i < aRows; ++i) {
-    for (int j = 0; j < bCols; ++j) {
-      out[bCols * i + j] = 0.0f;
-      for (int k = 0; k < bRows; ++k) {
-        out[bCols * i + j] += matA[aCols * i + k] * matB[bCols * k + j];
-      }
-    }
-  }
-
-  return true;
-}
-
-mat2 operator*(const mat2& matrixA, const mat2& matrixB) {
-  mat2 result;
-  Multiply(result.asArray, matrixA.asArray, 2, 2, matrixB.asArray, 2, 2);
-  return result;
-}
-
-mat3 operator*(const mat3& matrixA, const mat3& matrixB) {
-  mat3 result;
-  Multiply(result.asArray, matrixA.asArray, 3, 3, matrixB.asArray, 3, 3);
-  return result;
-}
-
-mat4 operator*(const mat4& matrixA, const mat4& matrixB) {
-  mat4 result;
-  Multiply(result.asArray, matrixA.asArray, 4, 4, matrixB.asArray, 4, 4);
-  return result;
-}
 
 float Determinant(const mat2& matrix) {
   return matrix._11 * matrix._22 - matrix._12 * matrix._21;
