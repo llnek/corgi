@@ -21,6 +21,10 @@
 (def ^:private TWO-PI (* 2 js/Math.PI))
 (def ^:private PI js/Math.PI)
 (def DEG-2PI 360.0)
+(def COS js/Math.cos)
+(def SIN js/Math.sin)
+(def TAN js/Math.tan)
+(def ATAN2 js/Math.atan2)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- CMP "" [x y]
@@ -196,7 +200,6 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
 (comment
 "Row Major!
 These matrices are row major, with a linear memory layout.
@@ -243,6 +246,10 @@ dimensions match. This makes our multiplication be 1x4 * 4x4.")
 "Left Handed!
 The Projection and Orthographic projection functions product left
 handed matrices. That is, +Z goes INTO the screen.")
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;MATRIX
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- mx-pos "" [rows cols r c] (+ (- c 1) (* (- r 1) cols)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mx-new*
@@ -284,7 +291,6 @@ handed matrices. That is, +Z goes INTO the screen.")
                  _31 _32 _33 _34
                  _41 _42 _43 _44])})
 
-;;kenl
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mx-eq? "" [a b]
   (let [{ra :rows ca :cols va :cells} a
@@ -346,10 +352,10 @@ handed matrices. That is, +Z goes INTO the screen.")
     (assoc out :cells (clj->js (persistent! tmp)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn mult-AB "" [a b]
+(defn mx-multAB "" [a b]
   (let [{aRows :rows aCols :cols aCells :cells} a
-        out (make-array js/Number (* aRows bCols))
-        {bRows :rows bCols :cols bCells :cells} b]
+        {bRows :rows bCols :cols bCells :cells} b
+        out (make-array js/Number (* aRows bCols))]
     (assert (= aCols bRows) "mismatch matrices")
     (dotimes [i aRows]
       (dotimes [j bCols]
@@ -361,687 +367,445 @@ handed matrices. That is, +Z goes INTO the screen.")
                               (nth bCells (+ j (* k bCols)))))) 0 (range bRows)))))
     (mx-new* aRows bCols out)))
 
-
-float Determinant(const mat2& matrix) {
-  return matrix._11 * matrix._22 - matrix._12 * matrix._21;
-}
-
-mat2 Cut(const mat3& mat, int row, int col) {
-  mat2 result;
-  int index = 0;
-
-  for (int i = 0; i < 3; ++i) {
-    for (int j = 0; j < 3; ++j) {
-      if (i == row || j == col) {
-        continue;
-      }
-      result.asArray[index++] = mat.asArray[3 * i + j];
-    }
-  }
-
-  return result;
-}
-
-mat3 Cut(const mat4& mat, int row, int col) {
-  mat3 result;
-  int index = 0;
-
-  for (int i = 0; i < 4; ++i) {
-    for (int j = 0; j < 4; ++j) {
-      if (i == row || j == col) {
-        continue;
-      }
-      result.asArray[index++] = mat.asArray[4 * i + j];
-    }
-  }
-
-  return result;
-}
-
-mat3 Minor(const mat3& mat) {
-  mat3 result;
-
-  for (int i = 0; i < 3; ++i) {
-    for (int j = 0; j < 3; ++j) {
-      result[i][j] = Determinant(Cut(mat, i, j));
-    }
-  }
-
-  return result;
-}
-
-mat2 Minor(const mat2& mat) {
-  return mat2(
-    mat._22, mat._21,
-    mat._12, mat._11
-  );
-}
-
-void Cofactor(float* out, const float* minor, int rows, int cols) {
-  for (int i = 0; i < rows; ++i) {
-    for (int j = 0; j < cols; ++j) {
-      out[cols * j + i] = minor[cols * j + i] * powf(-1.0f, i + j);
-    }
-  }
-}
-
-mat2 Cofactor(const mat2& mat) {
-  mat2 result;
-  Cofactor(result.asArray, Minor(mat).asArray, 2, 2);
-  return result;
-}
-
-mat3 Cofactor(const mat3& mat) {
-  mat3 result;
-  Cofactor(result.asArray, Minor(mat).asArray, 3, 3);
-  return result;
-}
-
-float Determinant(const mat3& mat) {
-  float result = 0.0f;
-
-  /*float A = mat.asArray[3 * 0 + 0] * Determinant(Cut(mat, 0, 0));
-  float B = mat.asArray[3 * 0 + 1] * Determinant(Cut(mat, 0, 1));
-  float C = mat.asArray[3 * 0 + 2] * Determinant(Cut(mat, 0, 2));
-  result = A - B + C;*/
-
-  /*for (int j = 0; j < 3; ++j) {
-    result += mat.asArray[3 * 0 + j] * Determinant(Cut(mat, 0, j)) * powf(-1, 0 + j);
-  }*/
-
-  mat3 cofactor = Cofactor(mat);
-  for (int j = 0; j < 3; ++j) {
-    result += mat.asArray[3 * 0 + j] * cofactor[0][j];
-  }
-
-  return result;
-}
-
-mat4 Minor(const mat4& mat) {
-  mat4 result;
-
-  for (int i = 0; i < 4; ++i) {
-    for (int j = 0; j < 4; ++j) {
-      result[i][j] = Determinant(Cut(mat, i, j));
-    }
-  }
-
-  return result;
-}
-
-mat4 Cofactor(const mat4& mat) {
-  mat4 result;
-  Cofactor(result.asArray, Minor(mat).asArray, 4, 4);
-  return result;
-}
-
-float Determinant(const mat4& mat) {
-  float result = 0.0f;
-
-  mat4 cofactor = Cofactor(mat);
-  for (int j = 0; j < 4; ++j) {
-    result += mat.asArray[4 * 0 + j] * cofactor[0][j];
-  }
-
-  return result;
-}
-
-mat2 Adjugate(const mat2& mat) {
-  return Transpose(Cofactor(mat));
-}
-
-mat3 Adjugate(const mat3& mat) {
-  return Transpose(Cofactor(mat));
-}
-
-mat4 Adjugate(const mat4& mat) {
-  return Transpose(Cofactor(mat));
-}
-
-mat2 Inverse(const mat2& mat) {
-  float det = Determinant(mat);
-  if (CMP(det, 0.0f)) { return mat2(); }
-  return Adjugate(mat) * (1.0f / det);
-
-  /*float det = mat._11 * mat._22 - mat._12 * mat._21;
-  if (CMP(det, 0.0f)) {
-    return mat2();
-  }
-  float i_det = 1.0f / det;
-  mat2 result;
-  result._11 =  mat._22 * i_det;
-  result._12 = -mat._12 * i_det;
-  result._21 = -mat._21 * i_det;
-  result._22 =  mat._11 * i_det;
-  return result;*/
-}
-
-mat3 Inverse(const mat3& mat) {
-  float det = Determinant(mat);
-  if (CMP(det, 0.0f)) { return mat3(); }
-  return Adjugate(mat) * (1.0f / det);
-}
-
-mat4 Inverse(const mat4& m) {
-  /*float det = Determinant(m);
-  if (CMP(det, 0.0f)) { return mat4(); }
-  return Adjugate(m) * (1.0f / det);*/
-
-  // The code below is the expanded form of the above equation.
-  // This optimization avoids loops and function calls
-
-  float det
-    = m._11 * m._22 * m._33 * m._44 + m._11 * m._23 * m._34 * m._42 + m._11 * m._24 * m._32 * m._43
-    + m._12 * m._21 * m._34 * m._43 + m._12 * m._23 * m._31 * m._44 + m._12 * m._24 * m._33 * m._41
-    + m._13 * m._21 * m._32 * m._44 + m._13 * m._22 * m._34 * m._41 + m._13 * m._24 * m._31 * m._42
-    + m._14 * m._21 * m._33 * m._42 + m._14 * m._22 * m._31 * m._43 + m._14 * m._23 * m._32 * m._41
-    - m._11 * m._22 * m._34 * m._43 - m._11 * m._23 * m._32 * m._44 - m._11 * m._24 * m._33 * m._42
-    - m._12 * m._21 * m._33 * m._44 - m._12 * m._23 * m._34 * m._41 - m._12 * m._24 * m._31 * m._43
-    - m._13 * m._21 * m._34 * m._42 - m._13 * m._22 * m._31 * m._44 - m._13 * m._24 * m._32 * m._41
-    - m._14 * m._21 * m._32 * m._43 - m._14 * m._22 * m._33 * m._41 - m._14 * m._23 * m._31 * m._42;
-
-  if (CMP(det, 0.0f)) {
-    return mat4();
-  }
-  float i_det = 1.0f / det;
-
-  mat4 result;
-  result._11 = (m._22 * m._33 * m._44 + m._23 * m._34 * m._42 + m._24 * m._32 * m._43 - m._22 * m._34 * m._43 - m._23 * m._32 * m._44 - m._24 * m._33 * m._42) * i_det;
-  result._12 = (m._12 * m._34 * m._43 + m._13 * m._32 * m._44 + m._14 * m._33 * m._42 - m._12 * m._33 * m._44 - m._13 * m._34 * m._42 - m._14 * m._32 * m._43) * i_det;
-  result._13 = (m._12 * m._23 * m._44 + m._13 * m._24 * m._42 + m._14 * m._22 * m._43 - m._12 * m._24 * m._43 - m._13 * m._22 * m._44 - m._14 * m._23 * m._42) * i_det;
-  result._14 = (m._12 * m._24 * m._33 + m._13 * m._22 * m._34 + m._14 * m._23 * m._32 - m._12 * m._23 * m._34 - m._13 * m._24 * m._32 - m._14 * m._22 * m._33) * i_det;
-  result._21 = (m._21 * m._34 * m._43 + m._23 * m._31 * m._44 + m._24 * m._33 * m._41 - m._21 * m._33 * m._44 - m._23 * m._34 * m._41 - m._24 * m._31 * m._43) * i_det;
-  result._22 = (m._11 * m._33 * m._44 + m._13 * m._34 * m._41 + m._14 * m._31 * m._43 - m._11 * m._34 * m._43 - m._13 * m._31 * m._44 - m._14 * m._33 * m._41) * i_det;
-  result._23 = (m._11 * m._24 * m._43 + m._13 * m._21 * m._44 + m._14 * m._23 * m._41 - m._11 * m._23 * m._44 - m._13 * m._24 * m._41 - m._14 * m._21 * m._43) * i_det;
-  result._24 = (m._11 * m._23 * m._34 + m._13 * m._24 * m._31 + m._14 * m._21 * m._33 - m._11 * m._24 * m._33 - m._13 * m._21 * m._34 - m._14 * m._23 * m._31) * i_det;
-  result._31 = (m._21 * m._32 * m._44 + m._22 * m._34 * m._41 + m._24 * m._31 * m._42 - m._21 * m._34 * m._42 - m._22 * m._31 * m._44 - m._24 * m._32 * m._41) * i_det;
-  result._32 = (m._11 * m._34 * m._42 + m._12 * m._31 * m._44 + m._14 * m._32 * m._41 - m._11 * m._32 * m._44 - m._12 * m._34 * m._41 - m._14 * m._31 * m._42) * i_det;
-  result._33 = (m._11 * m._22 * m._44 + m._12 * m._24 * m._41 + m._14 * m._21 * m._42 - m._11 * m._24 * m._42 - m._12 * m._21 * m._44 - m._14 * m._22 * m._41) * i_det;
-  result._34 = (m._11 * m._24 * m._32 + m._12 * m._21 * m._34 + m._14 * m._22 * m._31 - m._11 * m._22 * m._34 - m._12 * m._24 * m._31 - m._14 * m._21 * m._32) * i_det;
-  result._41 = (m._21 * m._33 * m._42 + m._22 * m._31 * m._43 + m._23 * m._32 * m._41 - m._21 * m._32 * m._43 - m._22 * m._33 * m._41 - m._23 * m._31 * m._42) * i_det;
-  result._42 = (m._11 * m._32 * m._43 + m._12 * m._33 * m._41 + m._13 * m._31 * m._42 - m._11 * m._33 * m._42 - m._12 * m._31 * m._43 - m._13 * m._32 * m._41) * i_det;
-  result._43 = (m._11 * m._23 * m._42 + m._12 * m._21 * m._43 + m._13 * m._22 * m._41 - m._11 * m._22 * m._43 - m._12 * m._23 * m._41 - m._13 * m._21 * m._42) * i_det;
-  result._44 = (m._11 * m._22 * m._33 + m._12 * m._23 * m._31 + m._13 * m._21 * m._32 - m._11 * m._23 * m._32 - m._12 * m._21 * m._33 - m._13 * m._22 * m._31) * i_det;
-
-#ifdef  DO_SANITY_TESTS
-#ifndef NO_EXTRAS
-  if (result * m != mat4()) {
-    std::cout << "ERROR! Expecting matrix x inverse to equal identity!\n";
-  }
-#endif
-#endif
-
-  return result;
-}
-
-mat4 ToColumnMajor(const mat4& mat) {
-  return Transpose(mat);
-}
-
-mat3 ToColumnMajor(const mat3& mat) {
-  return Transpose(mat);
-}
-
-mat4 FromColumnMajor(const mat4& mat) {
-  return Transpose(mat);
-}
-
-mat3 FromColumnMajor(const mat3& mat) {
-  return Transpose(mat);
-}
-
-mat4 FromColumnMajor(const float* mat) {
-  return Transpose(mat4(
-    mat[0],  mat[1],  mat[2],  mat[3],
-    mat[4],  mat[5],  mat[6],  mat[7],
-    mat[8],  mat[9],  mat[10], mat[11],
-    mat[12], mat[13], mat[14], mat[15]
-  ));
-}
-
-mat4 Translation(float x, float y, float z) {
-  return mat4(
-    1.0f, 0.0f, 0.0f, 0.0f,
-    0.0f, 1.0f, 0.0f, 0.0f,
-    0.0f, 0.0f, 1.0f, 0.0f,
-       x,    y,    z, 1.0f
-  );
-}
-mat4 Translation(const vec3& pos) {
-  return mat4(
-    1.0f, 0.0f, 0.0f, 0.0f,
-    0.0f, 1.0f, 0.0f, 0.0f,
-    0.0f, 0.0f, 1.0f, 0.0f,
-    pos.x,pos.y,pos.z,1.0f
-  );
-}
-
-#ifndef NO_EXTRAS
-mat4 Translate(float x, float y, float z) {
-  return mat4(
-    1.0f, 0.0f, 0.0f, 0.0f,
-    0.0f, 1.0f, 0.0f, 0.0f,
-    0.0f, 0.0f, 1.0f, 0.0f,
-    x, y, z, 1.0f
-  );
-}
-
-mat4 Translate(const vec3& pos) {
-  return mat4(
-    1.0f, 0.0f, 0.0f, 0.0f,
-    0.0f, 1.0f, 0.0f, 0.0f,
-    0.0f, 0.0f, 1.0f, 0.0f,
-    pos.x, pos.y, pos.z, 1.0f
-  );
-}
-#endif
-
-mat4 FromMat3(const mat3& mat) {
-  mat4 result;
-
-  result._11 = mat._11;
-  result._12 = mat._12;
-  result._13 = mat._13;
-
-  result._21 = mat._21;
-  result._22 = mat._22;
-  result._23 = mat._23;
-
-  result._31 = mat._31;
-  result._32 = mat._32;
-  result._33 = mat._33;
-
-  return result;
-}
-
-vec3 GetTranslation(const mat4& mat) {
-  return vec3(mat._41, mat._42, mat._43);
-}
-
-mat4 Scale(float x, float y, float z) {
-  return mat4(
-       x, 0.0f, 0.0f, 0.0f,
-    0.0f,    y, 0.0f, 0.0f,
-    0.0f, 0.0f,    z, 0.0f,
-    0.0f, 0.0f, 0.0f, 1.0f
-  );
-}
-
-mat4 Scale(const vec3& vec) {
-  return mat4(
-    vec.x,0.0f, 0.0f, 0.0f,
-    0.0f, vec.y,0.0f, 0.0f,
-    0.0f, 0.0f, vec.z,0.0f,
-    0.0f, 0.0f, 0.0f, 1.0f
-  );
-}
-
-vec3 GetScale(const mat4& mat) {
-  return vec3(mat._11, mat._22, mat._33);
-}
-
-mat4 Rotation(float pitch, float yaw, float roll) {
-  return  ZRotation(roll) * XRotation(pitch) * YRotation(yaw);
-}
-
-mat3 Rotation3x3(float pitch, float yaw, float roll) {
-  return ZRotation3x3(roll) * XRotation3x3(pitch) * YRotation3x3(yaw);
-}
-
-#ifndef NO_EXTRAS
-mat2 Rotation2x2(float angle) {
-  return mat2(
-    cosf(angle), sinf(angle),
-    -sinf(angle), cosf(angle)
-    );
-}
-
-mat4 YawPitchRoll(float yaw, float pitch, float roll) {
-  yaw = DEG2RAD(yaw);
-  pitch = DEG2RAD(pitch);
-  roll = DEG2RAD(roll);
-
-  mat4 out; // z * x * y
-  out._11 = (cosf(roll) * cosf(yaw)) + (sinf(roll) * sinf(pitch) * sinf(yaw));
-  out._12 = (sinf(roll) * cosf(pitch));
-  out._13 = (cosf(roll) * -sinf(yaw)) + (sinf(roll) * sinf(pitch) * cosf(yaw));
-  out._21 = (-sinf(roll) * cosf(yaw)) + (cosf(roll) * sinf(pitch) * sinf(yaw));
-  out._22 = (cosf(roll) * cosf(pitch));
-  out._23 = (sinf(roll) * sinf(yaw)) + (cosf(roll) * sinf(pitch) * cosf(yaw));
-  out._31 = (cosf(pitch) * sinf(yaw));
-  out._32 = -sinf(pitch);
-  out._33 = (cosf(pitch) * cosf(yaw));
-  out._44 = 1;
-  return out;
-}
-#endif
-
-mat4 XRotation(float angle) {
-  angle = DEG2RAD(angle);
-  return mat4(
-    1.0f, 0.0f, 0.0f, 0.0f,
-    0.0f, cosf(angle), sinf(angle), 0.0f,
-    0.0f, -sinf(angle), cosf(angle), 0.0f,
-    0.0f, 0.0f, 0.0f, 1.0f
-  );
-}
-
-mat3 XRotation3x3(float angle) {
-  angle = DEG2RAD(angle);
-  return mat3(
-    1.0f, 0.0f, 0.0f,
-    0.0f, cosf(angle), sinf(angle),
-    0.0f, -sinf(angle), cosf(angle)
-  );
-}
-
-mat4 YRotation(float angle) {
-  angle = DEG2RAD(angle);
-  return mat4(
-    cosf(angle), 0.0f, -sinf(angle), 0.0f,
-    0.0f, 1.0f, 0.0f, 0.0f,
-    sinf(angle), 0.0f, cosf(angle), 0.0f,
-    0.0f, 0.0f, 0.0f, 1.0f
-  );
-}
-
-mat3 YRotation3x3(float angle) {
-  angle = DEG2RAD(angle);
-  return mat3(
-    cosf(angle), 0.0f, -sinf(angle),
-    0.0f, 1.0f, 0.0f,
-    sinf(angle), 0.0f, cosf(angle)
-  );
-}
-
-mat4 ZRotation(float angle) {
-  angle = DEG2RAD(angle);
-  return mat4(
-    cosf(angle), sinf(angle), 0.0f, 0.0f,
-    -sinf(angle), cosf(angle), 0.0f, 0.0f,
-    0.0f, 0.0f, 1.0f, 0.0f,
-    0.0f, 0.0f, 0.0f, 1.0f
-  );
-}
-
-mat3 ZRotation3x3(float angle) {
-  angle = DEG2RAD(angle);
-  return mat3(
-    cosf(angle), sinf(angle), 0.0f,
-    -sinf(angle), cosf(angle), 0.0f,
-    0.0f, 0.0f, 1.0f
-  );
-}
-
-#ifndef NO_EXTRAS
-
-mat4 Orthogonalize(const mat4& mat) {
-  vec3 xAxis(mat._11, mat._12, mat._13);
-  vec3 yAxis(mat._21, mat._22, mat._23);
-  vec3 zAxis = Cross(xAxis, yAxis);
-
-  xAxis = Cross(yAxis, zAxis);
-  yAxis = Cross(zAxis, xAxis);
-  zAxis = Cross(xAxis, yAxis);
-
-  return mat4(
-    xAxis.x, xAxis.y, xAxis.z, mat._14,
-    yAxis.x, yAxis.y, yAxis.z, mat._24,
-    zAxis.x, zAxis.y, zAxis.z, mat._34,
-    mat._41, mat._42, mat._43, mat._44
-  );
-}
-
-mat3 Orthogonalize(const mat3& mat) {
-  vec3 xAxis(mat._11, mat._12, mat._13);
-  vec3 yAxis(mat._21, mat._22, mat._23);
-  vec3 zAxis = Cross(xAxis, yAxis);
-
-  xAxis = Cross(yAxis, zAxis);
-  yAxis = Cross(zAxis, xAxis);
-  zAxis = Cross(xAxis, yAxis);
-
-  return mat3(
-    xAxis.x, xAxis.y, xAxis.z,
-    yAxis.x, yAxis.y, yAxis.z,
-    zAxis.x, zAxis.y, zAxis.z
-  );
-}
-#endif
-
-mat4 AxisAngle(const vec3& axis, float angle) {
-  angle = DEG2RAD(angle);
-  float c = cosf(angle);
-  float s = sinf(angle);
-  float t = 1.0f - cosf(angle);
-
-  float x = axis.x;
-  float y = axis.y;
-  float z = axis.z;
-  if (!CMP(MagnitudeSq(axis), 1.0f)) {
-    float inv_len = 1.0f / Magnitude(axis);
-    x *= inv_len;
-    y *= inv_len;
-    z *= inv_len;
-  }
-
-  return mat4(
-    t * (x * x) + c, t * x * y + s * z, t * x * z - s * y, 0.0f,
-    t * x * y - s * z, t * (y * y) + c, t * y * z + s * x, 0.0f,
-    t * x * z + s * y, t * y * z - s * x, t * (z * z) + c, 0.0f,
-    0.0f, 0.0f, 0.0f, 1.0f
-  );
-}
-
-mat3 AxisAngle3x3(const vec3& axis, float angle) {
-  angle = DEG2RAD(angle);
-  float c = cosf(angle);
-  float s = sinf(angle);
-  float t = 1.0f - cosf(angle);
-
-  float x = axis.x;
-  float y = axis.y;
-  float z = axis.z;
-  if (!CMP(MagnitudeSq(axis), 1.0f)) {
-    float inv_len = 1.0f / Magnitude(axis);
-    x *= inv_len;
-    y *= inv_len;
-    z *= inv_len;
-  }
-
-  return mat3(
-    t * (x * x) + c, t * x * y + s * z, t * x * z - s * y,
-    t * x * y - s * z, t * (y * y) + c, t * y * z + s * x,
-    t * x * z + s * y, t * y * z - s * x, t * (z * z) + c
-  );
-}
-
-vec3 MultiplyPoint(const vec3& vec, const mat4& mat) {
-  vec3 result;
-  result.x = vec.x * mat._11 + vec.y * mat._21 + vec.z * mat._31 + 1.0f * mat._41;
-  result.y = vec.x * mat._12 + vec.y * mat._22 + vec.z * mat._32 + 1.0f * mat._42;
-  result.z = vec.x * mat._13 + vec.y * mat._23 + vec.z * mat._33 + 1.0f * mat._43;
-  return result;
-}
-
-vec3 MultiplyVector(const vec3& vec, const mat4& mat) {
-  vec3 result;
-  result.x = vec.x * mat._11 + vec.y * mat._21 + vec.z * mat._31 + 0.0f * mat._41;
-  result.y = vec.x * mat._12 + vec.y * mat._22 + vec.z * mat._32 + 0.0f * mat._42;
-  result.z = vec.x * mat._13 + vec.y * mat._23 + vec.z * mat._33 + 0.0f * mat._43;
-  return result;
-}
-
-vec3 MultiplyVector(const vec3& vec, const mat3& mat) {
-  vec3 result;
-  result.x = Dot(vec, vec3{ mat._11, mat._21, mat._31 });
-  result.y = Dot(vec, vec3{ mat._12, mat._22, mat._32 });
-  result.z = Dot(vec, vec3{ mat._13, mat._23, mat._33 });
-  return result;
-}
-
-mat4 Transform(const vec3& scale, const vec3& eulerRotation, const vec3& translate) {
-  return Scale(scale) *
-    Rotation(eulerRotation.x, eulerRotation.y, eulerRotation.z) *
-    Translation(translate);
-}
-
-mat4 Transform(const vec3& scale, const vec3& rotationAxis, float rotationAngle, const vec3& translate) {
-  return Scale(scale) *
-    AxisAngle(rotationAxis, rotationAngle) *
-    Translation(translate);
-}
-
-mat4 LookAt(const vec3& position, const vec3& target, const vec3& up) {
-  vec3 forward = Normalized(target - position);
-  vec3 right = Normalized(Cross(up, forward));
-  vec3 newUp = Cross(forward, right);
-
-#ifdef DO_SANITY_TESTS
-  mat4 viewPosition = Translation(position);
-  mat4 viewOrientation = mat4(
-    right.x, right.y, right.z, 0.0f,
-    newUp.x, newUp.y, newUp.z, 0.0f,
-    forward.x, forward.y, forward.z, 0.0f,
-    0.0f, 0.0f, 0.0f, 1.0f
-  );
-
-  // I had this implemented originally, it was wrong!
-  // It's scale * orientation * transform
-  // That's why it needed two inverses :(
-  //mat4 view = Inverse(viewPosition) * Inverse(viewOrientation);
-  //std::cout << "View: " << view << "\n\n";
-  //std::cout << "Alt: " << Inverse(viewOrientation * viewPosition) << "\n\n";
-  // Turns out it's the same as one inverse in the correct order
-  mat4 view = Inverse(viewOrientation * viewPosition);
-  mat4 result =
-#else
-  return
-#endif
-    mat4(
-    right.x, newUp.x, forward.x, 0.0f,
-    right.y, newUp.y, forward.y, 0.0f,
-    right.z, newUp.z, forward.z, 0.0f,
-    -Dot(right, position), -Dot(newUp, position), -Dot(forward, position), 1.0f
-  );
-#ifdef DO_SANITY_TESTS
-#ifndef NO_EXTRAS
-  if (result != view) {
-    std::cout << "Error, result and view do not match in an expected manner!\n";
-    std::cout << "view: \n" << view << "\n\n";
-    std::cout << "result: \n" << result << "\n\n";
-  }
-#endif
-  return result;
-#endif
-}
-
-// https://msdn.microsoft.com/en-us/library/windows/desktop/bb147302(v=vs.85).aspx
-mat4 Projection(float fov, float aspect, float zNear, float zFar) {
-  /* https://msdn.microsoft.com/en-us/library/windows/desktop/bb205350(v=vs.85).aspx
-  float yScale = 1.0f / tanf(DEG2RAD((fov * 0.5f)));
-  float xScale = yScale / aspect;
-  float zf = zFar;
-  float zn = zNear;
-
-  return mat4(
-    xScale,     0,          0,               0,
-    0,        yScale,       0,               0,
-    0,          0,       zf / (zf - zn),         1,
-    0,          0, - zn*zf / (zf - zn),     0
-  ); */
-
-  float tanHalfFov = tanf(DEG2RAD((fov * 0.5f)));
-
-  mat4 result; // There are MANY different ways to derive a projection matrix!
-
-#if 0
-    result._11 = 1.0f / (aspect * tanHalfFov);
-    result._22 = 1.0f / tanHalfFov;
-    result._33 = (-zNear - zFar) / (zNear - zFar);
-    result._44 = 0.0f;
-    result._34 = 1.0f;
-    result._43 = (2.0f * zFar * zNear) / (zNear - zFar);
-#else
-    float fovY = 1.0f / tanHalfFov; // cot(fov/2)
-    float fovX = fovY / aspect; // cot(fov/2) / aspect
-
-    result._11 = fovX;
-    result._22 = fovY;
-    result._33 = zFar / (zFar - zNear); // far / range
-    result._34 = 1.0f;
-    result._43 = -zNear * result._33; // - near * (far / range)
-    result._44 = 0.0f;
-#endif
-
-  // result._43 *= -1.0f;
-
-  return result;
-}
-
-// Derived following: http://www.songho.ca/opengl/gl_projectionmatrix.html
-// Above was wrong, it was OpenGL style, our matrices are DX style
-// Correct impl: https://msdn.microsoft.com/en-us/library/windows/desktop/bb205347(v=vs.85).aspx
-mat4 Ortho(float left, float right, float bottom, float top, float zNear, float zFar) {
-  float _11 = 2.0f / (right - left);
-  float _22 = 2.0f / (top - bottom);
-  float _33 = 1.0f / (zFar - zNear);
-  float _41 = (left + right) / (left - right);
-  float _42 = (top + bottom) / (bottom - top);
-  float _43 = (zNear) / (zNear - zFar);
-
-  return mat4(
-     _11, 0.0f, 0.0f, 0.0f,
-    0.0f,  _22, 0.0f, 0.0f,
-    0.0f, 0.0f,  _33, 0.0f,
-     _41,  _42,  _43, 1.0f
-  );
-
-  /*
-  2 / (r - l)     0         0       0
-  0         2 / (t - b)     0       0
-  0         0         1 / (zf - zn)   0
-  (l + r) / (l - r) (t + b) / (b - t) zn / (zn - zf)  1
-  */
-
-  /*float w = right - left;
-  float h = bottom - top;
-
-  return mat4(
-    w * 0.5f, 0.0f, 0.0f, 0.0f,
-    0.0f, h * 0.5f, 0.0f, 0.0f,
-    0.0f, 0.0f, 1.0f / (zFar - zNear), 0.0f,
-    0.0f, 0.0f, zNear / (zNear - zFar), 1.0f
-  );*/
-}
-
-vec3 Decompose(const mat3& rot1) {
-  mat3 rot = Transpose(rot1);
-
-  float sy = sqrt(rot._11 * rot._11 + rot._21 * rot._21);
-
-  bool singular = sy < 1e-6; // If
-
-  float x, y, z;
-  if (!singular) {
-    x = atan2(rot._32, rot._33);
-    y = atan2(-rot._31, sy);
-    z = atan2(rot._21, rot._11);
-  }
-  else {
-    x = atan2(-rot._23, rot._22);
-    y = atan2(-rot._31, sy);
-    z = 0;
-  }
-
-  return vec3(x, y, z);
-}
-
-
-
-
-
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m2-determ "" [m]
+  (let [{:keys [cells]} m]
+    (- (* (nth cells 0) (nth cells 3))
+       (* (nth cells 1) (nth cells 2)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mx-cut "" [m row col]
+  (let [{:keys [rows cols cells]} m
+        ;change to zero indexed
+        row' (- 1 row)
+        col' (- 1 col)
+        tmp (transient [])]
+    (dotimes [i rows]
+      (dotimes [j cols]
+        (when-not (or (= i row')
+                      (= j col'))
+          (conj! tmp (nth cells (+ j (* i cols)))))))
+    (mx-new* (- 1 rows) (- 1 cols) (clj->js (persistent! tmp)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m3-minor "" [m]
+  (let [{:keys [rows cols cells]} m
+        tmp (transient [])]
+    (dotimes [i rows]
+      (dotimes [j cols]
+        (conj! tmp (m2-determ (mx-cut m i j)))))
+    (mx-new* rows cols (clj->js (persistent! tmp)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m2-minor "" [m]
+  (let [{:keys [cells]} m]
+    (mat2 (nth cells 3) (nth cells 2)
+          (nth cells 1) (nth cells 0))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mx-cofactor "" [minor]
+  (let [{:keys [rows cols cells]} minor
+        tmp (make-array js/Number (* rows cols))]
+    (dotimes [i rows]
+      (dotimes [j cols]
+        (let [k (+ i (* j cols))]
+          (aset tmp
+                k
+                (* (nth cells k) (js/Math.pow -1.0 (+ i j)))))))
+    (mx-new* rows cols tmp)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m2-cofactor "" [m] (mx-cofactor (m2-minor m)))
+(defn m3-cofactor "" [m] (mx-cofactor (m3-minor m)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m3-determ "" [m]
+  (let [{mCells :cells size :rows} m
+        c (m3-cofactor m)
+        {cCells :cells} c]
+    (reduce (fn [sum j]
+              (+ sum
+                 (nth mCells (+ j (* size 0)))
+                 (nth cCells (+ j 0)))) 0 size)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-minor "" [m]
+  (let [{:keys [cells rows cols]} m
+        tmp (transient [])]
+    (dotimes [i rows]
+      (dotimes [j cols]
+        (conj! tmp (m3-determ (mx-cut m i j)))))
+    (mx-new* rows cols (clj->js (persistent! tmp)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-cofactor "" [m] (mx-cofactor (m4-minor m)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-determ "" [m]
+  (let [{:keys [rows cols cells] size :rows} m
+        c (m4-cofactor m)
+        {cCells :cells} c]
+    (reduce (fn [sum j]
+              (+ sum
+                 (nth cells (+ j (* rows 0)))
+                 (nth cCells (+ j 0)))) 0 size)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m2-adjugate "" [m]
+  (mx-xpose (m2-cofactor m)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m3-adjugate "" [m]
+  (mx-xpose (m3-cofactor m)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-adjugate "" [m]
+  (mx-xpose (m4-cofactor m)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m2-inv "" [m]
+  (let [d (m2-determ m)]
+    (if (CMP d 0) (mat2) (mx-scale (m2-adjugate m) (/ 1 d)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m3-inv "" [m]
+  (let [d (m3-determ m)]
+    (if (CMP d 0) (mat3) (mx-scale (m3-adjugate m) (/ 1 d)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-inv "" [m]
+  (let [d (m4-determ m)]
+    (if (CMP d 0) (mat4) (mx-scale (m4-adjugate m) (/ 1 d)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-toColMajor "" [m] (mx-xpose m))
+(defn m3-toColMajor "" [m] (mx-xpose m))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-fromColMajor "" [m] (mx-xpose m))
+(defn m3-fromColMajor "" [m] (mx-xpose m))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-txlate*
+  "" [x y z] (mat4 1 0 0 0
+                   0 1 0 0
+                   0 0 1 0
+                   x y z 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-txlate "" [v3]
+  (let [{:keys [x y z]} v3] (m4-txlate* x y z)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-fromM3 "" [m]
+  (let [{:keys [rows cols cells]} m
+        [r1 r2 r3] (partition rows cells)]
+    (mx-new* (inc rows)
+             (inc cols)
+             (clj->js (concat r1 [0] r2 [0] r3 [0] [0 0 0 1])))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getTranslationM4 "" [m]
+  (let [{:keys [rows cols cells]} m
+        [r1 r2 r3 r4] (partition rows cells)]
+    (vec3 (nth r4 0) (nth r4 1) (nth r4 2))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-scale* "" [x y z]
+  (mat4 x 0 0 0
+        0 y 0 0
+        0 0 z 0
+        0 0 0 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-scale
+  "" [v3] (let [{:keys [x y z]} v3] (m4-scale* x y z)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getScaleM4 "" [m]
+  (let [{:keys [rows cols cells]} m
+        [r1 r2 r3 r4] (partition rows cells)]
+    (vec3 (nth r1 0) (nth r2 1) (nth r3 2))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn rotation2x2 "" [angle]
+  (mat2 (COS angle) (SIN angle)
+        (- (SIN angle)) (COS angle)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-yawPitchRoll "" [yaw pitch roll]
+  (mx-new* 4 4
+           #js [(+ (* (COS roll) (COS yaw))
+                   (* (SIN roll) (SIN pitch) (SIN yaw)))
+                (* (SIN roll) (COS pitch))
+                (+ (* (COS roll) (- (SIN yaw)))
+                   (* (SIN roll) (SIN pitch) (COS yaw)))
+                0
+                (+ (* (- (SIN roll)) (COS yaw))
+                   (* (COS roll) (SIN pitch) (SIN yaw)))
+                (* (COS roll) (COS pitch))
+                (+ (* (SIN roll) (SIN yaw))
+                   (* (COS roll) (SIN pitch) (COS yaw)))
+                0
+                (* (COS pitch) (SIN yaw))
+                (- (SIN pitch))
+                (* (COS pitch) (COS yaw))
+                0
+                0 0 0 1]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn XRotation "" [rad]
+  (mx-new* 4 4
+           #js [1 0 0 0
+                0 (COS rad) (SIN rad) 0
+                0 (- (SIN rad)) (COS rad) 0
+                0 0 0 1]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn XRotation3x3 "" [rad]
+  (mx-new* 3 3
+           #js [1 0 0
+                0 (COS rad) (SIN rad)
+                0 (- (SIN rad)) (COS rad)]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn YRotation "" [rad]
+  (mx-new* 4 4
+           #js [(COS rad) 0 (- (SIN rad)) 0
+                0 1 0 0
+                (SIN rad) 0 (COS rad) 0
+                0 0 0 1]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn YRotation3x3 "" [rad]
+  (mx-new* 3 3
+           #js [(COS rad) 0 (- (SIN rad))
+                0 1 0
+                (SIN rad) 0 (COS rad)]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn ZRotation "" [rad]
+  (mx-new* 4 4
+           #js [(COS rad) (SIN rad) 0 0
+                (- (SIN rad)) (COS rad) 0 0
+                0 0 1 0
+                0 0 0 1]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn ZRotation3x3 "" [rad]
+  (mx-new* 3 3
+           #js [(COS rad) (SIN rad) 0
+                (- (SIN rad)) (COS rad) 0
+                0 0 1]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-rotation "" [pitch yaw roll]
+  (mx-multAB (mx-multAB (ZRotation roll)
+                        (XRotation pitch)) (YRotation yaw)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn rotation3x3 "" [pitch yaw roll]
+  (mx-multAB (mx-multAB (ZRotation3x3 roll)
+                        (XRotation3x3 pitch)) (YRotation3x3 yaw)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-orthogonalize "" [m]
+  (let [{:keys [rows cols cells]} m
+        [r1 r2 r3 r4] (partition rows cells)
+        xAxis (vec3 (nth r1 0) (nth r1 1) (nth r1 2))
+        yAxis (vec3 (nth r2 0) (nth r2 1) (nth r2 2))
+        zAxis (v3-xss xAxis yAxis)
+        {xx :x xy :y xz :z} (v3-xss yAxis zAxis)
+        {yx :x yy :y yz :z} (v3-xss zAxis xAxis)
+        {zx :x zy :y zz :z} (v3-xss xAxis yAxis)]
+    (mx-new* 4 4
+             #js [xx xy xz (nth r1 3)
+                  yx yy yz (nth r2 3)
+                  zx zy zz (nth r3 3)
+                  (nth r4 0) (nth r4 1) (nth r4 2) (nth r4 3)])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m3-orthogonalize "" [m]
+  (let [{:keys [rows cols cells]} m
+        [r1 r2 r3] (partition rows cells)
+        xAxis (vec3 (nth r1 0) (nth r1 1) (nth r1 2))
+        yAxis (vec3 (nth r2 0) (nth r2 1) (nth r2 2))
+        zAxis (v3-xss xAxis yAxis)
+        {xx :x xy :y xz :z} (v3-xss yAxis zAxis)
+        {yx :x yy :y yz :z} (v3-xss zAxis xAxis)
+        {zx :x zy :y zz :z} (v3-xss xAxis yAxis)]
+    (mx-new* 3 3
+             #js [xx xy xz
+                  yx yy yz
+                  zx zy zz])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-axisAngle "" [axis rad]
+  (let [{x' :x y' :y z' :z} axis
+        c (COS rad)
+        s (SIN rad)
+        t (- 1 c)
+        [x y z]
+        (if-not (CMP (v3-lensq axis) 1)
+          (let [ilen (/ 1 (v3-len axis))]
+            [(* x' ilen) (* y' ilen) (* z' ilen)])
+          [x' y' z'])]
+  (mx-new* 4 4
+           #js [(+ c (* t x x))
+                (+ (* t x y) (* s z))
+                (- (* t x z) (* s y))
+                0
+                (- (* t x y) (* s z))
+                (+ c (* t y y))
+                (+ (* t y z) (* s x))
+                0
+                (+ (* t x z)(* s y))
+                (- (* t y z)(* s x))
+                (+ c (* t z z))
+                0
+                0 0 0 1])))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn axisAngle3x3 "" [axis rad]
+  (let [{x' :x y' :y z' :z} axis
+        c (COS rad)
+        s (SIN rad)
+        t (- 1 c)
+        [x y z]
+        (if-not (CMP (v3-lensq axis) 1)
+          (let [ilen (/ 1 (v3-len axis))]
+            [(* x' ilen)(* y' ilen)(* z' ilen)])
+          [x' y' z'])]
+    (mx-new* 3 3
+             #js [(+ c (* t x x))
+                  (+ (* t x y)(* s z))
+                  (- (* t x z)(* s y))
+                  (- (* t x y)(* s z))
+                  (+ c (* t y y))
+                  (+ (* t y z)(* s x))
+                  (+ (* t x z)(* s y))
+                  (- (* t y z)(* s x))
+                  (+ c (* t z z))])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m3-multPoint "" [v3 m4]
+  (let [{:keys [x y z]} v3
+        [r1 r2 r3 r4] (partition 4 (:cells m4))]
+    (vec3 (+ (* x (nth r1 0))
+             (* y (nth r2 0))
+             (* z (nth r3 0))
+             (* 1 (nth r4 0)))
+          (+ (* x (nth r1 1))
+             (* y (nth r2 1))
+             (* z (nth r3 1))
+             (* 1 (nth r4 1)))
+          (+ (* x (nth r1 2))
+             (* y (nth r2 2))
+             (* z (nth r3 2))
+             (* 1 (nth r4 2))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m3-multVec4 "" [v3 m4]
+  (let [{:keys [x y z]} v3
+        [r1 r2 r3 r4] (partition 4 (:cells m4))]
+    (vec3 (+ (* x (nth r1 0))
+             (* y (nth r2 0))
+             (* z (nth r3 0))
+             (* 0 (nth r4 0)))
+          (+ (* x (nth r1 1))
+             (* y (nth r2 1))
+             (* z (nth r3 1))
+             (* 0 (nth r4 1)))
+          (+ (* x (nth r1 2))
+             (* y (nth r2 2))
+             (* z (nth r3 2))
+             (* 0 (nth r4 2))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m3-multVec3 "" [v3 m3]
+  (let [{:keys [x y z]} v3
+        [r1 r2 r3] (partition 3 (:cells m3))]
+    (vec3 (v3-dot v3 (vec3 (nth r1 0)(nth r2 0)(nth r3 0)))
+          (v3-dot v3 (vec3 (nth r1 1)(nth r2 1)(nth r3 1)))
+          (v3-dot v3 (vec3 (nth r1 2)(nth r2 2)(nth r3 2))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-txform* "" [scale eulerRotation translate]
+  (let [{:keys [x y z]} eulerRotation]
+    (mx-multAB (mx-multAB (m4-scale scale)
+                          (m4-rotation x y z)) (m4-txlate translate))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-txform "" [scale rotationAxis rotationAngle translate]
+  (mx-multAB (mx-multAB (m4-scale scale)
+                        (m4-axisAngle rotationAxis rotationAngle))
+             (m4-txlate translate)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m4-lookAt "" [pos target up]
+  (let [{fx :x fy :y fz :z :as forward} (v3-unit (v3-sub target pos))
+        {rx :x ry :y rz :z :as right} (v3-unit (v3-xss up forward))
+        {nx :x ny :y nz :z :as newUp} (v3-xss forward right)]
+    (mx-new* 4 4
+             #js [rx nx fx 0
+                  ry ny fy 0
+                  rz nz fz 0
+                  (- (v3-dot right pos))
+                  (- (v3-dot newUp pos))
+                  (- (v3-dot forward pos)) 1])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;https://msdn.microsoft.com/en-us/library/windows/desktop/bb147302(v=vs.85).aspx
+;;
+(defn m4-proj "" [fov aspect zNear zFar]
+  (let [tanHalfFov (TAN (* fov 0.5))
+        fovY (/ 1 tanHalfFov) ;;cot(fov/2)
+        fovX (/ fovY aspect) ;;cot(fov/2) / aspect
+        r33 (/ zFar (- zFar zNear)) ;;far/range
+        {:keys [cells] :as ret} (mat4)]
+
+    (aset cells (mx-pos 4 4 1 1) fovX)
+    (aset cells (mx-pos 4 4 2 2) fovY)
+    (aset cells (mx-pos 4 4 3 3) r33)
+    (aset cells (mx-pos 4 4 3 4) 1)
+    (aset cells (mx-pos 4 4 4 3) (* (- zNear) r33)) ;-near * (far / range)
+    (aset cells (mx-pos 4 4 4 4) 0)
+    ret))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;Derived following: http://www.songho.ca/opengl/gl_projectionmatrix.html
+;;Above was wrong, it was OpenGL style, our matrices are DX style
+;;Correct impl:
+;;https://msdn.microsoft.com/en-us/library/windows/desktop/bb205347(v=vs.85).aspx
+
+(defn m4-ortho "" [left right bottom top zNear zFar]
+  (let [_11 (/ 2 (- right left))
+        _22 (/ 2 (- top bottom))
+        _33 (/ 1 (- zFar zNear))
+        _41 (/ (+ left right) (- left right))
+        _42 (/ (+ top bottom) (- bottom top))
+        _43 (/ zNear (- zNear zFar))]
+    (mx-new* 4 4
+             #js [_11 0 0 0
+                  0 _22 0 0
+                  0 0 _33 0
+                  _41 _42 _43 1])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn m3-decompose "" [rot1]
+  (let [rot (mx-xpose rot1)
+        [r1 r2 r3]
+        (partition 3 rot)
+        sy (sqrt* (+ (sqr* (nth r1 0))
+                     (sqr* (nth r2 0))))
+        singular? (< sy 1e-6)
+        [x y z]
+        (if-not singular?
+          [(ATAN2 (nth r3 1)(nth r3 2))
+           (ATAN2 (- (nth r3 0)) sy)
+           (ATAN2 (nth r2 0) (nth r1 0))]
+          [(ATAN2 (- (nth r2 2))
+                  (nth r2 1))
+           (ATAN2 (- (nth r3 0)) sy) 0])] (vec3 x y z)))
 
 ;;kenl
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1085,5 +849,10 @@ vec3 Decompose(const mat3& rot1) {
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Interval2D "" [& [minv maxv]]
   {:min (num?? minv 0) :max (num?? maxv 0)})
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
 
 
