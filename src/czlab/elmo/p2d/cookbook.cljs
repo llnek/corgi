@@ -1350,6 +1350,9 @@ handed matrices. That is, +Z goes INTO the screen.")
     ;;if the length is 0, no intersection happened
     (not (CMP (v3-dot d d) 0))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- raycastResult "" []
+  {:t -1 :hit? false :normal (vec3 0 0 1) :point (Point3D)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti raycast "" (fn [a & more] (:type a)))
@@ -1366,17 +1369,15 @@ handed matrices. That is, +Z goes INTO the screen.")
         f (sqrt* (abs* (- rSq bSq)))
         ;;Assume normal intersection!
         t (- a f)]
-    (cond
-      ;;No collision has happened
-      (< (- rSq (- eSq (sqr* a))) 0)
-      nil
-      :else
+    ;;No collision has happened?
+    (if-not (neg? (- rSq (- eSq (sqr* a))))
       ;;Ray starts inside the sphere
       (let [t (if (< eSq rSq) ;;Just reverse direction
                 (+ a f) t)
             point (v3-add origin (v3-scale dir t))]
-        {:t t :hit? true :point point
-         :normal (v3-unit (v3-sub point pos))}))))
+        (merge (raycastResult)
+               {:t t :hit? true :point point
+                :normal (v3-unit (v3-sub point pos))})))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmethod raycast :OBB [obb ray]
@@ -1416,10 +1417,7 @@ handed matrices. That is, +Z goes INTO the screen.")
                             (/ (- (aget e i)
                                   (aget sizeL i)) (aget f i)))) ;;tmax[x, y, z]
                     (recur (+ 1 i) SZ y?))))]
-    (cond
-      (not cont?)
-      false
-      :else
+    (if cont?
       (let [tmin (max (max (min (aget t 0) (aget t 1))
                            (min (aget t 2) (aget t 3)))
                       (min (aget t 4) (aget t 5)))
@@ -1429,9 +1427,8 @@ handed matrices. That is, +Z goes INTO the screen.")
         ;;if tmax < 0, ray is intersecting AABB
         ;;but entire AABB is behind it's origin
         ;;if tmin > tmax, ray doesn't intersect AABB
-        (if (or (neg? tmax)
-                (> tmin tmax))
-          false
+        (if-not (or (neg? tmax)
+                    (> tmin tmax))
           (let [;;If tmin is < 0, tmax is closer
                 t_result (if (neg? tmin) tmax tmin)
                 normals [X ;;+x
@@ -1439,125 +1436,85 @@ handed matrices. That is, +Z goes INTO the screen.")
                          Y ;; +y
                          (v3-scale Y -1) ;;-y
                          Z ;; +z
-                         (v3-scale Z -1)]]
-            (dotimes [i 6]
-              (if (CMP t_result (aget t i))
-        outResult->normal = Normalized(normals[i]);
-      }
-  if (outResult != 0) {
-    outResult->hit = true;
-    outResult->t = t_result;
-    outResult->point = ray.origin + ray.direction * t_result;
+                         (v3-scale Z -1)]
+                _normal (loop [i 0 SZ 6 N nil]
+                          (if (>= i SZ)
+                            N
+                            (recur (+ i 1)
+                                   SZ
+                                   (if (CMP t_result (aget t i))
+                                     (v3-unit (nth normals i))
+                                     N))))]
+            (merge (raycastResult)
+                   {:hit? true
+                    :normal _normal
+                    :t t_result
+                    :point (v3-add origin (v3-scale dir t_result))})))))))
 
-    for (int i = 0; i < 6; ++i) {
-      if (CMP(t_result, t[i])) {
-        outResult->normal = Normalized(normals[i]);
-      }
-    }
-  }
-  return true;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod raycast :AABB [aabb ray]
+  (let [{nx :x ny :y nz :z} (getMin3D aabb)
+        {xx :x xy :y xz :z} (getMax3D aabb)
+        {:keys [origin dir]} ray
+        {ox :x oy :y oz :z} origin
+        {dx :x dy :y dz :z} dir
+        {:keys []} aabb
+        ;;Any component of direction could be 0!
+        ;;Address this by using a small number, close to
+        ;;0 in case any of directions components are 0
+        t1 (/ (- nx ox) (if (CMP dx 0) 0.00001 dx))
+        t2 (/ (- xx ox) (if (CMP dx 0) 0.00001 dx))
+        t3 (/ (- ny oy) (if (CMP dy 0) 0.00001 dy))
+        t4 (/ (- xy oy) (if (CMP dy 0) 0.00001 dy))
+        t5 (/ (- nz oz) (if (CMP dz 0) 0.00001 dz))
+        t6 (/ (- xz oz) (if (CMP dz 0) 0.00001 dz))
+        tmin (max (max (min t1 t2)(min t3 t4)) (min t5 t6))
+        tmax (min (min (max t1 t2)(max t3 t4)) (max t5 t6))]
+    ;;if tmax < 0, ray is intersecting AABB
+    ;;but entire AABB is behind it's origin
+    ;;if tmin > tmax, ray doesn't intersect AABB
 
-void ResetRaycastResult(RaycastResult* outResult) {
-  if (outResult != 0) {
-    outResult->t = -1;
-    outResult->hit = false;
-    outResult->normal = vec3(0, 0, 1);
-    outResult->point = vec3(0, 0, 0);
-  }
-}
+    (if-not (or (neg? tmax)
+                (> tmin tmax))
+      (let [;;If tmin is < 0, tmax is closer
+            t_result (if (neg? tmin) tmax tmin)
+            normals [(vec3 -1 0 0)
+                     (vec3 1 0 0)
+                     (vec3 0 -1 0)
+                     (vec3 0 1 0)
+                     (vec3 0 0 -1)
+                     (vec3 0 0 1)]
+            t [t1 t2 t3 t4 t5 t6]
+            _normal (loop [i 0 SZ 6 N nil]
+                      (if (>= i SZ)
+                        N
+                        (recur (+ 1 i)
+                               SZ
+                               (if (CMP t_result (nth t i))
+                                 (nth normals i)
+                                 N))))]
+        (merge (raycastResult)
+               {:t t_result :hit? true
+                :point (v3-add origin (v3-scale dir t_result))})))))
 
-bool Raycast(const AABB& aabb, const Ray& ray, RaycastResult* outResult) {
-  ResetRaycastResult(outResult);
-
-  vec3 min = GetMin(aabb);
-  vec3 max = GetMax(aabb);
-
-  // Any component of direction could be 0!
-  // Address this by using a small number, close to
-  // 0 in case any of directions components are 0
-  float t1 = (min.x - ray.origin.x) / (CMP(ray.direction.x, 0.0f) ? 0.00001f : ray.direction.x);
-  float t2 = (max.x - ray.origin.x) / (CMP(ray.direction.x, 0.0f) ? 0.00001f : ray.direction.x);
-  float t3 = (min.y - ray.origin.y) / (CMP(ray.direction.y, 0.0f) ? 0.00001f : ray.direction.y);
-  float t4 = (max.y - ray.origin.y) / (CMP(ray.direction.y, 0.0f) ? 0.00001f : ray.direction.y);
-  float t5 = (min.z - ray.origin.z) / (CMP(ray.direction.z, 0.0f) ? 0.00001f : ray.direction.z);
-  float t6 = (max.z - ray.origin.z) / (CMP(ray.direction.z, 0.0f) ? 0.00001f : ray.direction.z);
-
-  float tmin = fmaxf(fmaxf(fminf(t1, t2), fminf(t3, t4)), fminf(t5, t6));
-  float tmax = fminf(fminf(fmaxf(t1, t2), fmaxf(t3, t4)), fmaxf(t5, t6));
-
-  // if tmax < 0, ray is intersecting AABB
-  // but entire AABB is behing it's origin
-  if (tmax < 0) {
-    return false;
-  }
-
-  // if tmin > tmax, ray doesn't intersect AABB
-  if (tmin > tmax) {
-    return false;
-  }
-
-  float t_result = tmin;
-
-  // If tmin is < 0, tmax is closer
-  if (tmin < 0.0f) {
-    t_result = tmax;
-  }
-
-  if (outResult != 0) {
-    outResult->t = t_result;
-    outResult->hit = true;
-    outResult->point = ray.origin + ray.direction * t_result;
-
-    vec3 normals[] = {
-      vec3(-1, 0, 0),
-      vec3(1, 0, 0),
-      vec3(0, -1, 0),
-      vec3(0, 1, 0),
-      vec3(0, 0, -1),
-      vec3(0, 0, 1)
-    };
-    float t[] = { t1, t2, t3, t4, t5, t6 };
-
-    for (int i = 0; i < 6; ++i) {
-      if (CMP(t_result, t[i])) {
-        outResult->normal = normals[i];
-      }
-    }
-  }
-
-  return true;
-}
-
-bool Raycast(const Plane& plane, const Ray& ray, RaycastResult* outResult) {
-  ResetRaycastResult(outResult);
-
-  float nd = Dot(ray.direction, plane.normal);
-  float pn = Dot(ray.origin, plane.normal);
-
-  // nd must be negative, and not 0
-  // if nd is positive, the ray and plane normals
-  // point in the same direction. No intersection.
-  if (nd >= 0.0f) {
-    return false;
-  }
-
-  float t = (plane.distance - pn) / nd;
-
-  // t must be positive
-  if (t >= 0.0f) {
-    if (outResult != 0) {
-      outResult->t = t;
-      outResult->hit = true;
-      outResult->point = ray.origin + ray.direction * t;
-      outResult->normal = Normalized(plane.normal);
-    }
-    return true;
-  }
-
-  return false;
-}
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod raycast :plane [plane ray]
+  (let [{:keys [normal dist]} plane
+        {:keys [origin dir]} ray
+        nd (v3-dot dir normal)
+        pn (v3-dot origin normal)]
+    ;;nd must be negative, and not 0
+    ;;if nd is positive, the ray and plane normals
+    ;;point in the same direction. No intersection.
+    (if (neg? nd)
+      (let [t (/ (- dist pn) nd)]
+        (if (>= t 0)
+          (merge (raycastResult)
+                 {:t t :hit? true
+                  :point (v3-add origin (v3-scale dir t))
+                  :normal (v3-unit normal)}))))))
+;;kenl
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 bool Linetest(const Sphere& sphere, const Line& line) {
   Point closest = ClosestPoint(line, sphere.position);
   float distSq = MagnitudeSq(sphere.position - closest);
