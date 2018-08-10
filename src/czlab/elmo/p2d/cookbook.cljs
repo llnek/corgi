@@ -852,22 +852,27 @@ handed matrices. That is, +Z goes INTO the screen.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-(defn Point3D "" [& [x y z]] (vec3 (num?? x 0)
-                                   (num?? y 0)(num?? z 0)))
+(defn Point3D "" [& [x y z :as args]]
+  (-> (if (= 1 (count args))
+        x
+        (vec3 (num?? x 0) (num?? y 0)(num?? z 0)))
+      (assoc :type :point)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Line3D "" [start end] {:start start :end end})
+(defn Line3D "" [start end] {:type :line :start start :end end})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Ray
   "" [& [origin dir]]
   {:origin (or origin (Point3D 0 0 0))
+   :type :ray
    :dir (if (some? dir) (v3-unit dir) (vec3 0 0 1))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Sphere
   "" [& [pos radius]]
   {:radius (if (some? radius) radius 1)
+   :type :sphere
    :pos (if (some? pos) pos (Point3D 0 0 0))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -875,12 +880,14 @@ handed matrices. That is, +Z goes INTO the screen.")
   ;;Rectangle3D
   "half size" [& [pos size]]
   {:size (if (some? size) size (vec3 1 1 1))
+   :type :AABB
    :pos (if (some? pos) pos (Point3D 0 0 0))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn OBB
   "half size" [& [pos size orient]]
   {:size (if (some? size) size (vec3 1 1 1))
+   :type :OBB
    :orient (if (some? orient) orient (mat3))
    :pos (if (some? pos) pos (Point3D 0 0 0))})
 
@@ -888,11 +895,13 @@ handed matrices. That is, +Z goes INTO the screen.")
 (defn Plane
   "" [& [normal dist]]
   {:dist (if (number? dist) dist 0)
+   :type :plane
    :normal (if (some? normal) normal (vec3 1 0 0))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Triangle "" [& [a b c :as args]]
-  {:size 3 :cells (if (empty? args)
+  {:type :triangle
+   :size 3 :cells (if (empty? args)
                     #js [0 0 0 0 0 0 0 0 0]
                     #js [(:x a)(:y a)(:z a) (:x b)(:y b)(:z b) (:x c)(:y c)(:z c)])})
 
@@ -960,660 +969,485 @@ handed matrices. That is, +Z goes INTO the screen.")
   (AABB (v3-scale (v3-add min3 max3) 0.5)
         (v3-scale (v3-sub max3 min3) 0.5)))
 
-
-float PlaneEquation(const Point& point, const Plane& plane) {
-  return Dot(point, plane.normal) - plane.distance;
-}
-
-#ifndef NO_EXTRAS
-float PlaneEquation(const Plane& plane, const Point& point) {
-  return Dot(point, plane.normal) - plane.distance;
-}
-#endif
-
-#ifndef NO_EXTRAS
-std::ostream& operator<<(std::ostream& os, const Line& shape) {
-  os << "start: (" << shape.start.x << ", " << shape.start.y << ", " << shape.start.z << "), end: (";
-  os << shape.end.x << ", " << shape.end.y << ", " << shape.end.z << ")";
-  return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const Ray& shape) {
-  os << "origin: (" << shape.origin.x << ", " << shape.origin.y << ", " << shape.origin.z << "), ";
-  os << "direction: (" << shape.direction.x << ", " << shape.direction.y << ", " << shape.direction.z << ")";
-  return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const Sphere& shape) {
-  os << "position:" << shape.position.x << ", " << shape.position.y << ", " << shape.position.z << "), ";
-  os << "radius: " << shape.radius;
-  return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const AABB& shape) {
-  vec3 min = GetMin(shape);
-  vec3 max = GetMax(shape);
-  os << "min: (" << min.x << ", " << min.y << ", " << min.z << "), ";
-  os << "max: (" << max.x << ", " << max.y << ", " << max.z << ")";
-  return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const Plane& shape) {
-  os << "normal: (" << shape.normal.x << ", " << shape.normal.y << ", " << shape.normal.z << "), ";
-  os << "distance: " << shape.distance;
-  return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const Triangle& shape) {
-  os << "a: (" << shape.a.x << ", " << shape.a.y << ", " << shape.a.z << "), ";
-  os << "b: (" << shape.b.x << ", " << shape.b.y << ", " << shape.b.z << "), ";
-  os << "c: (" << shape.c.x << ", " << shape.c.y << ", " << shape.c.z << ")";
-  return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const OBB& shape) {
-  os << "position:" << shape.position.x << ", " << shape.position.y << ", " << shape.position.z << "), ";
-  os << "size:" << shape.size.x << ", " << shape.size.y << ", " << shape.size.z << "), ";
-  os << "x basis:" << shape.orientation._11 << ", " << shape.orientation._21 << ", " << shape.orientation._31 << "), ";
-  os << "y basis:" << shape.orientation._12 << ", " << shape.orientation._22 << ", " << shape.orientation._32 << "), ";
-  os << "z basis:" << shape.orientation._13 << ", " << shape.orientation._23 << ", " << shape.orientation._33 << ")";
-  return os;
-}
-#endif
-
-bool PointInSphere(const Point& point, const Sphere& sphere) {
-  return MagnitudeSq(point - sphere.position) < sphere.radius * sphere.radius;
-}
-
-bool PointOnPlane(const Point& point, const Plane& plane) {
-  // This should probably use an epsilon!
-  //return Dot(point, plane.normal) - plane.distance == 0.0f;
-
-  return CMP(Dot(point, plane.normal) - plane.distance, 0.0f);
-}
-
-bool PointInAABB(const Point& point, const AABB& aabb) {
-  Point min = GetMin(aabb);
-  Point max = GetMax(aabb);
-
-  if (point.x < min.x || point.y < min.y || point.z < min.z) {
-    return false;
-  }
-  if (point.x > max.x || point.y > max.y || point.z > max.z) {
-    return false;
-  }
-
-  return true;
-}
-
-bool PointInOBB(const Point& point, const OBB& obb) {
-  vec3 dir = point - obb.position;
-
-  for (int i = 0; i < 3; ++i) {
-    const float* orientation = &obb.orientation.asArray[i * 3];
-    vec3 axis(orientation[0], orientation[1], orientation[2]);
-
-    float distance = Dot(dir, axis);
-
-    if (distance > obb.size.asArray[i]) {
-      return false;
-    }
-    if (distance < -obb.size.asArray[i]) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-Point ClosestPoint(const Sphere& sphere, const Point& point) {
-  vec3 sphereToPoint = point - sphere.position;
-  Normalize(sphereToPoint);
-  sphereToPoint = sphereToPoint * sphere.radius;
-  return sphereToPoint + sphere.position;
-}
-
-Point ClosestPoint(const AABB& aabb, const Point& point) {
-  Point result = point;
-  Point min = GetMin(aabb);
-  Point max = GetMax(aabb);
-
-  result.x = (result.x < min.x) ? min.x : result.x;
-  result.y = (result.y < min.x) ? min.y : result.y;
-  result.z = (result.z < min.x) ? min.z : result.z;
-
-  result.x = (result.x > max.x) ? max.x : result.x;
-  result.y = (result.y > max.x) ? max.y : result.y;
-  result.z = (result.z > max.x) ? max.z : result.z;
-
-  return result;
-}
-
-Point ClosestPoint(const OBB& obb, const Point& point) {
-  Point result = obb.position;
-  vec3 dir = point - obb.position;
-
-  for (int i = 0; i < 3; ++i) {
-    const float* orientation = &obb.orientation.asArray[i * 3];
-    vec3 axis(orientation[0], orientation[1], orientation[2]);
-
-    float distance = Dot(dir, axis);
-
-    if (distance > obb.size.asArray[i]) {
-      distance = obb.size.asArray[i];
-    }
-    if (distance < -obb.size.asArray[i]) {
-      distance = -obb.size.asArray[i];
-    }
-
-    result = result + (axis * distance);
-  }
-
-  return result;
-}
-
-Point ClosestPoint(const Plane& plane, const Point& point) {
-  // This works assuming plane.Normal is normalized, which it should be
-  float distance = Dot(plane.normal, point) - plane.distance;
-  // If the plane normal wasn't normalized, we'd need this:
-  // distance = distance / DOT(plane.Normal, plane.Normal);
-
-  return point - plane.normal * distance;
-}
-
-bool PointOnLine(const Point& point, const Line& line) {
-  Point closest = ClosestPoint(line, point);
-  float distanceSq = MagnitudeSq(closest - point);
-  return CMP(distanceSq, 0.0f);
-}
-
-Point ClosestPoint(const Line& line, const Point& point) {
-  vec3 lVec = line.end - line.start; // Line Vector
-  // Project "point" onto the "Line Vector", computing:
-  // closest(t) = start + t * (end - start)
-  // T is how far along the line the projected point is
-  float t = Dot(point - line.start, lVec) / Dot(lVec, lVec);
-  // Clamp t to the 0 to 1 range
-  t = fmaxf(t, 0.0f);
-  t = fminf(t, 1.0f);
-  // Return projected position of t
-  return line.start + lVec * t;
-}
-
-bool PointOnRay(const Point& point, const Ray& ray) {
-  if (point == ray.origin) {
-    return true;
-  }
-
-  vec3 norm = point - ray.origin;
-  Normalize(norm);
-  float diff = Dot(norm, ray.direction); // Direction is normalized
-  // If BOTH vectors point in the same direction, diff should be 1
-  return CMP(diff, 1.0f);
-}
-
-Point ClosestPoint(const Ray& ray, const Point& point) {
-  // Project point onto ray,
-  float t = Dot(point - ray.origin, ray.direction);
-  // Not needed if direction is normalized!
-  // t /= Dot(ray.direction, ray.direction);
-
-  // We only want to clamp t in the positive direction.
-  // The ray extends infinatley in this direction!
-  t = fmaxf(t, 0.0f);
-
-  // Compute the projected position from the clamped t
-  // Notice we multiply r.Normal by t, not AB.
-  // This is becuase we want the ray in the direction
-  // of the normal, which technically the line segment is
-  // but this is much more explicit and easy to read.
-  return Point(ray.origin + ray.direction * t);
-}
-
-#ifndef NO_EXTRAS
-bool PointInPlane(const Point& point, const Plane& plane) {
-  return PointOnPlane(point, plane);
-}
-bool PointInLine(const Point& point, const Line& line) {
-  return PointOnLine(point, line);
-}
-bool PointInRay(const Point& point, const Ray& ray) {
-  return PointOnRay(point, ray);
-}
-bool ContainsPoint(const Sphere& sphere, const Point& point) {
-  return PointInSphere(point, sphere);
-}
-bool ContainsPoint(const Point& point, const Sphere& sphere) {
-  return PointInSphere(point, sphere);
-}
-bool ContainsPoint(const AABB& aabb, const Point& point) {
-  return PointInAABB(point, aabb);
-}
-bool ContainsPoint(const Point& point, const AABB& aabb) {
-  return PointInAABB(point, aabb);
-}
-bool ContainsPoint(const Point& point, const OBB& obb) {
-  return PointInOBB(point, obb);
-}
-bool ContainsPoint(const OBB& obb, const Point& point) {
-  return PointInOBB(point, obb);
-}
-bool ContainsPoint(const Point& point, const Plane& plane) {
-  return PointOnPlane(point, plane);
-}
-bool ContainsPoint(const Plane& plane, const Point& point) {
-  return PointOnPlane(point, plane);
-}
-bool ContainsPoint(const Point& point, const Line& line) {
-  return PointOnLine(point, line);
-}
-bool ContainsPoint(const Line& line, const Point& point) {
-  return PointOnLine(point, line);
-}
-bool ContainsPoint(const Point& point, const Ray& ray) {
-  return PointOnRay(point, ray);
-}
-bool ContainsPoint(const Ray& ray, const Point& point) {
-  return PointOnRay(point, ray);
-}
-Point ClosestPoint(const Point& point, const Sphere& sphere) {
-  return ClosestPoint(sphere, point);
-}
-Point ClosestPoint(const Point& point, const AABB& aabb) {
-  return ClosestPoint(aabb, point);
-}
-Point ClosestPoint(const Point& point, const OBB& obb) {
-  return ClosestPoint(obb, point);
-}
-Point ClosestPoint(const Point& point, const Plane& plane) {
-  return ClosestPoint(plane, point);
-}
-Point ClosestPoint(const Point& point, const Line& line) {
-  return ClosestPoint(line, point);
-}
-Point ClosestPoint(const Point& point, const Ray& ray) {
-  return ClosestPoint(ray, point);
-}
-Point ClosestPoint(const Point& p, const Triangle& t) {
-  return ClosestPoint(t, p);
-}
-#endif
-
-bool SphereSphere(const Sphere& s1, const Sphere& s2) {
-  float radiiSum = s1.radius + s2.radius;
-  float sqDistance = MagnitudeSq(s1.position - s2.position);
-  return sqDistance < radiiSum * radiiSum;
-}
-
-bool SphereAABB(const Sphere& sphere, const AABB& aabb) {
-  Point closestPoint = ClosestPoint(aabb, sphere.position);
-  float distSq = MagnitudeSq(sphere.position - closestPoint);
-  float radiusSq = sphere.radius * sphere.radius;
-  return distSq < radiusSq;
-}
-
-bool SphereOBB(const Sphere& sphere, const OBB& obb) {
-  Point closestPoint = ClosestPoint(obb, sphere.position);
-  float distSq = MagnitudeSq(sphere.position - closestPoint);
-  float radiusSq = sphere.radius * sphere.radius;
-  return distSq < radiusSq;
-}
-
-bool SpherePlane(const Sphere& sphere, const Plane& plane) {
-  Point closestPoint = ClosestPoint(plane, sphere.position);
-  float distSq = MagnitudeSq(sphere.position - closestPoint);
-  float radiusSq = sphere.radius * sphere.radius;
-  return distSq < radiusSq;
-}
-
-bool AABBAABB(const AABB& aabb1, const AABB& aabb2) {
-  Point aMin = GetMin(aabb1);
-  Point aMax = GetMax(aabb1);
-  Point bMin = GetMin(aabb2);
-  Point bMax = GetMax(aabb2);
-
-  return  (aMin.x <= bMax.x && aMax.x >= bMin.x) &&
-      (aMin.y <= bMax.y && aMax.y >= bMin.y) &&
-      (aMin.z <= bMax.z && aMax.z >= bMin.z);
-}
-
-bool AABBOBB(const AABB& aabb, const OBB& obb) {
-  const float* o = obb.orientation.asArray;
-
-  vec3 test[15] = {
-    vec3(1, 0, 0), // AABB axis 1
-    vec3(0, 1, 0), // AABB axis 2
-    vec3(0, 0, 1), // AABB axis 3
-    vec3(o[0], o[1], o[2]),
-    vec3(o[3], o[4], o[5]),
-    vec3(o[6], o[7], o[8])
-  };
-
-  for (int i = 0; i < 3; ++i) { // Fill out rest of axis
-    test[6 + i * 3 + 0] = Cross(test[i], test[0]);
-    test[6 + i * 3 + 1] = Cross(test[i], test[1]);
-    test[6 + i * 3 + 2] = Cross(test[i], test[2]);
-  }
-
-  for (int i = 0; i < 15; ++i) {
-    if (!OverlapOnAxis(aabb, obb, test[i])) {
-      return false; // Seperating axis found
-    }
-  }
-
-  return true; // Seperating axis not found
-}
-
-bool OverlapOnAxis(const AABB& aabb, const OBB& obb, const vec3& axis) {
-  Interval a = GetInterval(aabb, axis);
-  Interval b = GetInterval(obb, axis);
-  return ((b.min <= a.max) && (a.min <= b.max));
-}
-
-bool OverlapOnAxis(const OBB& obb1, const OBB& obb2, const vec3& axis) {
-  Interval a = GetInterval(obb1, axis);
-  Interval b = GetInterval(obb1, axis);
-  return ((b.min <= a.max) && (a.min <= b.max));
-}
-
-bool OverlapOnAxis(const AABB& aabb, const Triangle& triangle, const vec3& axis) {
-  Interval a = GetInterval(aabb, axis);
-  Interval b = GetInterval(triangle, axis);
-  return ((b.min <= a.max) && (a.min <= b.max));
-}
-
-bool OverlapOnAxis(const OBB& obb, const Triangle& triangle, const vec3& axis) {
-  Interval a = GetInterval(obb, axis);
-  Interval b = GetInterval(triangle, axis);
-  return ((b.min <= a.max) && (a.min <= b.max));
-}
-
-bool OverlapOnAxis(const Triangle& t1, const Triangle& t2, const vec3& axis) {
-  Interval a = GetInterval(t1, axis);
-  Interval b = GetInterval(t2, axis);
-  return ((b.min <= a.max) && (a.min <= b.max));
-}
-
-Interval GetInterval(const Triangle& triangle, const vec3& axis) {
-  Interval result;
-
-  result.min = Dot(axis, triangle.points[0]);
-  result.max = result.min;
-  for (int i = 1; i < 3; ++i) {
-    float value = Dot(axis, triangle.points[i]);
-    result.min = fminf(result.min, value);
-    result.max = fmaxf(result.max, value);
-  }
-
-  return result;
-}
-
-Interval GetInterval(const OBB& obb, const vec3& axis) {
-  vec3 vertex[8];
-
-  vec3 C = obb.position;  // OBB Center
-  vec3 E = obb.size;    // OBB Extents
-  const float* o = obb.orientation.asArray;
-  vec3 A[] = {      // OBB Axis
-    vec3(o[0], o[1], o[2]),
-    vec3(o[3], o[4], o[5]),
-    vec3(o[6], o[7], o[8]),
-  };
-
-  vertex[0] = C + A[0] * E[0] + A[1] * E[1] + A[2] * E[2];
-  vertex[1] = C - A[0] * E[0] + A[1] * E[1] + A[2] * E[2];
-  vertex[2] = C + A[0] * E[0] - A[1] * E[1] + A[2] * E[2];
-  vertex[3] = C + A[0] * E[0] + A[1] * E[1] - A[2] * E[2];
-  vertex[4] = C - A[0] * E[0] - A[1] * E[1] - A[2] * E[2];
-  vertex[5] = C + A[0] * E[0] - A[1] * E[1] - A[2] * E[2];
-  vertex[6] = C - A[0] * E[0] + A[1] * E[1] - A[2] * E[2];
-  vertex[7] = C - A[0] * E[0] - A[1] * E[1] + A[2] * E[2];
-
-  Interval result;
-  result.min = result.max = Dot(axis, vertex[0]);
-
-  for (int i = 1; i < 8; ++i) {
-    float projection = Dot(axis, vertex[i]);
-    result.min = (projection < result.min) ? projection : result.min;
-    result.max = (projection > result.max) ? projection : result.max;
-  }
-
-  return result;
-}
-
-Interval GetInterval(const AABB& aabb, const vec3& axis) {
-  vec3 i = GetMin(aabb);
-  vec3 a = GetMax(aabb);
-
-  vec3 vertex[8] = {
-    vec3(i.x, a.y, a.z),
-    vec3(i.x, a.y, i.z),
-    vec3(i.x, i.y, a.z),
-    vec3(i.x, i.y, i.z),
-    vec3(a.x, a.y, a.z),
-    vec3(a.x, a.y, i.z),
-    vec3(a.x, i.y, a.z),
-    vec3(a.x, i.y, i.z)
-  };
-
-  Interval result;
-  result.min = result.max = Dot(axis, vertex[0]);
-
-  for (int i = 1; i < 8; ++i) {
-    float projection = Dot(axis, vertex[i]);
-    result.min = (projection < result.min) ? projection : result.min;
-    result.max = (projection > result.max) ? projection : result.max;
-  }
-
-  return result;
-}
-
-bool AABBPlane(const AABB& aabb, const Plane& plane) {
-  // Project the half extents of the AABB onto the plane normal
-  float pLen =aabb.size.x * fabsf(plane.normal.x) +
-        aabb.size.y * fabsf(plane.normal.y) +
-        aabb.size.z * fabsf(plane.normal.z);
-  // Find the distance from the center of the AABB to the plane
-  float dist = Dot(plane.normal, aabb.position) - plane.distance;
-  // Intersection occurs if the distance falls within the projected side
-  return fabsf(dist) <= pLen;
-}
-
-bool OBBOBB(const OBB& obb1, const OBB& obb2) {
-  const float* o1 = obb1.orientation.asArray;
-  const float* o2 = obb2.orientation.asArray;
-
-  vec3 test[15] = {
-    vec3(o1[0], o1[1], o1[2]),
-    vec3(o1[3], o1[4], o1[5]),
-    vec3(o1[6], o1[7], o1[8]),
-    vec3(o2[0], o2[1], o2[2]),
-    vec3(o2[3], o2[4], o2[5]),
-    vec3(o2[6], o2[7], o2[8])
-  };
-
-  for (int i = 0; i < 3; ++i) { // Fill out rest of axis
-    test[6 + i * 3 + 0] = Cross(test[i], test[0]);
-    test[6 + i * 3 + 1] = Cross(test[i], test[1]);
-    test[6 + i * 3 + 2] = Cross(test[i], test[2]);
-  }
-
-  for (int i = 0; i < 15; ++i) {
-    if (!OverlapOnAxis(obb1, obb2, test[i])) {
-      return false; // Seperating axis found
-    }
-  }
-
-  return true; // Seperating axis not found
-}
-
-bool OBBPlane(const OBB& obb, const Plane& plane) {
-  // Local variables for readability only
-  const float* o = obb.orientation.asArray;
-  vec3 rot[] = { // rotation / orientation
-    vec3(o[0], o[1], o[2]),
-    vec3(o[3], o[4], o[5]),
-    vec3(o[6], o[7], o[8]),
-  };
-  vec3 normal = plane.normal;
-
-  // Project the half extents of the AABB onto the plane normal
-  float pLen =obb.size.x * fabsf(Dot(normal, rot[0])) +
-        obb.size.y * fabsf(Dot(normal, rot[1])) +
-        obb.size.z * fabsf(Dot(normal, rot[2]));
-  // Find the distance from the center of the OBB to the plane
-  float dist = Dot(plane.normal, obb.position) - plane.distance;
-  // Intersection occurs if the distance falls within the projected side
-  return fabsf(dist) <= pLen;
-}
-
-bool PlanePlane(const Plane& plane1, const Plane& plane2) {
-  // Compute direction of intersection line
-  vec3 d = Cross(plane1.normal, plane2.normal);
-
-  // Check the length of the direction line
-  // if the length is 0, no intersection happened
-  return !(CMP(Dot(d, d), 0));
-
-  // We could have used the dot product here, instead of the cross product
-}
-
-bool Raycast(const Sphere& sphere, const Ray& ray, RaycastResult* outResult) {
-  ResetRaycastResult(outResult);
-
-  vec3 e = sphere.position - ray.origin;
-  float rSq = sphere.radius * sphere.radius;
-
-  float eSq = MagnitudeSq(e);
-  float a = Dot(e, ray.direction); // ray.direction is assumed to be normalized
-  float bSq = /*sqrtf(*/eSq - (a * a)/*)*/;
-  float f = sqrt(fabsf((rSq)- /*(b * b)*/bSq));
-
-  // Assume normal intersection!
-  float t = a - f;
-
-  // No collision has happened
-  if (rSq - (eSq - a * a) < 0.0f) {
-    return false;
-  }
-  // Ray starts inside the sphere
-  else if (eSq < rSq) {
-    // Just reverse direction
-    t = a + f;
-  }
-  if (outResult != 0) {
-    outResult->t = t;
-    outResult->hit = true;
-    outResult->point = ray.origin + ray.direction * t;
-    outResult->normal = Normalized(outResult->point - sphere.position);
-  }
-  return true;
-}
-
-bool Raycast(const OBB& obb, const Ray& ray, RaycastResult* outResult) {
-  ResetRaycastResult(outResult);
-
-  const float* o = obb.orientation.asArray;
-  const float* size = obb.size.asArray;
-
-  vec3 p = obb.position - ray.origin;
-
-  vec3 X(o[0], o[1], o[2]);
-  vec3 Y(o[3], o[4], o[5]);
-  vec3 Z(o[6], o[7], o[8]);
-
-  vec3 f(
-    Dot(X, ray.direction),
-    Dot(Y, ray.direction),
-    Dot(Z, ray.direction)
-  );
-
-  vec3 e(
-    Dot(X, p),
-    Dot(Y, p),
-    Dot(Z, p)
-  );
-
-#if 1
-  float t[6] = { 0, 0, 0, 0, 0, 0 };
-  for (int i = 0; i < 3; ++i) {
-    if (CMP(f[i], 0)) {
-      if (-e[i] - size[i] > 0 || -e.x + size[i] < 0) {
-        return false;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn planeEquation "" [point plane]
+  (let [{:keys [normal dist]} plane] (- (v3-dot point normal) dist)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pointInSphere? "" [point sphere]
+  (let [{:keys [radius pos]} sphere]
+    (< (v3-lensq (v3-sub point pos)) (sqr* radius))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pointOnPlane? "" [point plane]
+  (let [{:keys [normal dist]} plane]
+    (CMP (- (v3-dot point normal) dist) 0)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pointInAABB? "" [point aabb]
+  (let [{nx :x ny :y nz :z} (getMin3D aabb)
+        {:keys [x y z]} point
+        {xx :x xy :y xz :z} (getMax3D aabb)]
+    (not (or (< x nx) (< y ny) (< z nz)
+             (> x xx) (> y xy) (> z xz)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pointInOBB? "" [point obb]
+  (let [{:keys [size pos orient]} obb
+        {sx :x sy :y sz :z} size
+        [r1 r2 r3 :as m3]
+        (partition 3 (:cells orient))
+        sizeL [sx sy sz]
+        dir (v3-sub point pos)]
+    (loop [i 0 SZ 3 ok? true]
+      (if (or (>= i SZ)
+              (not ok?))
+        ok?
+        (let [r (nth m3 i)
+              axis (vec3 (nth r 0)(nth r 1)(nth r 2))
+              distance (v3-dot dir axis)]
+          (recur (+ 1 i)
+                 SZ
+                 (not (or (> distance (nth sizeL i))
+                          (< distance  (- (nth sizeL i)))))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmulti closestPoint "" (fn [a & more] (:type a)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod closestPoint :sphere [sphere point]
+  (let [{:keys [pos radius]} sphere]
+    (-> (v3-sub point pos) (v3-unit) (v3-scale radius) (v3-add pos))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod closestPoint :AABB [aabb point]
+  (let [{nx :x ny :y nz :z} (getMin3D aabb)
+        {xx :x xy :y xz :z} (getMax3D aabb)
+        {:keys [x y z]} point
+        rx (if (< x nx) nx x)
+        ry (if (< y ny) ny y)
+        rz (if (< z nz) nz z)]
+    (Point3D (if (> rx xx) xx rx)
+             (if (> ry xy) xy ry)
+             (if (> rz xz) xz rz))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod closestPoint :OBB [obb point]
+  (let [{:keys [pos orient size]} obb
+        [r1 r2 r3 :as m3]
+        (partition 3 (:cells orient))
+        sizeL [(:x size)(:y size)(:z size)]
+        dir (v3-sub point pos)]
+    (loop [i 0 SZ 3 result pos]
+      (if (>= i SZ)
+        result
+        (let [r (nth m3 i)
+              s (nth sizeL i)
+              axis (vec3 (nth r 0)
+                         (nth r 1)
+                         (nth r 2))
+              d (v3-dot dir axis)
+              d (if (> d s) s d)
+              d (if (< d (- s)) (- s) d)]
+          (recur (+ 1 i)
+                 SZ
+                 (v3-add result (v3-scale axis d))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod closestPoint :plane [plane point]
+  ;;This works assuming plane.Normal is normalized, which it should be
+  (let [{:keys [normal dist]} plane
+        distance (- (v3-dot normal point) dist)]
+    ;;If the plane normal wasn't normalized, we'd need this:
+    ;;distance = distance / DOT(plane.Normal, plane.Normal);
+    (v3-sub point (v3-scale normal dist))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pointOnLine? "" [point line]
+  (let [c (closestPoint line point)]
+    (CMP (v3-lensq (v3-sub c point)) 0)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod closestPoint :line [line point]
+  (let [{:keys [start end]} line
+        lVec (v3-sub end start)
+        ;;Project "point" onto the "Line Vector", computing:
+        ;;closest(t) = start + t * (end - start)
+        ;;T is how far along the line the projected point is
+        t (/ (v3-dot (v3-sub point start) lVec) (v3-dot lVec lVec))
+        ;; Clamp t to the 0 to 1 range
+        t (max t 0)
+        t (min t 1)]
+    ;;return projected position of t
+    (v3-add start (v3-scale lVec t))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pointOnRay? "" [point ray]
+  (let [{:keys [origin dir]} ray]
+    (cond
+      (v3-eq? point origin)
+      true
+      :else
+      (let [norm (v3-unit (v3-sub point origin))
+            diff (v3-dot norm dir)]
+        ;;If vectors in the same dir, diff be 1
+        (CMP diff 1)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod closestPoint :ray [ray point]
+  (let [{:keys [origin dir]} ray
+        ;;Project point onto ray,
+        t (v3-dot (v3-sub point origin) dir)
+        ;;We only want to clamp t in the positive direction.
+        ;;The ray extends infinatley in this direction!
+        t (max t 0)]
+    ;; Compute the projected position from the clamped t
+    ;; Notice we multiply r.Normal by t, not AB.
+    ;; This is becuase we want the ray in the direction
+    ;; of the normal, which technically the line segment is
+    ;; but this is much more explicit and easy to read.
+    (Point3D (v3-add origin (v3-scale dir t)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sphereSphere? "" [s1 s2]
+  (let [{r1 :radius p1 :pos} s1
+        {r2 :radius p2 :pos} s2]
+    (< (v3-lensq (v3-sub p1 p2)) (sqr* (+ r1 r2)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sphereAABB? "" [sphere aabb]
+  (let [{:keys [radius pos]} sphere
+        cp (closestPoint aabb pos)]
+    (< (v3-lensq (v3-sub pos cp)) (sqr* radius))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sphereOBB? "" [sphere obb]
+  (let [{:keys [radius pos]} sphere
+        cp (closestPoint obb pos)]
+    (< (v3-lensq (v3-sub pos cp)) (sqr* radius))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn spherePlane? "" [sphere plane]
+  (let [{:keys [radius pos]} sphere
+        cp (closestPoint plane pos)]
+    (< (v3-lensq (v3-sub pos cp)) (sqr* radius))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn aabbAABB? "" [aabb1 aabb2]
+  (let [{anx :x any :y anz :z} (getMin3D aabb1)
+        {axx :x axy :y axz :z} (getMax3D aabb1)
+        {bnx :x bny :y bnz :z} (getMin3D aabb2)
+        {bxx :x bxy :y bxz :z} (getMax3D aabb2)]
+    (and (and (<= anx bxx)(>= axx bnx))
+         (and (<= any bxy)(>= axy bny))
+         (and (<= anz bxz)(>= axz bnz)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn aabbOBB? "" [aabb obb]
+  (let [{:keys [orient]} obb
+        tmp (transient [])
+        [r1 r2 r3 :as m3]
+        (partition 3 (:cells orient))
+        tmp' [(vec3 1 0 0);;AABB axis 1
+              (vec3 0 1 0);;AABB axis 2
+              (vec3 0 0 1);;AABB axis 3
+              (vec3 (nth r1 0)(nth r1 1)(nth r1 2))
+              (vec3 (nth r2 0)(nth r2 1)(nth r2 2))
+              (vec3 (nth r3 0)(nth r3 1)(nth r3 2))]
+        _ (dotimes [i 3]
+            (conj! tmp (v3-xss (nth tmp' i)(nth tmp' 0)))
+            (conj! tmp (v3-xss (nth tmp' i)(nth tmp' 1)))
+            (conj! tmp (v3-xss (nth tmp' i)(nth tmp' 2))))
+        tsts (concat tmp' (persistent! tmp))]
+    ;;looking for Separating axis
+    (loop [i 0 SZ (count tsts) ok? true]
+      (if (or (>= i SZ)
+              (not ok?))
+        ok?
+        (recur (+ 1 i)
+               SZ
+               (overlapOnAxis? aabb obb (nth tsts i)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmulti overlapOnAxis? "" (fn [a b & more] [(:type a)(:type b)]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod overlapOnAxis? [:AABB :OBB] [aabb obb axis]
+  (let [{amin :min amax :max} (getInterval3D aabb axis)
+        {bmin :min bmax :max} (getInterval3D obb axis)]
+    (and (<= bmin amax) (<= amin bmax))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod overlapOnAxis? [:OBB :OBB] [obb1 obb2 axis]
+  (let [{amin :min amax :max} (getInterval3D obb1 axis)
+        {bmin :min bmax :max} (getInterval3D obb2 axis)]
+    (and (<= bmin amax) (<= amin bmax))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod overlapOnAxis? [:AABB :triangle] [aabb triangle axis]
+  (let [{amin :min amax :max} (getInterval3D aabb axis)
+        {bmin :min bmax :max} (getInterval3D triangle axis)]
+    (and (<= bmin amax) (<= amin bmax))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod overlapOnAxis? [:OBB :triangle] [obb triangle axis]
+  (let [{amin :min amax :max} (getInterval3D obb axis)
+        {bmin :min bmax :max} (getInterval3D triangle axis)]
+    (and (<= bmin amax) (<= amin bmax))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod overlapOnAxis? [:triangle :triangle] [t1 t2 axis]
+  (let [{amin :min amax :max} (getInterval3D t1 axis)
+        {bmin :min bmax :max} (getInterval3D t2 axis)]
+    (and (<= bmin amax) (<= amin bmax))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmulti getInterval3D (fn [a & more] (:type a)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod getInterval3D :triangle [triangle axis]
+  (let [{:keys [points]} triangle
+        v (v3-dot axis (aget points 0))]
+    (loop [i 1 SZ 3 _min v _max v]
+      (if (>= i SZ)
+        (Interval _min _max)
+        (let [v (v3-dot axis (aget points i))]
+          (recur (+ 1 i)
+                 SZ
+                 (min _min v)(max _max v)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod getInterval3D :OBB [obb axis]
+  (let [{:keys [pos size orient]} obb
+        C pos ;;OBB Center
+        E [(:x size)(:y size)(:z size)] ;;OBB Extents
+        [r1 r2 r3 :as m3]
+        (partition 3 (:cells orient))
+        A [;;OBB Axis
+           (vec3 (nth r1 0)(nth r1 1)(nth r1 2))
+           (vec3 (nth r2 0)(nth r2 1)(nth r2 2))
+           (vec3 (nth r3 0)(nth r3 1)(nth r3 2))]
+        vertex [(v3-add (v3-add (v3-add C (v3-scale (nth A 0) (nth E 0)))
+                                (v3-scale (nth A 1) (nth E 1)))
+                        (v3-scale (nth A 2) (nth E 2)))
+                (v3-add (v3-add (v3-sub C (v3-scale (nth A 0)(nth E 0)))
+                                (v3-scale (nth A 1)(nth E 1)))
+                        (v3-scale (nth A 2)(nth E 2)))
+                (v3-add (v3-sub (v3-add C (v3-scale (nth A 0)(nth E 0)))
+                                (v3-scale (nth A 1)(nth E 1)))
+                        (v3-scale (nth A 2)(nth E 2)))
+                (v3-sub (v3-add (v3-add C (v3-scale (nth A 0)(nth E 0)))
+                                (v3-scale (nth A 1)(nth E 1)))
+                        (v3-scale (nth A 2)(nth E 2)))
+                (v3-sub (v3-sub (v3-sub C (v3-scale (nth A 0)(nth E 0)))
+                                (v3-scale (nth A 1)(nth E 1)))
+                        (v3-scale (nth A 2)(nth E 2)))
+                (v3-sub (v3-sub (v3-add C (v3-scale (nth A 0)(nth E 0)))
+                                (v3-scale (nth A 1)(nth E 1)))
+                        (v3-scale (nth A 2)(nth E 2)))
+                (v3-sub (v3-add (v3-sub C (v3-scale (nth A 0)(nth E 0)))
+                                (v3-scale (nth A 1)(nth E 1)))
+                        (v3-scale (nth A 2)(nth E 2)))
+                (v3-add (v3-sub (v3-sub C (v3-scale (nth A 0)(nth E 0)))
+                                (v3-scale (nth A 1)(nth E 1)))
+                        (v3-scale (nth A 2)(nth E 2)))]
+        v (v3-dot axis (nth vertex 0))]
+    (loop [i 1 SZ 8 _min v _max v]
+      (if (>= i SZ)
+        (Interval _min _max)
+        (let [p (v3-dot axis (nth vertex i))]
+          (recur (+ i 1)
+                 SZ
+                 (if (< p _min) p _min)
+                 (if (> p _max) p _max)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod getInterval3D :AABB [aabb axis]
+  (let [{ix :x iy :y iz :z} (getMin3D aabb)
+        {ax :x ay :y az :z} (getMax3D aabb)
+        vertex [(vec3 ix ay az)
+                (vec3 ix ay iz)
+                (vec3 ix iy az)
+                (vec3 ix iy iz)
+                (vec3 ax ay az)
+                (vec3 ax ay iz)
+                (vec3 ax iy az)
+                (vec3 ax iy iz)]
+        v (v3-dot axis (nth vertex 0))]
+    (loop [i 1 SZ 8 _min v _max v]
+      (if (>= i SZ)
+        (Interval _min _max)
+        (let [p (v3-dot axis (nth vertex i))]
+          (recur (+ i 1)
+                 SZ
+                 (if (< p _min) p _min)
+                 (if (> p _max) p _max)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn aabbPlane? "" [aabb plane]
+  ;;Project the half extents of the AABB onto the plane normal
+  (let [{{nx :x ny :y nz :z :as normal} :normal {:keys [dist]}} plane
+        {{zx :x sy :y sz :z} :size {:keys [pos]}} aabb
+        pLen (+ (* sx (abs* nx))
+                (* sy (abs* ny))(* sz (abs* nz)))
+        ;;Find the distance from the center of the AABB to the plane
+        d (- (v3-dot normal pos) dist)]
+    ;;Intersection occurs if the distance falls within the projected side
+    (<= (abs* d) pLen)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn obbOBB? "" [obb1 obb2]
+  (let [{o1 :orient} obb1
+        {o2 :orient} obb2
+        [o11 o12 o13 :as b1]
+        (partition 3 (:cells o1))
+        [o21 o22 o23 :as b2]
+        (partition 3 (:cells o2))
+        tmp (transient [])
+        tmp' [(vec3 (nth o11 0)(nth o11 1)(nth o11 2))
+              (vec3 (nth o12 0)(nth o12 1)(nth o12 2))
+              (vec3 (nth o13 0)(nth o13 1)(nth o13 2))
+              (vec3 (nth o21 0)(nth o21 1)(nth o21 2))
+              (vec3 (nth o22 0)(nth o22 1)(nth o22 2))
+              (vec3 (nth o23 0)(nth o23 1)(nth o23 2))]
+        _ (dotimes [i 3]
+            (conj! tmp (v3-xss (nth tmp' i)(nth tmp' 0)))
+            (conj! tmp (v3-xss (nth tmp' i)(nth tmp' 1)))
+            (conj! tmp (v3-xss (nth tmp' i)(nth tmp' 2))))
+        tsts (concat tmp' (persistent! tmp))]
+    (loop [i 0 SZ (count tsts) ok? true]
+      (if (or (>= i SZ)
+              (not ok?))
+        ok?
+        (recur (+ i 1)
+               SZ
+               (overlapOnAxis obb1 obb2 (nth tsts i)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn obbPlane? "" [obb plane]
+  (let [{:keys [pos size orient]} obb
+        {sx :x sy :y sz :z} size
+        {:keys [dist normal]} plane
+        [r1 r2 r3 :as o3]
+        (partition 3 (:cells orient))
+        rot [(vec3 (nth r1 0)(nth r1 1)(nth r1 2))
+             (vec3 (nth r2 0)(nth r2 1)(nth r2 2))
+             (vec3 (nth r3 0)(nth r3 1)(nth r3 2))]
+        ;;Project the half extents of the AABB onto the plane normal
+        pLen (+ (* sx (abs* (v3-dot normal (nth rot 0))))
+                (* sy (abs* (v3-dot normal (nth rot 1))))
+                (* sz (abs* (v3-dot normal (nth rot 2)))))
+        ;;Find the distance from the center of the OBB to the plane
+        d (- (v3-dot normal pos) dist)]
+    ;;Intersection occurs if the distance falls within the projected side
+    (<= (abs* d) pLen)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn planePlane? "" [p1 p2]
+  ;;Compute direction of intersection line
+  (let [d (v3-xss (:normal p1)(:normal p2))]
+    ;;Check the length of the direction line
+    ;;if the length is 0, no intersection happened
+    (not (CMP (v3-dot d d) 0))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmulti raycast "" (fn [a & more] (:type a)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod raycast :sphere [sphere ray]
+  (let [{:keys [radius pos]} sphere
+        {:keys [dir origin]} ray
+        e (v3-sub pos origin)
+        rSq (sqr* radius)
+        eSq (v3-lensq e)
+        a (v3-dot e dir) ;;ray.direction is assumed to be normalized
+        bSq (- eSq (sqr* a))
+        f (sqrt* (abs* (- rSq bSq)))
+        ;;Assume normal intersection!
+        t (- a f)]
+    (cond
+      ;;No collision has happened
+      (< (- rSq (- eSq (sqr* a))) 0)
+      nil
+      :else
+      ;;Ray starts inside the sphere
+      (let [t (if (< eSq rSq) ;;Just reverse direction
+                (+ a f) t)
+            point (v3-add origin (v3-scale dir t))]
+        {:t t :hit? true :point point
+         :normal (v3-unit (v3-sub point pos))}))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod raycast :OBB [obb ray]
+  (let [{:keys [pos size orient]} obb
+        {:keys [origin dir]} ray
+        sizeL [(:x size)(:y size)(:z size)]
+        [o1 o2 o3 :as m3]
+        (partition 3 (:cells orient))
+        p (v3-sub pos origin)
+        X (vec3 (nth o1 0)(nth o1 1)(nth o1 2))
+        Y (vec3 (nth o2 0)(nth o2 1)(nth o2 2))
+        Z (vec3 (nth o3 0)(nth o3 1)(nth o3 2))
+        f #js [(v3-dot X dir)
+               (v3-dot Y dir)(v3-dot Z dir)]
+        e #js [(v3-dot X p)(v3-dot Y p)(v3-dot Z p)]
+        t #js [0 0 0 0 0 0]
+        cont? (loop [i 0
+                     SZ 3
+                     ok? true]
+                (if (or (>= i SZ) (not ok?))
+                  ok?
+                  (let [y? (if (CMP (aget f i) 0)
+                             (if (or (pos? (- (- (aget e i))
+                                              (aget sizeL i)))
+                                     (neg? (+ (- (aget e 0))
+                                              (aget sizeL i))))
+                               false
+                               (do->true (aset f i 0.00001))) ;Avoid div by 0!
+                             true)]
+                    (when y?
+                      (aset t
+                            (+ 0 (* i 2))
+                            (/ (+ (aget e i)
+                                  (aget sizeL i)) (aget f i)))  ;;tmin[x, y, z]
+                      (aset t
+                            (+ 1 (* i 2))
+                            (/ (- (aget e i)
+                                  (aget sizeL i)) (aget f i)))) ;;tmax[x, y, z]
+                    (recur (+ 1 i) SZ y?))))]
+    (cond
+      (not cont?)
+      false
+      :else
+      (let [tmin (max (max (min (aget t 0) (aget t 1))
+                           (min (aget t 2) (aget t 3)))
+                      (min (aget t 4) (aget t 5)))
+            tmax (min (min (max (aget t 0) (aget t 1))
+                           (max (aget t 2) (aget t 3)))
+                      (max (aget t 4) (aget t 5)))]
+        ;;if tmax < 0, ray is intersecting AABB
+        ;;but entire AABB is behind it's origin
+        ;;if tmin > tmax, ray doesn't intersect AABB
+        (if (or (neg? tmax)
+                (> tmin tmax))
+          false
+          (let [;;If tmin is < 0, tmax is closer
+                t_result (if (neg? tmin) tmax tmin)
+                normals [X ;;+x
+                         (v3-scale X -1) ;;-x
+                         Y ;; +y
+                         (v3-scale Y -1) ;;-y
+                         Z ;; +z
+                         (v3-scale Z -1)]]
+            (dotimes [i 6]
+              (if (CMP t_result (aget t i))
+        outResult->normal = Normalized(normals[i]);
       }
-      f[i] = 0.00001f; // Avoid div by 0!
-    }
-
-    t[i * 2 + 0] = (e[i] + size[i]) / f[i]; // tmin[x, y, z]
-    t[i * 2 + 1] = (e[i] - size[i]) / f[i]; // tmax[x, y, z]
-  }
-
-  float tmin = fmaxf(fmaxf(fminf(t[0], t[1]), fminf(t[2], t[3])), fminf(t[4], t[5]));
-  float tmax = fminf(fminf(fmaxf(t[0], t[1]), fmaxf(t[2], t[3])), fmaxf(t[4], t[5]));
-#else
-  // The above loop simplifies the below if statements
-  // this is done to make sure the sample fits into the book
-  if (CMP(f.x, 0)) {
-    if (-e.x - obb.size.x > 0 || -e.x + obb.size.x < 0) {
-      return -1;
-    }
-    f.x = 0.00001f; // Avoid div by 0!
-  }
-  else if (CMP(f.y, 0)) {
-    if (-e.y - obb.size.y > 0 || -e.y + obb.size.y < 0) {
-      return -1;
-    }
-    f.y = 0.00001f; // Avoid div by 0!
-  }
-  else if (CMP(f.z, 0)) {
-    if (-e.z - obb.size.z > 0 || -e.z + obb.size.z < 0) {
-      return -1;
-    }
-    f.z = 0.00001f; // Avoid div by 0!
-  }
-
-  float t1 = (e.x + obb.size.x) / f.x;
-  float t2 = (e.x - obb.size.x) / f.x;
-  float t3 = (e.y + obb.size.y) / f.y;
-  float t4 = (e.y - obb.size.y) / f.y;
-  float t5 = (e.z + obb.size.z) / f.z;
-  float t6 = (e.z - obb.size.z) / f.z;
-
-  float tmin = fmaxf(fmaxf(fminf(t1, t2), fminf(t3, t4)), fminf(t5, t6));
-  float tmax = fminf(fminf(fmaxf(t1, t2), fmaxf(t3, t4)), fmaxf(t5, t6));
-#endif
-
-  // if tmax < 0, ray is intersecting AABB
-  // but entire AABB is behing it's origin
-  if (tmax < 0) {
-    return false;
-  }
-
-  // if tmin > tmax, ray doesn't intersect AABB
-  if (tmin > tmax) {
-    return false;
-  }
-
-  // If tmin is < 0, tmax is closer
-  float t_result = tmin;
-
-  if (tmin < 0.0f) {
-    t_result = tmax;
-  }
-
   if (outResult != 0) {
     outResult->hit = true;
     outResult->t = t_result;
     outResult->point = ray.origin + ray.direction * t_result;
-
-    vec3 normals[] = {
-      X,      // +x
-      X * -1.0f,  // -x
-      Y,      // +y
-      Y * -1.0f,  // -y
-      Z,      // +z
-      Z * -1.0f // -z
-    };
 
     for (int i = 0; i < 6; ++i) {
       if (CMP(t_result, t[i])) {
