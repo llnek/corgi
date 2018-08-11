@@ -1515,881 +1515,331 @@ handed matrices. That is, +Z goes INTO the screen.")
                   :normal (v3-unit normal)}))))))
 ;;kenl
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-bool Linetest(const Sphere& sphere, const Line& line) {
-  Point closest = ClosestPoint(line, sphere.position);
-  float distSq = MagnitudeSq(sphere.position - closest);
-  return distSq <= (sphere.radius * sphere.radius);
-}
-
-bool Linetest(const Plane& plane, const Line& line) {
-  vec3 ab = line.end - line.start;
-
-  float nA = Dot(plane.normal, line.start);
-  float nAB = Dot(plane.normal, ab);
-
-  if (CMP(nAB, 0)) {
-    return false;
-  }
-
-  float t = (plane.distance - nA) / nAB;
-  return t >= 0.0f && t <= 1.0f;
-}
-
-bool Linetest(const AABB& aabb, const Line& line) {
-  Ray ray;
-  ray.origin = line.start;
-  ray.direction = Normalized(line.end - line.start);
-  RaycastResult raycast;
-  if (!Raycast(aabb, ray, &raycast)) {
-    return false;
-  }
-  float t = raycast.t;
-
-  return t >= 0 && t * t <= LengthSq(line);
-}
-
-bool Linetest(const OBB& obb, const Line& line) {
-  if (MagnitudeSq(line.end - line.start) < 0.0000001f) {
-    return PointInOBB(line.start, obb);
-  }
-  Ray ray;
-  ray.origin = line.start;
-  ray.direction = Normalized(line.end - line.start);
-  RaycastResult result;
-  if (!Raycast(obb, ray, &result)) {
-    return false;
-  }
-  float t = result.t;
-
-  return t >= 0 && t * t <= LengthSq(line);
-}
-
-#ifndef NO_EXTRAS
-bool Raycast(const Ray& ray, const Sphere& sphere, RaycastResult* outResult) {
-  return Raycast(sphere, ray, outResult);
-}
-
-bool Raycast(const Ray& ray, const AABB& aabb, RaycastResult* outResult) {
-  return Raycast(aabb, ray, outResult);
-}
-
-bool Raycast(const Ray& ray, const OBB& obb, RaycastResult* outResult) {
-  return Raycast(obb, ray, outResult);
-}
-
-bool Raycast(const Ray& ray, const Plane& plane, RaycastResult* outResult) {
-  return Raycast(plane, ray, outResult);
-}
-
-bool Linetest(const Line& line, const Sphere& sphere) {
-  return Linetest(sphere, line);
-}
-
-bool Linetest(const Line& line, const AABB& aabb) {
-  return Linetest(aabb, line);
-}
-
-bool Linetest(const Line& line, const OBB& obb) {
-  return Linetest(obb, line);
-}
-
-bool Linetest(const Line& line, const Plane& plane) {
-  return Linetest(plane, line);
-}
-
-vec3 Centroid(const Triangle& t) {
-  vec3 result;
-  result.x = t.a.x + t.b.x + t.c.x;
-  result.y = t.a.y + t.b.y + t.c.y;
-  result.z = t.a.z + t.b.z + t.c.z;
-  result = result * (1.0f / 3.0f);
-  return result;
-}
-#endif
-
-bool PointInTriangle(const Point& p, const Triangle& t) {
-  // Move the triangle so that the point is
-  // now at the origin of the triangle
-  vec3 a = t.a - p;
-  vec3 b = t.b - p;
-  vec3 c = t.c - p;
-
-  // The point should be moved too, so they are both
-  // relative, but because we don't use p in the
-  // equation anymore, we don't need it!
-  // p -= p; // This would just equal the zero vector!
-
-  vec3 normPBC = Cross(b, c); // Normal of PBC (u)
-  vec3 normPCA = Cross(c, a); // Normal of PCA (v)
-  vec3 normPAB = Cross(a, b); // Normal of PAB (w)
-
-  // Test to see if the normals are facing
-  // the same direction, return false if not
-  if (Dot(normPBC, normPCA) < 0.0f) {
-    return false;
-  }
-  else if (Dot(normPBC, normPAB) < 0.0f) {
-    return false;
-  }
-
-  // All normals facing the same way, return true
-  return true;
-}
-
-#ifndef NO_EXTRAS
-vec3 BarycentricOptimized(const Point& p, const Triangle& t) {
-  vec3 v0 = t.b - t.a;
-  vec3 v1 = t.c - t.a;
-  vec3 v2 = p - t.a;
-
-  float d00 = Dot(v0, v0);
-  float d01 = Dot(v0, v1);
-  float d11 = Dot(v1, v1);
-  float d20 = Dot(v2, v0);
-  float d21 = Dot(v2, v1);
-  float denom = d00 * d11 - d01 * d01;
-
-  if (CMP(denom, 0.0f)) {
-    return vec3();
-  }
-
-  vec3 result;
-  result.y = (d11 * d20 - d01 * d21) / denom;
-  result.z = (d00 * d21 - d01 * d20) / denom;
-  result.x = 1.0f - result.y - result.z;
-
-  return result;
-}
-#endif
-
-vec3 Barycentric(const Point& p, const Triangle& t) {
-  vec3 ap = p - t.a;
-  vec3 bp = p - t.b;
-  vec3 cp = p - t.c;
-
-  vec3 ab = t.b - t.a;
-  vec3 ac = t.c - t.a;
-  vec3 bc = t.c - t.b;
-  vec3 cb = t.b - t.c;
-  vec3 ca = t.a - t.c;
-
-  vec3 v = ab - Project(ab, cb);
-  float a = 1.0f - (Dot(v, ap) / Dot(v, ab));
-
-  v = bc - Project(bc, ac);
-  float b = 1.0f - (Dot(v, bp) / Dot(v, bc));
-
-  v = ca - Project(ca, ab);
-  float c = 1.0f - (Dot(v, cp) / Dot(v, ca));
-
-#ifdef DO_SANITY_TESTS
-#ifndef NO_EXTRAS
-  vec3 barycentric = BarycentricOptimized(p, t);
-  if (fabsf(a - barycentric.x) > 0.1f) {
-    std::cout << "Expected a: " << a << " to be: " << barycentric.x << "\n";
-  }
-  if (fabsf(b - barycentric.y) > 0.1f) {
-    std::cout << "Expected b: " << b << " to be: " << barycentric.y << "\n";
-  }
-  if (fabsf(c - barycentric.z) > 0.1f) {
-    std::cout << "Expected c: " << c << " to be: " << barycentric.z << "\n";
-  }
-#endif
-#endif
-
-  return vec3(a, b, c);
-}
-
-Plane FromTriangle(const Triangle& t) {
-  Plane result;
-  result.normal = Normalized(Cross(t.b - t.a, t.c - t.a));
-  result.distance = Dot(result.normal, t.a);
-  return result;
-}
-
-Point ClosestPoint(const Triangle& t, const Point& p) {
-  Plane plane = FromTriangle(t);
-  Point closest = ClosestPoint(plane, p);
-
-  // Closest point was inside triangle
-  if (PointInTriangle(closest, t)) {
-    return closest;
-  }
-
-  Point c1 = ClosestPoint(Line(t.a, t.b), closest); // Line AB
-  Point c2 = ClosestPoint(Line(t.b, t.c), closest); // Line BC
-  Point c3 = ClosestPoint(Line(t.c, t.a), closest); // Line CA
-
-  float magSq1 = MagnitudeSq(closest - c1);
-  float magSq2 = MagnitudeSq(closest - c2);
-  float magSq3 = MagnitudeSq(closest - c3);
-
-  if (magSq1 < magSq2 && magSq1 < magSq3) {
-    return c1;
-  }
-  else if (magSq2 < magSq1 && magSq2 < magSq3) {
-    return c2;
-  }
-
-  return c3;
-}
-
-bool TriangleSphere(const Triangle& t, const Sphere& s) {
-  Point closest = ClosestPoint(t, s.position);
-  float magSq = MagnitudeSq(closest - s.position);
-  return magSq <= s.radius * s.radius;
-}
-
-bool TriangleAABB(const Triangle& t, const AABB& a) {
-  // Compute the edge vectors of the triangle  (ABC)
-  vec3 f0 = t.b - t.a;
-  vec3 f1 = t.c - t.b;
-  vec3 f2 = t.a - t.c;
-
-  // Compute the face normals of the AABB
-  vec3 u0(1.0f, 0.0f, 0.0f);
-  vec3 u1(0.0f, 1.0f, 0.0f);
-  vec3 u2(0.0f, 0.0f, 1.0f);
-
-  vec3 test[13] = {
-    // 3 Normals of AABB
-    u0, // AABB Axis 1
-    u1, // AABB Axis 2
-    u2, // AABB Axis 3
-    // 1 Normal of the Triangle
-    Cross(f0, f1),
-    // 9 Axis, cross products of all edges
-    Cross(u0, f0),
-    Cross(u0, f1),
-    Cross(u0, f2),
-    Cross(u1, f0),
-    Cross(u1, f1),
-    Cross(u1, f2),
-    Cross(u2, f0),
-    Cross(u2, f1),
-    Cross(u2, f2)
-  };
-
-  for (int i = 0; i < 13; ++i) {
-    if (!OverlapOnAxis(a, t, test[i])) {
-      return false; // Seperating axis found
-    }
-  }
-
-  return true; // Seperating axis not found
-}
-
-bool TriangleOBB(const Triangle& t, const OBB& o) {
-  // Compute the edge vectors of the triangle  (ABC)
-  vec3 f0 = t.b - t.a;
-  vec3 f1 = t.c - t.b;
-  vec3 f2 = t.a - t.c;
-
-  // Compute the face normals of the AABB
-  const float* orientation = o.orientation.asArray;
-  vec3 u0(orientation[0], orientation[1], orientation[2]);
-  vec3 u1(orientation[3], orientation[4], orientation[5]);
-  vec3 u2(orientation[6], orientation[7], orientation[8]);
-
-  vec3 test[13] = {
-    // 3 Normals of AABB
-    u0, // AABB Axis 1
-    u1, // AABB Axis 2
-    u2, // AABB Axis 3
-    // 1 Normal of the Triangle
-    Cross(f0, f1),
-    // 9 Axis, cross products of all edges
-    Cross(u0, f0),
-    Cross(u0, f1),
-    Cross(u0, f2),
-    Cross(u1, f0),
-    Cross(u1, f1),
-    Cross(u1, f2),
-    Cross(u2, f0),
-    Cross(u2, f1),
-    Cross(u2, f2)
-  };
-
-  for (int i = 0; i < 13; ++i) {
-    if (!OverlapOnAxis(o, t, test[i])) {
-      return false; // Seperating axis found
-    }
-  }
-
-  return true; // Seperating axis not found
-}
-
-bool TriangleTriangle(const Triangle& t1, const Triangle& t2) {
-#if 0
-  vec3 axisToTest[] = {
-    // Triangle 1, Normal
-    SatCrossEdge(t1.a, t1.b, t1.b, t1.c),
-    // Triangle 2, Normal
-    SatCrossEdge(t2.a, t2.b, t2.b, t2.c),
-
-    // Cross Product of edges
-    SatCrossEdge(t2.a, t2.b, t1.a, t1.b),
-    SatCrossEdge(t2.a, t2.b, t1.b, t1.c),
-    SatCrossEdge(t2.a, t2.b, t1.c, t1.a),
-
-    SatCrossEdge(t2.b, t2.c, t1.a, t1.b),
-    SatCrossEdge(t2.b, t2.c, t1.b, t1.c),
-    SatCrossEdge(t2.b, t2.c, t1.c, t1.a),
-
-    SatCrossEdge(t2.c, t2.a, t1.a, t1.b),
-    SatCrossEdge(t2.c, t2.a, t1.b, t1.c),
-    SatCrossEdge(t2.c, t2.a, t1.c, t1.a),
-  };
-#else
-  vec3 t1_f0 = t1.b - t1.a; // Edge 0
-  vec3 t1_f1 = t1.c - t1.b; // Edge 1
-  vec3 t1_f2 = t1.a - t1.c; // Edge 2
-
-  vec3 t2_f0 = t2.b - t2.a; // Edge 0
-  vec3 t2_f1 = t2.c - t2.b; // Edge 1
-  vec3 t2_f2 = t2.a - t2.c; // Edge 2
-
-  vec3 axisToTest[] = {
-    // Triangle 1, Normal
-    Cross(t1_f0, t1_f1),
-    // Triangle 2, Normal
-    Cross(t2_f0, t2_f1),
-
-    // Cross Product of edges
-    Cross(t2_f0, t1_f0),
-    Cross(t2_f0, t1_f1),
-    Cross(t2_f0, t1_f2),
-
-    Cross(t2_f1, t1_f0),
-    Cross(t2_f1, t1_f1),
-    Cross(t2_f1, t1_f2),
-
-    Cross(t2_f2, t1_f0),
-    Cross(t2_f2, t1_f1),
-    Cross(t2_f2, t1_f2),
-  };
-#endif
-
-  for (int i = 0; i < 11; ++i) {
-    if (!OverlapOnAxis(t1, t2, axisToTest[i])) {
-      return false; // Seperating axis found
-    }
-  }
-
-  return true; // Seperating axis not found
-}
-
-bool TriangleTriangleRobust(const Triangle& t1, const Triangle& t2) {
-  vec3 axisToTest[] = {
-    // Triangle 1, Normal
-    SatCrossEdge(t1.a, t1.b, t1.b, t1.c),
-    // Triangle 2, Normal
-    SatCrossEdge(t2.a, t2.b, t2.b, t2.c),
-
-    // Cross Product of edges
-    SatCrossEdge(t2.a, t2.b, t1.a, t1.b),
-    SatCrossEdge(t2.a, t2.b, t1.b, t1.c),
-    SatCrossEdge(t2.a, t2.b, t1.c, t1.a),
-
-    SatCrossEdge(t2.b, t2.c, t1.a, t1.b),
-    SatCrossEdge(t2.b, t2.c, t1.b, t1.c),
-    SatCrossEdge(t2.b, t2.c, t1.c, t1.a),
-
-    SatCrossEdge(t2.c, t2.a, t1.a, t1.b),
-    SatCrossEdge(t2.c, t2.a, t1.b, t1.c),
-    SatCrossEdge(t2.c, t2.a, t1.c, t1.a),
-  };
-
-  for (int i = 0; i < 11; ++i) {
-    if (!OverlapOnAxis(t1, t2, axisToTest[i])) {
-      if (!CMP(MagnitudeSq(axisToTest[i]), 0)) {
-        return false; // Seperating axis found
-      }
-    }
-  }
-
-  return true; // Seperating axis not found
-}
-
-vec3 SatCrossEdge(const vec3& a, const vec3& b, const vec3& c, const vec3& d) {
-  vec3 ab = b - a;
-  vec3 cd = d - c;
-
-  vec3 result = Cross(ab, cd);
-  if (!CMP(MagnitudeSq(result), 0)) { // Is ab and cd parallel?
-    return result; // Not parallel!
-  }
-  else { // ab and cd are parallel
-    // Get an axis perpendicular to AB
-    vec3 axis = Cross(ab, c - a);
-    result = Cross(ab, axis);
-    if (!CMP(MagnitudeSq(result), 0)) { // Still parallel?
-      return result; // Not parallel
-    }
-  }
-  // New axis being tested is parallel too.
-  // This means that a, b, c and d are on a line
-  // Nothing we can do!
-  return vec3();
-}
-
-Point debugRaycastResult;
-
-bool Raycast(const Triangle& triangle, const Ray& ray, RaycastResult* outResult) {
-  ResetRaycastResult(outResult);
-  Plane plane = FromTriangle(triangle);
-
-  RaycastResult planeResult;
-  if (!Raycast(plane, ray, &planeResult)) {
-    return false;
-  }
-  float t = planeResult.t;
-
-  Point result = ray.origin + ray.direction * t;
-
-  vec3 barycentric = Barycentric(result, triangle);
-  if (barycentric.x >= 0.0f && barycentric.x <= 1.0f &&
-    barycentric.y >= 0.0f && barycentric.y <= 1.0f &&
-    barycentric.z >= 0.0f && barycentric.z <= 1.0f) {
-
-#ifdef DO_SANITY_TESTS
-    if (!PointInTriangle(result, triangle)) {
-      std::cout << "Point in triangle and barycentric coordinates don't match!\n";
-    }
-#endif
-    if (outResult != 0) {
-      outResult->t = t;
-      outResult->hit = true;
-      outResult->point = ray.origin + ray.direction * t;
-      outResult->normal = plane.normal;
-    }
-
-    return true;
-  }
-#ifdef DO_SANITY_TESTS
-  else if (PointInTriangle(result, triangle)) {
-    std::cout << "Point in triangle and barycentric coordinates don't match!\n";
-  }
-#endif
-
-  return false;
-}
-
-bool Linetest(const Triangle& triangle, const Line& line) {
-  Ray ray;
-  ray.origin = line.start;
-  ray.direction = Normalized(line.end - line.start);
-  RaycastResult raycast;
-  if (!Raycast(triangle, ray, &raycast)) {
-    return false;
-  }
-  float t = raycast.t;
-
-  return t >= 0 && t * t <= LengthSq(line);
-}
-
-void AccelerateMesh(Mesh& mesh) {
-  if (mesh.accelerator != 0) {
-    return;
-  }
-
-  vec3 min = mesh.vertices[0];
-  vec3 max = mesh.vertices[0];
-
-  for (int i = 1; i < mesh.numTriangles * 3; ++i) {
-    min.x = fminf(mesh.vertices[i].x, min.x);
-    min.y = fminf(mesh.vertices[i].y, min.y);
-    min.z = fminf(mesh.vertices[i].z, min.z);
-
-    max.x = fmaxf(mesh.vertices[i].x, max.x);
-    max.y = fmaxf(mesh.vertices[i].y, max.y);
-    max.z = fmaxf(mesh.vertices[i].z, max.z);
-  }
-
-  mesh.accelerator = new BVHNode();
-  mesh.accelerator->bounds = FromMinMax(min, max);
-  mesh.accelerator->children = 0;
-  mesh.accelerator->numTriangles = mesh.numTriangles;
-  mesh.accelerator->triangles = new int[mesh.numTriangles];
-  for (int i = 0; i < mesh.numTriangles; ++i) {
-    mesh.accelerator->triangles[i] = i;
-  }
-
-  SplitBVHNode(mesh.accelerator, mesh, 3);
-}
-
-void SplitBVHNode(BVHNode* node, const Mesh& model, int depth) {
-  if (depth-- <= 0) { // Decrements depth
-    return;
-  }
-
-  if (node->children == 0) {
-    // Only split if this node contains triangles
-    if (node->numTriangles > 0) {
-      node->children = new BVHNode[8];
-
-      vec3 c = node->bounds.position;
-      vec3 e = node->bounds.size *0.5f;
-
-      node->children[0].bounds = AABB(c + vec3(-e.x, +e.y, -e.z), e);
-      node->children[1].bounds = AABB(c + vec3(+e.x, +e.y, -e.z), e);
-      node->children[2].bounds = AABB(c + vec3(-e.x, +e.y, +e.z), e);
-      node->children[3].bounds = AABB(c + vec3(+e.x, +e.y, +e.z), e);
-      node->children[4].bounds = AABB(c + vec3(-e.x, -e.y, -e.z), e);
-      node->children[5].bounds = AABB(c + vec3(+e.x, -e.y, -e.z), e);
-      node->children[6].bounds = AABB(c + vec3(-e.x, -e.y, +e.z), e);
-      node->children[7].bounds = AABB(c + vec3(+e.x, -e.y, +e.z), e);
-
-    }
-  }
-
-  // If this node was just split
-  if (node->children != 0 && node->numTriangles > 0) {
-    for (int i = 0; i < 8; ++i) { // For each child
-      // Count how many triangles each child will contain
-      node->children[i].numTriangles = 0;
-      for (int j = 0; j < node->numTriangles; ++j) {
-        Triangle t = model.triangles[node->triangles[j]];
-        if (TriangleAABB(t, node->children[i].bounds)) {
-          node->children[i].numTriangles += 1;
-        }
-      }
-      if (node->children[i].numTriangles == 0) {
-        continue;
-      }
-      node->children[i].triangles = new int[node->children[i].numTriangles];
-      int index = 0; // Add the triangles in the new child arrau
-      for (int j = 0; j < node->numTriangles; ++j) {
-        Triangle t = model.triangles[node->triangles[j]];
-        if (TriangleAABB(t, node->children[i].bounds)) {
-          node->children[i].triangles[index++] = node->triangles[j];
-        }
-      }
-    }
-
-    node->numTriangles = 0;
-    delete[] node->triangles;
-    node->triangles = 0;
-
-    // Recurse
-    for (int i = 0; i < 8; ++i) {
-      SplitBVHNode(&node->children[i], model, depth);
-    }
-  }
-}
-
-void FreeBVHNode(BVHNode* node) {
-  if (node->children != 0) {
-    for (int i = 0; i < 8; ++i) {
-      FreeBVHNode(&node->children[i]);
-    }
-    delete[] node->children;
-    node->children = 0;
-  }
-
-  if (node->numTriangles != 0 || node->triangles != 0) {
-    delete[] node->triangles;
-    node->triangles = 0;
-    node->numTriangles = 0;
-  }
-}
-
-bool MeshAABB(const Mesh& mesh, const AABB& aabb) {
-  if (mesh.accelerator == 0) {
-    for (int i = 0; i < mesh.numTriangles; ++i) {
-      if (TriangleAABB(mesh.triangles[i], aabb)) {
-        return true;
-      }
-    }
-  }
-  else {
-    std::list<BVHNode*> toProcess;
-    toProcess.push_front(mesh.accelerator);
-
-    // Recursivley walk the BVH tree
-    while (!toProcess.empty()) {
-      BVHNode* iterator = *(toProcess.begin());
-      toProcess.erase(toProcess.begin());
-
-      if (iterator->numTriangles >= 0) {
-        // Iterate trough all triangles of the node
-        for (int i = 0; i < iterator->numTriangles; ++i) {
-          // Triangle indices in BVHNode index the mesh
-          if (TriangleAABB(mesh.triangles[iterator->triangles[i]], aabb)) {
-            return true;
-          }
-        }
-      }
-
-      if (iterator->children != 0) {
-        for (int i = 8 - 1; i >= 0; --i) {
-          // Only push children whos bounds intersect the test geometry
-          if (AABBAABB(iterator->children[i].bounds, aabb)) {
-            toProcess.push_front(&iterator->children[i]);
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-
-bool Linetest(const Mesh& mesh, const Line& line) {
-  if (mesh.accelerator == 0) {
-    for (int i = 0; i < mesh.numTriangles; ++i) {
-      if (Linetest(mesh.triangles[i], line)) {
-        return true;
-      }
-    }
-  }
-  else {
-    std::list<BVHNode*> toProcess;
-    toProcess.push_front(mesh.accelerator);
-
-    // Recursivley walk the BVH tree
-    while (!toProcess.empty()) {
-      BVHNode* iterator = *(toProcess.begin());
-      toProcess.erase(toProcess.begin());
-
-      if (iterator->numTriangles >= 0) {
-        // Iterate trough all triangles of the node
-        for (int i = 0; i < iterator->numTriangles; ++i) {
-          // Triangle indices in BVHNode index the mesh
-          if (Linetest(mesh.triangles[iterator->triangles[i]], line)) {
-            return true;
-          }
-        }
-      }
-
-      if (iterator->children != 0) {
-        for (int i = 8 - 1; i >= 0; --i) {
-          // Only push children whos bounds intersect the test geometry
-          if (Linetest(iterator->children[i].bounds, line)) {
-            toProcess.push_front(&iterator->children[i]);
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-
-bool MeshSphere(const Mesh& mesh, const Sphere& sphere) {
-  if (mesh.accelerator == 0) {
-    for (int i = 0; i < mesh.numTriangles; ++i) {
-      if (TriangleSphere(mesh.triangles[i], sphere)) {
-        return true;
-      }
-    }
-  }
-  else {
-    std::list<BVHNode*> toProcess;
-    toProcess.push_front(mesh.accelerator);
-
-    // Recursivley walk the BVH tree
-    while (!toProcess.empty()) {
-      BVHNode* iterator = *(toProcess.begin());
-      toProcess.erase(toProcess.begin());
-
-      if (iterator->numTriangles >= 0) {
-        // Iterate trough all triangles of the node
-        for (int i = 0; i < iterator->numTriangles; ++i) {
-          // Triangle indices in BVHNode index the mesh
-          if (TriangleSphere(mesh.triangles[iterator->triangles[i]], sphere)) {
-            return true;
-          }
-        }
-      }
-
-      if (iterator->children != 0) {
-        for (int i = 8 - 1; i >= 0; --i) {
-          // Only push children whos bounds intersect the test geometry
-          if (SphereAABB(sphere, iterator->children[i].bounds)) {
-            toProcess.push_front(&iterator->children[i]);
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-
-bool MeshOBB(const Mesh& mesh, const OBB& obb) {
-  if (mesh.accelerator == 0) {
-    for (int i = 0; i < mesh.numTriangles; ++i) {
-      if (TriangleOBB(mesh.triangles[i], obb)) {
-        return true;
-      }
-    }
-  }
-  else {
-    std::list<BVHNode*> toProcess;
-    toProcess.push_front(mesh.accelerator);
-
-    // Recursivley walk the BVH tree
-    while (!toProcess.empty()) {
-      BVHNode* iterator = *(toProcess.begin());
-      toProcess.erase(toProcess.begin());
-
-      if (iterator->numTriangles >= 0) {
-        // Iterate trough all triangles of the node
-        for (int i = 0; i < iterator->numTriangles; ++i) {
-          // Triangle indices in BVHNode index the mesh
-          if (TriangleOBB(mesh.triangles[iterator->triangles[i]], obb)) {
-            return true;
-          }
-        }
-      }
-
-      if (iterator->children != 0) {
-        for (int i = 8 - 1; i >= 0; --i) {
-          // Only push children whos bounds intersect the test geometry
-          if (AABBOBB(iterator->children[i].bounds, obb)) {
-            toProcess.push_front(&iterator->children[i]);
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-
-bool MeshPlane(const Mesh& mesh, const Plane& plane) {
-  if (mesh.accelerator == 0) {
-    for (int i = 0; i < mesh.numTriangles; ++i) {
-      if (TrianglePlane(mesh.triangles[i], plane)) {
-        return true;
-      }
-    }
-  }
-  else {
-    std::list<BVHNode*> toProcess;
-    toProcess.push_front(mesh.accelerator);
-
-    // Recursivley walk the BVH tree
-    while (!toProcess.empty()) {
-      BVHNode* iterator = *(toProcess.begin());
-      toProcess.erase(toProcess.begin());
-
-      if (iterator->numTriangles >= 0) {
-        // Iterate trough all triangles of the node
-        for (int i = 0; i < iterator->numTriangles; ++i) {
-          // Triangle indices in BVHNode index the mesh
-          if (TrianglePlane(mesh.triangles[iterator->triangles[i]], plane)) {
-            return true;
-          }
-        }
-      }
-
-      if (iterator->children != 0) {
-        for (int i = 8 - 1; i >= 0; --i) {
-          // Only push children whos bounds intersect the test geometry
-          if (AABBPlane(iterator->children[i].bounds, plane)) {
-            toProcess.push_front(&iterator->children[i]);
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-
-bool MeshTriangle(const Mesh& mesh, const Triangle& triangle) {
-  if (mesh.accelerator == 0) {
-    for (int i = 0; i < mesh.numTriangles; ++i) {
-      if (TriangleTriangle(mesh.triangles[i], triangle)) {
-        return true;
-      }
-    }
-  }
-  else {
-    std::list<BVHNode*> toProcess;
-    toProcess.push_front(mesh.accelerator);
-
-    // Recursivley walk the BVH tree
-    while (!toProcess.empty()) {
-      BVHNode* iterator = *(toProcess.begin());
-      toProcess.erase(toProcess.begin());
-
-      if (iterator->numTriangles >= 0) {
-        // Iterate trough all triangles of the node
-        for (int i = 0; i < iterator->numTriangles; ++i) {
-          // Triangle indices in BVHNode index the mesh
-          if (TriangleTriangle(mesh.triangles[iterator->triangles[i]], triangle)) {
-            return true;
-          }
-        }
-      }
-
-      if (iterator->children != 0) {
-        for (int i = 8 - 1; i >= 0; --i) {
-          // Only push children whos bounds intersect the test geometry
-          if (TriangleAABB(triangle, iterator->children[i].bounds)) {
-            toProcess.push_front(&iterator->children[i]);
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-
-#ifndef NO_EXTRAS
-float Raycast(const Mesh& mesh, const Ray& ray) {
-  return MeshRay(mesh, ray);
-}
-float Raycast(const Model& mesh, const Ray& ray) {
-  return ModelRay(mesh, ray);
-}
-#endif
-
-float MeshRay(const Mesh& mesh, const Ray& ray) {
-  if (mesh.accelerator == 0) {
-    for (int i = 0; i < mesh.numTriangles; ++i) {
-      RaycastResult raycast;
-      Raycast(mesh.triangles[i], ray, &raycast);
-      float result = raycast.t;
-      if (result >= 0) {
-        return result;
-      }
-    }
-  }
-  else {
-    std::list<BVHNode*> toProcess;
-    toProcess.push_front(mesh.accelerator);
-
-    // Recursivley walk the BVH tree
-    while (!toProcess.empty()) {
-      BVHNode* iterator = *(toProcess.begin());
-      toProcess.erase(toProcess.begin());
-
-      if (iterator->numTriangles >= 0) {
-        // Iterate trough all triangles of the node
-        for (int i = 0; i < iterator->numTriangles; ++i) {
-          // Triangle indices in BVHNode index the mesh
-          RaycastResult raycast;
-          Raycast(mesh.triangles[iterator->triangles[i]], ray, &raycast);
-          float r = raycast.t;
-          if (r >= 0) {
-            return r;
-          }
-        }
-      }
-
-      if (iterator->children != 0) {
-        for (int i = 8 - 1; i >= 0; --i) {
-          // Only push children whos bounds intersect the test geometry
-          RaycastResult raycast;
-          Raycast(iterator->children[i].bounds, ray, &raycast);
-          if (raycast.t >= 0) {
-            toProcess.push_front(&iterator->children[i]);
-          }
-        }
-      }
-    }
-  }
-  return -1;
-}
+defmulti lineTest "" (fn [a & more] (:type a))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod lineTest :sphere [sphere line]
+  (let [{:keys [radius pos]} sphere
+        cp (closestPoint line pos)]
+    (<= (v3-lensq (v3-sub pos cp)) (sqr* radius))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod lineTest :plane [plane line]
+  (let [{:keys [start end]} line
+        {:keys [normal dist]} plane
+        ab (v3-sub end start)
+        nA (v3-dot normal start)
+        nAB (v3-dot normal ab)]
+    (if-not (CMP nAB 0)
+      (let [t (/ (- dist nA) nAB)]
+        (and (>= t 0) (<= t 1))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod lineTest :AABB [aabb line]
+  (let [{:keys []} aaaa
+        {:keys [start end]} line
+        ray (Ray start (v3-unit (v3-sub end start)))
+        raycast (raycast aabb ray)]
+    (if (some? raycast)
+      (let [{:keys [t]} raycast]
+        (and (>= t 0)
+             (<= (sqr* t)
+                 (v3-lensq line)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod lineTest :OBB [obb line]
+  (let [{:keys []} obb
+        {:keys [start end]} line]
+    (if (< (v3-lensq (v3-sub end start)) 0.0000001)
+      (pointInOBB? start obb)
+      (let [ray (Ray start (v3-unit (v3-sub end start)))
+            result (raycast obb ray)]
+        (if (some? result)
+          (let [{:keys [t]} result]
+            (and (>= t 0)
+                 (<= (sqr* t)
+                     (v3-lensq line)))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn centroid "" [triangle]
+  (let [[p1 p2 p3] (:points triangle)
+        {x1 :x y1 :y z1 :z} p1
+        {x2 :x y2 :y z2 :z} p2
+        {x3 :x y3 :y z3 :z} p3]
+    (v3-scale (vec3 (+ x1 x2 x3)
+                    (+ y1 y2 y3)
+                    (+ z1 z2 z3)) (/ 1 3))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pointInTriangle? "" [p t]
+  ;;Move the triangle so that the point is
+  ;;now at the origin of the triangle
+  (let [[p1 p2 p3] (:points t)
+        a (v3-sub p1 p)
+        b (v3-sub p2 p)
+        c (v3-sub p3 p)
+        ;;The point should be moved too, so they are both
+        ;;relative, but because we don't use p in the
+        ;;equation anymore, we don't need it!
+        ;;p -= p; // This would just equal the zero vector!
+        normPBC (v3-xss b c) ;;Normal of PBC (u)
+        normPCA (v3-xss c a) ;;Normal of PCA (v)
+        normPAB (v3-xss a b)] ;;Normal of PAB (w)
+    ;;Test to see if the normals are facing
+    ;;the same direction, return false if not
+  (not (or (neg? (v3-dot normPBC normPCA))
+           (neg? (v3-dot normPBC normPAB))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn baryCentricOptimized "" [p t]
+  (let [[p1 p2 p3] (:points t)
+        v0 (v3-sub p2 p1)
+        v1 (v3-sub p3 p1)
+        v2 (v3-sub p p1)
+        d00 (v3-dot v0 v0)
+        d01 (v3-dot v0 v1)
+        d11 (v3-dot v1 v1)
+        d20 (v3-dot v2 v0)
+        d21 (v3-dot v2 v1)
+        denom (- (* d00 d11)(* d01 d01))]
+    (if (CMP denom 0)
+      (vec3)
+      (let [y (/ (- (* d11 d20)(* d01 d21)) denom)
+            z (/ (- (* d00 d21)(* d01 d20)) denom)]
+        (vec3 (- 1 y z) y z)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn baryCentric "" [p t]
+  (let [[p1 p2 p3] (:points t)
+        ap (v3-sub p p1)
+        bp (v3-sub p p2)
+        cp (v3-sub p p3)
+        ab (v3-sub p2 p1)
+        ac (v3-sub p3 p1)
+        bc (v3-sub p3 p2)
+        cb (v3-sub p2 p3)
+        ca (v3-sub p1 p3)
+        v (v3-sub ab (project ab cb))
+        a (- 1 (/ (v3-dot v ap)
+                  (v3-dot v ab)))
+        v (v3-sub bc (project bc ac))
+        b (- 1 (/ (v3-dot v bp)(v3-dot v bc)))
+        v (v3-sub ca (project ca ab))
+        c (- 1 (/ (v3-dot v cp)(v3-dot v ca)))]
+    (vec3 a b c)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn fromTriangle "" [t]
+  (let [[p1 p2 p3] (:points t)
+        normal (v3-unit (v3-xss (v3-sub p2 p1)
+                                (v3-sub p3 p1)))]
+    (Plane normal (v3-dot normal p1))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod closestPoint :triangle [t p]
+  (let [plane (fromTriangle t)
+        cp (closestPoint plane p)]
+    (if (pointInTriangle? cp t)
+      cp
+      (let [c1 (closestPoint (Line p1 p2) cp) ;;Line AB
+            c2 (closestPoint (Line p2 p3) cp) ;;Line BC
+            c3 (closestPoint (Line p3 p1) cp) ;;Line CA
+            magSq1 (v3-lensq (v3-sub cp c1))
+            magSq2 (v3-lensq (v3-sub cp c2))
+            magSq3 (v3-lensq (v3-sub cp c3))]
+        (cond
+          (and (< magSq1 magSq2)(< magSq1 magSq3))
+          c1
+          (and (< magSq2 magSq1)(< magSq2 magSq3))
+          c2
+          :else c3)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn triangleSphere? "" [t s]
+  (let [{:keys [pos radius]} s
+       cp (closestPoint t pos)]
+    (<= (v3-lensq (v3-sub cp pos)) (sqr* radius))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn triangleAABB? "" [t aabb]
+  (let [;;Compute the edge vectors of the triangle  (ABC)
+        [p1 p2 p3] (:points t)
+        f0 (v3-sub p2 p1)
+        f1 (v3-sub p3 p2)
+        f2 (v3-sub p1 p3)
+        ;;Compute the face normals of the AABB
+        u0 (vec3 1 0 0)
+        u1 (vec3 0 1 0)
+        u2 (vec3 0 0 1)
+        tsts [;;3 Normals of AABB
+              u0 ;;AABB Axis 1
+              u1 ;;AABB Axis 2
+              u2 ;;AABB Axis 3
+              ;;1 Normal of the Triangle
+              (v3-xss f0 f1)
+              ;;9 Axis, cross products of all edges
+              (v3-xss u0 f0)
+              (v3-xss u0 f1)
+              (v3-xss u0 f2)
+              (v3-xss u1 f0)
+              (v3-xss u1 f1)
+              (v3-xss u1 f2)
+              (v3-xss u2 f0)
+              (v3-xss u2 f1)
+              (v3-xss u2 f2)]]
+    (loop [i 0 SZ (count tsts) ok? true]
+      (if (or (>= i SZ)
+              (not ok?))
+        ok?
+        (recur (+ 1 i)
+               SZ
+               (overlapOnAxis? aabb  t (nth tsts i)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn triangleOBB? "" [t obb]
+  (let [[p1 p2 p3] (:points t)
+        {:keys [orient]} obb
+        [o1 o2 o3]
+        (partition 3 (:cells orient))
+        ;;Compute the edge vectors of the triangle  (ABC)
+        f0 (v3-sub p2 p1)
+        f1 (v3-sub p3 p2)
+        f2 (v3-sub p1 p3)
+        ;;Compute the face normals of the AABB
+        u0 (vec3 (nth o1 0)(nth o1 1)(nth o1 2))
+        u1 (vec3 (nth o2 0)(nth o2 1)(nth o2 2))
+        u2 (vec3 (nth o3 0)(nth o3 1)(nth o3 2))
+        tsts [;;3 Normals of AABB
+              u0 ;;AABB Axis 1
+              u1 ;;AABB Axis 2
+              u2 ;;AABB Axis 3
+              ;;1 Normal of the Triangle
+              (v3-xss f0 f1)
+              ;;9 Axis, cross products of all edges
+              (v3-xss u0 f0)
+              (v3-xss u0 f1)
+              (v3-xss u0 f2)
+              (v3-xss u1 f0)
+              (v3-xss u1 f1)
+              (v3-xss u1 f2)
+              (v3-xss u2 f0)
+              (v3-xss u2 f1)
+              (v3-xss u2 f2)]]
+    (loop [i 0 SZ (count tsts) ok? true]
+      (if (or (>= i SZ)
+              (not ok?))
+        ok?
+        (recur (+ 1 i)
+               SZ
+               (overlapOnAxis? obb t (nth tsts i)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn triangleTriangle? "" [t1 t2]
+  (let [[p11 p12 p13] (:points t1)
+        [p21 p22 p23] (:points t2)
+        t1_f0 (v3-sub p12 p11) ;;Edge 0
+        t1_f1 (v3-sub p13 p12) ;;Edge 1
+        t1_f2 (v3-sub p11 p13) ;;Edge 2
+        t2_f0 (v3-sub p22 p21) ;;Edge 0
+        t2_f1 (v3-sub p23 p22) ;;Edge 1
+        t2_f2 (v3-sub p21 p23) ;;Edge 2
+        tsts [;;Triangle 1, Normal
+              (v3-xss t1_f0 t1_f1)
+              ;;Triangle 2, Normal
+              (v3-xss t2_f0 t2_f1)
+              ;;Cross Product of edges
+              (v3-xss t2_f0 t1_f0)
+              (v3-xss t2_f0 t1_f1)
+              (v3-xss t2_f0 t1_f2)
+              (v3-xss t2_f1 t1_f0)
+              (v3-xss t2_f1 t1_f1)
+              (v3-xss t2_f1 t1_f2)
+              (v3-xss t2_f2 t1_f0)
+              (v3-xss t2_f2 t1_f1)
+              (v3-xss t2_f2 t1_f2)]]
+    (loop [i 0 SZ (count tsts) ok? true]
+      (if (or (>= i SZ)
+              (not ok?))
+        ok?
+        (recur (+ 1 i)
+               SZ
+               (overlapOnAxis? t1 t2 (nth tsts i)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn triangleTriangleRobust? "" [t1 t2]
+  (let [[p11 p12 p13] (:points t1)
+        [p21 p22 p23] (:points t2)
+        tsts [;;Triangle 1, Normal
+              (satCrossEdge p11 p12 p12 p13)
+              ;;Triangle 2, Normal
+              (satCrossEdge p21 p22 p22 p23)
+              ;;Cross Product of edges
+              (satCrossEdge p21 p22 p11 p12)
+              (satCrossEdge p21 p22 p12 p13)
+              (satCrossEdge p21 p22 p13 p11)
+              (satCrossEdge p22 p23 p11 p12)
+              (satCrossEdge p22 p23 p12 p13)
+              (satCrossEdge p22 p23 p13 p11)
+              (satCrossEdge p23 p21 p11 p12)
+              (satCrossEdge p23 p21 p12 p13)
+              (satCrossEdge p23 p21 p13 p11)]]
+    (loop [i 0 SZ (count tsts) ok? true]
+      (if (or (>= i SZ)
+              (not ok?))
+        ok?
+        (recur (+ i 1)
+               SZ
+               (not (and (not (overlapOnAxis? t1 t2 (nth tsts i)))
+                         (not (CMP (v3-lensq (nth tsts i)) 0)))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- satCrossEdge "" [a b c d]
+  (let [ab (v3-sub b a)
+        cd (v3-sub d c)
+        result (v3-xss ab cd)]
+    ;;Is ab and cd parallel?
+    (if-not (CMP (v3-lensq result) 0)
+      result ;;not parallel
+      (let [;;ab and cd are parallel
+            ;;Get an axis perpendicular to AB
+            axis (v3-xss ab (v3-sub c a))
+            result (v3-xss ab axis)]
+        ;;Still parallel?
+        (if-not (CMP (v3-lensq result) 0)
+          result ;;Not parallel
+          ;;New axis being tested is parallel too.
+          ;;This means that a, b, c and d are on a line
+          ;;Nothing we can do!
+          (vec3))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod raycast :triangle [triangle ray]
+  (let [plane (fromTriangle triangle)
+        {:keys [origin dir]} ray
+        planeResult (raycast plane ray)]
+    (if (some? planeResult)
+      (let [{:keys [t]} planeResult
+            result (v3-add origin (v3-scale dir t))
+            {bx :x by :y bz :z} (baryCentric result triangle)]
+        (if (and (>= bx 0)(<= bx 1)
+                 (>= by 0)(<= by 1)
+                 (>= bz 0)(<= bz 1))
+          (merge (raycastResult)
+                 {:t t :hit? true
+                  :normal (:normal plane)
+                  :point (v3-add origin (v3-scale dir t))}))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod lineTest? :triangle [triangle line]
+  (let [{:keys [start end]} line
+        ray (Ray start (v3-unit (v3-sub end start)))
+        raycast (raycast triangle ray)]
+    (if (some? raycast)
+      (let [{:keys [t]} raycast]
+        (and (>= t 0)
+             (<= (sqr* t) (v3-lensq line)))))))
+
+;kenl
 
 bool TrianglePlane(const Triangle& t, const Plane& p) {
   float side1 = PlaneEquation(t.a, p);
@@ -2414,136 +1864,6 @@ bool TrianglePlane(const Triangle& t, const Plane& p) {
   return true; // Intersection
 }
 
-void Model::SetContent(Mesh* mesh) {
-  content = mesh;
-  if (content != 0) {
-    vec3 min = mesh->vertices[0];
-    vec3 max = mesh->vertices[0];
-
-    for (int i = 1; i < mesh->numTriangles * 3; ++i) {
-      min.x = fminf(mesh->vertices[i].x, min.x);
-      min.y = fminf(mesh->vertices[i].y, min.y);
-      min.z = fminf(mesh->vertices[i].z, min.z);
-
-      max.x = fmaxf(mesh->vertices[i].x, max.x);
-      max.y = fmaxf(mesh->vertices[i].y, max.y);
-      max.z = fmaxf(mesh->vertices[i].z, max.z);
-    }
-    bounds = FromMinMax(min, max);
-  }
-}
-
-mat4 GetWorldMatrix(const Model& model) {
-  mat4 translation = Translation(model.position);
-  mat4 rotation = Rotation(model.rotation.x, model.rotation.y, model.rotation.z);
-  mat4 localMat = /* Scale * */ rotation * translation;
-
-  mat4 parentMat;
-  if (model.parent != 0) {
-    parentMat = GetWorldMatrix(*model.parent);
-  }
-
-  return localMat * parentMat;
-}
-
-OBB GetOBB(const Model& model) {
-  mat4 world = GetWorldMatrix(model);
-  AABB aabb = model.GetBounds();
-  OBB obb;
-
-  obb.size = aabb.size;
-  obb.position = MultiplyPoint(aabb.position, world);
-  obb.orientation = Cut(world, 3, 3);
-
-  return obb;
-}
-
-float ModelRay(const Model& model, const Ray& ray) {
-  mat4 world = GetWorldMatrix(model);
-  mat4 inv = Inverse(world);
-  Ray local;
-  local.origin = MultiplyPoint(ray.origin, inv);
-  local.direction = MultiplyVector(ray.direction, inv);
-  local.NormalizeDirection();
-  if (model.GetMesh() != 0) {
-    return MeshRay(*(model.GetMesh()), local);
-  }
-  return -1;
-}
-
-bool Linetest(const Model& model, const Line& line) {
-  mat4 world = GetWorldMatrix(model);
-  mat4 inv = Inverse(world);
-  Line local;
-  local.start = MultiplyPoint(line.start, inv);
-  local.end = MultiplyPoint(line.end, inv);
-  if (model.GetMesh() != 0) {
-    return Linetest(*(model.GetMesh()), local);
-  }
-  return false;
-}
-
-bool ModelSphere(const Model& model, const Sphere& sphere) {
-  mat4 world = GetWorldMatrix(model);
-  mat4 inv = Inverse(world);
-  Sphere local;
-  local.position = MultiplyPoint(sphere.position, inv);
-  if (model.GetMesh() != 0) {
-    return MeshSphere(*(model.GetMesh()), local);
-  }
-  return false;
-}
-
-bool ModelAABB(const Model& model, const AABB& aabb) {
-  mat4 world = GetWorldMatrix(model);
-  mat4 inv = Inverse(world);
-  OBB local;
-  local.size = aabb.size;
-  local.position = MultiplyPoint(aabb.position, inv);
-  local.orientation = Cut(inv, 3, 3);
-  if (model.GetMesh() != 0) {
-    return MeshOBB(*(model.GetMesh()), local);
-  }
-  return false;
-}
-
-bool ModelOBB(const Model& model, const OBB& obb) {
-  mat4 world = GetWorldMatrix(model);
-  mat4 inv = Inverse(world);
-  OBB local;
-  local.size = obb.size;
-  local.position = MultiplyPoint(obb.position, inv);
-  local.orientation = obb.orientation * Cut(inv, 3, 3);
-  if (model.GetMesh() != 0) {
-    return MeshOBB(*(model.GetMesh()), local);
-  }
-  return false;
-}
-
-bool ModelPlane(const Model& model, const Plane& plane) {
-  mat4 world = GetWorldMatrix(model);
-  mat4 inv = Inverse(world);
-  Plane local;
-  local.normal = MultiplyVector(plane.normal, inv);
-  local.distance = plane.distance;
-  if (model.GetMesh() != 0) {
-    return MeshPlane(*(model.GetMesh()), local);
-  }
-  return false;
-}
-
-bool ModelTriangle(const Model& model, const Triangle& triangle) {
-  mat4 world = GetWorldMatrix(model);
-  mat4 inv = Inverse(world);
-  Triangle local;
-  local.a = MultiplyPoint(triangle.a, inv);
-  local.b = MultiplyPoint(triangle.b, inv);
-  local.c = MultiplyPoint(triangle.c, inv);
-  if (model.GetMesh() != 0) {
-    return MeshTriangle(*(model.GetMesh()), local);
-  }
-  return false;
-}
 
 Point Intersection(Plane p1, Plane p2, Plane p3) {
   /*return ((Cross(p2.normal, p3.normal) * -p1.distance) +
@@ -2597,42 +1917,6 @@ Point Intersection(Plane p1, Plane p2, Plane p3) {
 #endif
 }
 
-void GetCorners(const Frustum& f, vec3* outCorners) {
-  outCorners[0] = Intersection(f._near, f.top,    f.left);
-  outCorners[1] = Intersection(f._near, f.top,    f.right);
-  outCorners[2] = Intersection(f._near, f.bottom, f.left);
-  outCorners[3] = Intersection(f._near, f.bottom, f.right);
-  outCorners[4] = Intersection(f._far,  f.top,    f.left);
-  outCorners[5] = Intersection(f._far,  f.top,    f.right);
-  outCorners[6] = Intersection(f._far,  f.bottom, f.left);
-  outCorners[7] = Intersection(f._far,  f.bottom, f.right);
-}
-
-bool Intersects(const Frustum& f, const Point& p) {
-  for (int i = 0; i < 6; ++i) {
-    vec3 normal = f.planes[i].normal;
-    float dist = f.planes[i].distance;
-    float side = Dot(p, normal) + dist;
-    if (side < 0.0f) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-bool Intersects(const Frustum& f, const Sphere& s) {
-  for (int i = 0; i < 6; ++i) {
-    vec3 normal = f.planes[i].normal;
-    float dist = f.planes[i].distance;
-    float side = Dot(s.position, normal) + dist;
-    if (side < -s.radius) {
-      return false;
-    }
-  }
-
-  return true;
-}
 
 float Classify(const AABB& aabb, const Plane& plane) {
   // maximum extent in direction of plane normal
@@ -2674,101 +1958,6 @@ float Classify(const OBB& obb, const Plane& plane) {
     return d + r;
   }
   return d - r;
-}
-
-bool Intersects(const Frustum& f, const OBB& obb) {
-  for (int i = 0; i < 6; ++i) {
-    float side = Classify(obb, f.planes[i]);
-    if (side < 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool Intersects(const Frustum& f, const AABB& aabb) {
-  for (int i = 0; i < 6; ++i) {
-    float side = Classify(aabb, f.planes[i]);
-    if (side < 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
-vec3 Unproject(const vec3& viewportPoint, const vec2& viewportOrigin, const vec2& viewportSize, const mat4& view, const mat4& projection) {
-  // Step 1, Normalize the input vector to the view port
-  float normalized[4] = {
-    (viewportPoint.x - viewportOrigin.x) / viewportSize.x,
-    (viewportPoint.y - viewportOrigin.y) / viewportSize.y,
-    viewportPoint.z,
-    1.0f
-  };
-
-  // Step 2, Translate into NDC space
-  float ndcSpace[4] = {
-    normalized[0], normalized[1],
-    normalized[2], normalized[3]
-  };
-  // X Range: -1 to 1
-  ndcSpace[0] = ndcSpace[0] * 2.0f - 1.0f;
-  // Y Range: -1 to 1, our Y axis is flipped!
-  ndcSpace[1] = 1.0f - ndcSpace[1] * 2.0f;
-  // Z Range: 0 to 1
-  if (ndcSpace[2] < 0.0f) {
-    ndcSpace[2] = 0.0f;
-  }
-  if (ndcSpace[2] > 1.0f) {
-    ndcSpace[2] = 1.0f;
-  }
-
-  // Step 3, NDC to Eye Space
-  mat4 invProjection = Inverse(projection);
-  float eyeSpace[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-  // eyeSpace = MultiplyPoint(ndcSpace, invProjection);
-  Multiply(eyeSpace, ndcSpace, 1, 4, invProjection.asArray, 4, 4);
-
-  // Step 4, Eye Space to World Space
-  mat4 invView = Inverse(view);
-  float worldSpace[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-  // worldSpace = MultiplyPoint(eyeSpace, invView);
-  Multiply(worldSpace, eyeSpace, 1, 4, invView.asArray, 4, 4);
-
-  // Step 5, Undo perspective divide!
-  if (!CMP(worldSpace[3], 0.0f)) {
-    worldSpace[0] /= worldSpace[3];
-    worldSpace[1] /= worldSpace[3];
-    worldSpace[2] /= worldSpace[3];
-  }
-
-  // Return the resulting world space point
-  return vec3(worldSpace[0], worldSpace[1], worldSpace[2]);
-}
-
-Ray GetPickRay(const vec2& viewportPoint, const vec2& viewportOrigin, const vec2& viewportSize, const mat4& view, const mat4& projection) {
-  vec3 nearPoint(viewportPoint.x, viewportPoint.y, 0.0f);
-  vec3 farPoint(viewportPoint.x, viewportPoint.y, 1.0f);
-
-  vec3 pNear = Unproject(nearPoint, viewportOrigin, viewportSize, view, projection);
-  vec3 pFar = Unproject(farPoint, viewportOrigin, viewportSize, view, projection);
-
-  vec3 normal = Normalized(pFar - pNear);
-  vec3 origin = pNear;
-
-  return Ray(origin, normal);
-}
-
-// Chapter 15
-
-void ResetCollisionManifold(CollisionManifold* result) {
-  if (result != 0) {
-    result->colliding = false;
-    result->normal = vec3(0, 0, 1);
-    result->depth = FLT_MAX;
-    if (result->contacts.size() > 0) {
-      result->contacts.clear();
-    }
-  }
 }
 
 std::vector<Point> GetVertices(const OBB& obb) {
@@ -2879,7 +2068,6 @@ std::vector<Point> ClipEdgesToOBB(const std::vector<Line>& edges, const OBB& obb
 
   return result;
 }
-
 float PenetrationDepth(const OBB& o1, const OBB& o2, const vec3& axis, bool* outShouldFlip) {
   Interval i1 = GetInterval(o1, Normalized(axis));
   Interval i2 = GetInterval(o2, Normalized(axis));
@@ -3048,6 +2236,5 @@ CollisionManifold FindCollisionFeatures(const OBB& A, const Sphere& B) {
 
   return result;
 }
-
 
 
