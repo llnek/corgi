@@ -1840,84 +1840,51 @@ defmulti lineTest "" (fn [a & more] (:type a))
              (<= (sqr* t) (v3-lensq line)))))))
 
 ;kenl
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn trianglePlane? "" [t p]
+  (let [[p1 p2 p3] (:points t)
+        side1 (planeEquation p1 p)
+        side2 (planeEquation p2 p)
+        side3 (planeEquation p3 p)]
+    ;;on plane
+    ;;(and (CMP side1 0)(CMP side2 0)(CMP side3 0))
+    ;;Triangle in front of plane
+    ;;Triangle behind plane
+    (not (or (and (pos? side1)(pos? side2)(pos? side3))
+             (and (neg? side1)(neg? side2)(neg? side3))))))
 
-bool TrianglePlane(const Triangle& t, const Plane& p) {
-  float side1 = PlaneEquation(t.a, p);
-  float side2 = PlaneEquation(t.b, p);
-  float side3 = PlaneEquation(t.c, p);
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn intersection "planes" [p1 p2 p3]
+  (let [{{p1x :x p1y :y p1z :z} :normal d1 :dist} p1
+        {{p2x :x p2y :y p2z :z} :normal d2 :dist} p2
+        {{p3x :x p3y :y p3z :z} :normal d3 :dist} p3
+        {:keys [cells] :as D} (mat3 p1x p2x p3x
+                                    p1y p2y p3y
+                                    p1z p2z p3z)
+        {ax :x ay :y az :z :as A}
+        (vec3 (- d1) (- d2) (- d3))
+        Dx (aclone cells)
+        Dy (aclone cells)
+        Dz (aclone cells)
+        _ (aset Dx (mx-pos 3 3 1 1) ax)
+        _ (aset Dx (mx-pos 3 3 1 2) ay)
+        _ (aset Dx (mx-pos 3 3 1 3) az)
+        _ (aset Dy (mx-pos 3 3 2 1) ax)
+        _ (aset Dy (mx-pos 3 3 2 2) ay)
+        _ (aset Dy (mx-pos 3 3 2 3) az)
+        _ (aset Dz (mx-pos 3 3 3 1) ax)
+        _ (aset Dz (mx-pos 3 3 3 2) ay)
+        _ (aset Dz (mx-pos 3 3 3 3) az)
+        detD (m3-determ D)
+        [x y z]
+        (if (CMP detD 0)
+          [0 0 0]
+          [(/ (m3-determ (mx-new* 3 3 Dx)) detD)
+           (/ (m3-determ (mx-new* 3 3 Dy)) detD)
+           (/ (m3-determ (mx-new* 3 3 Dz)) detD)])]
+    (Point x y z)))
 
-  // On Plane
-  if (CMP(side1, 0) && CMP(side2, 0) && CMP(side3, 0)) {
-    return true;
-  }
-
-  // Triangle in front of plane
-  if (side1 > 0 && side2 > 0 && side3 > 0) {
-    return false;
-  }
-
-  // Triangle behind plane
-  if (side1 < 0 && side2 < 0 && side3 < 0) {
-    return false;
-  }
-
-  return true; // Intersection
-}
-
-
-Point Intersection(Plane p1, Plane p2, Plane p3) {
-  /*return ((Cross(p2.normal, p3.normal) * -p1.distance) +
-    (Cross(p3.normal, p1.normal) * -p2.distance) +
-    (Cross(p1.normal, p2.normal) * -p3.distance)) /
-    (Dot(p1.normal, Cross(p2.normal, p3.normal)));*/
-
-#if 1
-  mat3 D(
-    p1.normal.x, p2.normal.x, p3.normal.x,
-    p1.normal.y, p2.normal.y, p3.normal.y,
-    p1.normal.z, p2.normal.z, p3.normal.z
-  );
-  vec3 A(-p1.distance, -p2.distance, -p3.distance);
-
-  mat3 Dx = D, Dy = D, Dz = D;
-  Dx._11 = A.x; Dx._12 = A.y; Dx._13 = A.z;
-  Dy._21 = A.x; Dy._22 = A.y; Dy._23 = A.z;
-  Dz._31 = A.x; Dz._32 = A.y; Dz._33 = A.z;
-
-  float detD = Determinant(D);
-
-  if (CMP(detD, 0)) {
-    return Point();
-  }
-
-  float detDx = Determinant(Dx);
-  float detDy = Determinant(Dy);
-  float detDz = Determinant(Dz);
-
-  return Point(detDx / detD, detDy / detD, detDz / detD);
-#else
-  vec3 m1(p1.normal.x, p2.normal.x, p3.normal.x);
-  vec3 m2(p1.normal.y, p2.normal.y, p3.normal.y);
-  vec3 m3(p1.normal.z, p2.normal.z, p3.normal.z);
-  vec3 d(-p1.distance, -p2.distance, -p3.distance);
-
-  vec3 u = Cross(m2, m3);
-  vec3 v = Cross(m1, d);
-  float denom = Dot(m1, u);
-
-  if (CMP(denom, 0.0f)) {
-    return Point();
-  }
-
-  Point result;
-  result.x = Dot(d, u) / denom;
-  result.y = Dot(m3, v) / denom;
-  result.z = -Dot(m2, v) / denom;
-  return result;
-#endif
-}
-
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 float Classify(const AABB& aabb, const Plane& plane) {
   // maximum extent in direction of plane normal
   float r = fabsf(aabb.size.x * plane.normal.x)
