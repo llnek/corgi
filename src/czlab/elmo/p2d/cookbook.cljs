@@ -851,7 +851,6 @@ handed matrices. That is, +Z goes INTO the screen.")
   {:min (num?? minv 0) :max (num?? maxv 0)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
 (defn Point3D "" [& [x y z :as args]]
   (-> (if (= 1 (count args))
         x
@@ -1885,323 +1884,176 @@ defmulti lineTest "" (fn [a & more] (:type a))
     (Point x y z)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-float Classify(const AABB& aabb, const Plane& plane) {
-  // maximum extent in direction of plane normal
-  float r = fabsf(aabb.size.x * plane.normal.x)
-    + fabsf(aabb.size.y * plane.normal.y)
-    + fabsf(aabb.size.z * plane.normal.z);
-
-  // signed distance between box center and plane
-  //float d = plane.Test(mCenter);
-  float d = Dot(plane.normal, aabb.position) + plane.distance;
-
-  // return signed distance
-  if (fabsf(d) < r) {
-    return 0.0f;
-  }
-  else if (d < 0.0f) {
-    return d + r;
-  }
-  return d - r;
-}
-
-float Classify(const OBB& obb, const Plane& plane) {
-  vec3 normal = MultiplyVector(plane.normal, obb.orientation);
-
-  // maximum extent in direction of plane normal
-  float r = fabsf(obb.size.x * normal.x)
-    + fabsf(obb.size.y * normal.y)
-    + fabsf(obb.size.z * normal.z);
-
-  // signed distance between box center and plane
-  //float d = plane.Test(mCenter);
-  float d = Dot(plane.normal, obb.position) + plane.distance;
-
-  // return signed distance
-  if (fabsf(d) < r) {
-    return 0.0f;
-  }
-  else if (d < 0.0f) {
-    return d + r;
-  }
-  return d - r;
-}
-
-std::vector<Point> GetVertices(const OBB& obb) {
-  std::vector<vec3> v;
-  v.resize(8);
-
-  vec3 C = obb.position;  // OBB Center
-  vec3 E = obb.size;    // OBB Extents
-  const float* o = obb.orientation.asArray;
-  vec3 A[] = {      // OBB Axis
-    vec3(o[0], o[1], o[2]),
-    vec3(o[3], o[4], o[5]),
-    vec3(o[6], o[7], o[8]),
-  };
-
-  v[0] = C + A[0] * E[0] + A[1] * E[1] + A[2] * E[2];
-  v[1] = C - A[0] * E[0] + A[1] * E[1] + A[2] * E[2];
-  v[2] = C + A[0] * E[0] - A[1] * E[1] + A[2] * E[2];
-  v[3] = C + A[0] * E[0] + A[1] * E[1] - A[2] * E[2];
-  v[4] = C - A[0] * E[0] - A[1] * E[1] - A[2] * E[2];
-  v[5] = C + A[0] * E[0] - A[1] * E[1] - A[2] * E[2];
-  v[6] = C - A[0] * E[0] + A[1] * E[1] - A[2] * E[2];
-  v[7] = C - A[0] * E[0] - A[1] * E[1] + A[2] * E[2];
-
-  return v;
-}
-
-std::vector<Line> GetEdges(const OBB& obb) {
-  std::vector<Line> result;
-  result.reserve(12);
-  std::vector<Point> v = GetVertices(obb);
-
-  int index[][2] = { // Indices of edges
-    { 6, 1 },{ 6, 3 },{ 6, 4 },{ 2, 7 },{ 2, 5 },{ 2, 0 },
-    { 0, 1 },{ 0, 3 },{ 7, 1 },{ 7, 4 },{ 4, 5 },{ 5, 3 }
-  };
-
-  for (int j = 0; j < 12; ++j) {
-    result.push_back(Line(
-      v[index[j][0]], v[index[j][1]]
-    ));
-  }
-
-  return result;
-}
-
-std::vector<Plane> GetPlanes(const OBB& obb) {
-  vec3 c = obb.position;  // OBB Center
-  vec3 e = obb.size;    // OBB Extents
-  const float* o = obb.orientation.asArray;
-  vec3 a[] = {      // OBB Axis
-    vec3(o[0], o[1], o[2]),
-    vec3(o[3], o[4], o[5]),
-    vec3(o[6], o[7], o[8]),
-  };
-
-  std::vector<Plane> result;
-  result.resize(6);
-
-  result[0] = Plane(a[0]        ,  Dot(a[0], (c + a[0] * e.x)));
-  result[1] = Plane(a[0] * -1.0f, -Dot(a[0], (c - a[0] * e.x)));
-  result[2] = Plane(a[1]        ,  Dot(a[1], (c + a[1] * e.y)));
-  result[3] = Plane(a[1] * -1.0f, -Dot(a[1], (c - a[1] * e.y)));
-  result[4] = Plane(a[2]        ,  Dot(a[2], (c + a[2] * e.z)));
-  result[5] = Plane(a[2] * -1.0f, -Dot(a[2], (c - a[2] * e.z)));
-
-  return result;
-}
-
-
-bool ClipToPlane(const Plane& plane, const Line& line, Point* outPoint) {
-  vec3 ab = line.end - line.start;
-
-  float nA = Dot(plane.normal, line.start);
-  float nAB = Dot(plane.normal, ab);
-
-  if (CMP(nAB, 0)) {
-    return false;
-  }
-
-  float t = (plane.distance - nA) / nAB;
-  if (t >= 0.0f && t <= 1.0f) {
-    if (outPoint != 0) {
-      *outPoint = line.start + ab * t;
-    }
-    return true;
-  }
-
-  return false;
-}
-
-std::vector<Point> ClipEdgesToOBB(const std::vector<Line>& edges, const OBB& obb) {
-  std::vector<Point> result;
-  result.reserve(edges.size() * 3);
-  Point intersection;
-
-  std::vector<Plane>& planes = GetPlanes(obb);
-
-  for (int i = 0; i < planes.size(); ++i) {
-    for (int j = 0; j < edges.size(); ++j) {
-      if (ClipToPlane(planes[i], edges[j], &intersection)) {
-        if (PointInOBB(intersection, obb)) {
-          result.push_back(intersection);
-        }
-      }
-    }
-  }
-
-  return result;
-}
-float PenetrationDepth(const OBB& o1, const OBB& o2, const vec3& axis, bool* outShouldFlip) {
-  Interval i1 = GetInterval(o1, Normalized(axis));
-  Interval i2 = GetInterval(o2, Normalized(axis));
-
-  if (!((i2.min <= i1.max) && (i1.min <= i2.max))) {
-    return 0.0f; // No penerattion
-  }
-
-  float len1 = i1.max - i1.min;
-  float len2 = i2.max - i2.min;
-  float min = fminf(i1.min, i2.min);
-  float max = fmaxf(i1.max, i2.max);
-  float length = max - min;
-
-  if (outShouldFlip != 0) {
-    *outShouldFlip = (i2.min < i1.min);
-  }
-
-  return (len1 + len2) - length;
-}
-
-CollisionManifold FindCollisionFeatures(const OBB& A, const OBB& B) {
-  CollisionManifold result; // Will return result of intersection!
-  ResetCollisionManifold(&result);
-
-  Sphere s1(A.position, Magnitude(A.size));
-  Sphere s2(B.position, Magnitude(B.size));
-
-  if (!SphereSphere(s1, s2)) {
-    return result;
-  }
-
-  const float* o1 = A.orientation.asArray;
-  const float* o2 = B.orientation.asArray;
-
-  vec3 test[15] = {
-    vec3(o1[0], o1[1], o1[2]),
-    vec3(o1[3], o1[4], o1[5]),
-    vec3(o1[6], o1[7], o1[8]),
-    vec3(o2[0], o2[1], o2[2]),
-    vec3(o2[3], o2[4], o2[5]),
-    vec3(o2[6], o2[7], o2[8])
-  };
-
-  for (int i = 0; i < 3; ++i) { // Fill out rest of axis
-    test[6 + i * 3 + 0] = Cross(test[i], test[0]);
-    test[6 + i * 3 + 1] = Cross(test[i], test[1]);
-    test[6 + i * 3 + 2] = Cross(test[i], test[2]);
-  }
-
-  vec3* hitNormal = 0;
-  bool shouldFlip;
-
-  for (int i = 0; i < 15; ++i) {
-    if (test[i].x < 0.000001f) test[i].x = 0.0f;
-    if (test[i].y < 0.000001f) test[i].y = 0.0f;
-    if (test[i].z < 0.000001f) test[i].z = 0.0f;
-    if (MagnitudeSq(test[i])< 0.001f) {
-      continue;
-    }
-
-    float depth = PenetrationDepth(A, B, test[i], &shouldFlip);
-    if (depth <= 0.0f) {
-      return result;
-    }
-    else if (depth < result.depth) {
-      if (shouldFlip) {
-        test[i] = test[i] * -1.0f;
-      }
-      result.depth = depth;
-      hitNormal = &test[i];
-    }
-  }
-
-  if (hitNormal == 0) {
-    return result;
-  }
-  vec3 axis = Normalized(*hitNormal);
-
-  std::vector<Point> c1 = ClipEdgesToOBB(GetEdges(B), A);
-  std::vector<Point> c2 = ClipEdgesToOBB(GetEdges(A), B);
-  result.contacts.reserve(c1.size() + c2.size());
-  result.contacts.insert(result.contacts.end(), c1.begin(), c1.end());
-  result.contacts.insert(result.contacts.end(), c2.begin(), c2.end());
-
-  Interval i = GetInterval(A, axis);
-  float distance = (i.max - i.min)* 0.5f - result.depth * 0.5f;
-  vec3 pointOnPlane = A.position + axis * distance;
-
-  for (int i = result.contacts.size() - 1; i >= 0; --i) {
-    vec3 contact = result.contacts[i];
-    result.contacts[i] = contact + (axis * Dot(axis, pointOnPlane - contact));
-
-    // This bit is in the "There is more" section of the book
-    for (int j = result.contacts.size() - 1; j > i; --j) {
-      if (MagnitudeSq(result.contacts[j] - result.contacts[i]) < 0.0001f) {
-        result.contacts.erase(result.contacts.begin() + j);
-        break;
-      }
-    }
-  }
-
-  result.colliding = true;
-  result.normal = axis;
-
-  return result;
-}
-
-CollisionManifold FindCollisionFeatures(const Sphere& A, const Sphere& B) {
-  CollisionManifold result; // Will return result of intersection!
-  ResetCollisionManifold(&result);
-
-  float r = A.radius + B.radius;
-  vec3 d = B.position - A.position;
-
-  if (MagnitudeSq(d) - r * r > 0 || MagnitudeSq(d) == 0.0f) {
-    return result;
-  }
-  Normalize(d);
-
-  result.colliding = true;
-  result.normal = d;
-  result.depth = fabsf(Magnitude(d) - r) * 0.5f;
-
-  // dtp - Distance to intersection point
-  float dtp = A.radius - result.depth;
-  Point contact = A.position + d * dtp;
-
-  result.contacts.push_back(contact);
-
-  return result;
-}
-
-CollisionManifold FindCollisionFeatures(const OBB& A, const Sphere& B) {
-  CollisionManifold result; // Will return result of intersection!
-  ResetCollisionManifold(&result);
-
-  Point closestPoint = ClosestPoint(A, B.position);
-
-  float distanceSq = MagnitudeSq(closestPoint - B.position);
-  if (distanceSq > B.radius * B.radius) {
-    return result;
-  }
-
-  vec3 normal;
-  if (CMP(distanceSq, 0.0f)) {
-    if (CMP(MagnitudeSq(closestPoint - A.position), 0.0f)) {
-      return result;
-
-    }
-    // Closest point is at the center of the sphere
-    normal = Normalized(closestPoint - A.position);
-  }
-  else {
-    normal = Normalized(B.position - closestPoint);
-  }
-
-  Point outsidePoint = B.position - normal * B.radius;
-
-  float distance = Magnitude(closestPoint - outsidePoint);
-
-  result.colliding = true;
-  result.contacts.push_back(closestPoint + (outsidePoint - closestPoint) * 0.5f);
-  result.normal = normal;
-  result.depth = distance * 0.5f;
-
-  return result;
-}
+(defmulti classify "" (fn [a & args] (:type a)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod classify :AABB [aabb plane]
+  ;;maximum extent in direction of plane normal
+  (let [{:keys [dist normal]} plane
+        {:keys [pos size]} aabb
+        {sx :x sy :y sz :z} size
+        {nx :x ny :y nz :z} normal
+        r (+ (abs* (* sx nx))
+             (abs* (* sy ny))
+             (abs* (* sz nz)))
+        ;;signed distance between box center and plane
+        d (+ (v3-dot normal pos) dist)]
+    (cond
+      (< (abs* d) r)
+      0
+      (neg? d)
+      (+ d r)
+      :else
+      (- d r))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod classify :OBB [obb plane]
+  (let [{:keys [pos size orient]} obb
+        {:keys [normal dist]} plane
+        {sx :x sy :y sz :z} size
+        {nx :x ny :y nz :z} normal
+        normal (m3-multVec3 normal orient)
+        ;;maximum extent in direction of plane normal
+        r (+ (abs* (* sx nx))
+             (abs* (* sy ny))
+             (abs* (* sz nz)))
+        ;;signed distance between box center and plane
+        d (+ (v3-dot normal pos) dist)]
+    (cond
+      (< (abs* d) r)
+      0
+      (neg? d)
+      (+ d r)
+      :else
+      (- d r))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getVertices "" [obb]
+  (let [{C :pos E :size :keys [orient]} obb
+        [o1 o2 o3] (partition 3 (:cells orient))
+        c [(:x C)(:y C)(:z C)]
+        e [(:x E)(:y E)(:z E)]
+        A [;;OBB Axis
+           (vec3 (nth o1 0)(nth o1 1)(nth o1 2))
+           (vec3 (nth o2 0)(nth o2 1)(nth o2 2))
+           (vec3 (nth o3 0)(nth o3 1)(nth o3 2))]]
+    [(v3-add (v3-add (v3-add C (v3-scale (nth A 0)(nth e 0)))
+                     (v3-scale (nth A 1)(nth e 1)))
+             (v3-scale (nth A 2)(nth e 2)))
+     (v3-add (v3-add (v3-sub C (v3-scale (nth A 0)(nth e 0)))
+                     (v3-scale (nth A 1)(nth e 1)))
+             (v3-scale (nth A 2)(nth e 2)))
+     (v3-add (v3-sub (v3-add C (v3-scale (nth A 0)(nth e 0)))
+                     (v3-scale (nth A 1)(nth e 1)))
+             (v3-scale (nth A 2)(nth e 2)))
+     (v3-sub (v3-add (v3-add C (v3-scale (nth A 0)(nth e 0)))
+                     (v3-scale (nth A 1)(nth e 1)))
+             (v3-scale (nth A 2)(nth e 2)))
+     (v3-sub (v3-sub (v3-sub C (v3-scale (nth A 0)(nth e 0)))
+                     (v3-scale (nth A 1)(nth e 1)))
+             (v3-scale (nth A 2)(nth e 2)))
+     (v3-sub (v3-sub (v3-add C (v3-scale (nth A 0)(nth e 0)))
+                     (v3-scale (nth A 1)(nth e 1)))
+             (v3-scale (nth A 2)(nth e 2)))
+     (v3-sub (v3-add (v3-sub C (v3-scale (nth A 0)(nth e 0)))
+                     (v3-scale (nth A 1)(nth e 1)))
+             (v3-scale (nth A 2)(nth e 2)))
+     (v3-add (v3-sub (v3-sub C (v3-scale (nth A 0)(nth e 0)))
+                     (v3-scale (nth A 1)(nth e 1)))
+             (v3-scale (nth A 2)(nth e 2)))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getEdges "" [obb]
+  (let [v (getVertices obb)
+        ;;Indices of edges
+        index [[6 1]
+               [6 3]
+               [6 4]
+               [2 7]
+               [2 5]
+               [2 0]
+               [0 1]
+               [0 3]
+               [7 1]
+               [7 4]
+               [4 5]
+               [5 3]]]
+    (loop [j 0 SZ (count index) out []]
+      (if (>= j SZ)
+        out
+        (recur (+ j 1)
+               SZ
+               (conj out
+                     (Line (nth v (_1 (nth index j)))
+                           (nth v (_2 (nth index j))))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getPlanes "" [obb]
+  (let [{C :pos E :size :keys [orient]} obb
+        [o1 o2 o3] (partition 3 (:cells orient))
+        e [(:x E)(:y E)(:z E)]
+        ;;OBB axis
+        a [(vec3 (nth o1 0)(nth o1 1)(nth o1 2))
+           (vec3 (nth o2 0)(nth o2 1)(nth o2 2))
+           (vec3 (nth o3 0)(nth o3 1)(nth o3 2))]]
+    [(Plane (nth a 0)
+            (v3-dot (nth a 0)
+                    (v3-add C (v3-scale (nth a 0) ex))))
+     (Plane (v3-scale (nth a 0) -1)
+            (- (v3-dot (nth a 0)
+                       (v3-sub C (v3-scale (nth a 0) ex)))))
+     (Plane (nth a 1)
+            (v3-dot (nth a 1)
+                    (v3-add C (v3-scale (nth a 1) ey))))
+     (Plane (v3-scale (nth a 1) -1)
+            (- (v3-dot (nth a 1)
+                       (v3-sub C (v3-scale (nth a 1) ey)))))
+     (Plane (nth a 2)
+            (v3-dot (nth a 2)
+                    (v3-add C (v3-scale (nth a 2) ez))))
+     (Plane (v3-scale (nth a 2) -1)
+            (- (v3-dot (nth a 2)
+                       (v3-sub C (v3-scale (nth a 2) ez)))))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn clipToPlane "" [plane line]
+  (let [{:keys [start end]} line
+        {:keys [normal dist]} plane
+        ab (v3-sub end start)
+        nA (v3-dot normal start)
+        nAB (v3-dot normal ab)]
+  (if-not (CMP nAB 0)
+    (let [t (/ (- dist nA) nAB)]
+      (if (and (>= t 0)(<= t 1))
+        (v3-add start (v3-scale ab t)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn clipEdgesToOBB "" [edges obb]
+  (let [planes (getPlanes obb)
+        out (transient [])]
+    (dotimes [i (count planes)]
+      (dotimes [j (count edges)]
+        (if-some [pt (clipToPlane (nth planes i)
+                                  (nth edges j))]
+          (if (pointInOBB? pt obb) (conj! out pt)))))
+    (persistent! out)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn penetrationDepth "" [o1 o2 axis]
+  (let [{n1 :min x1 :max} (getInterval3D o1 (v3-unit axis))
+        {n2 :min x2 :max} (getInterval3D o2 (v3-unit axis))]
+
+  (if (not (and (<= n2 x1)
+                (<= n1 x2)))
+    [0 false] ;;No penerattion
+    (let [len1 (- x1 n1)
+          len2 (- x2 n2)
+          _min (min n1 n2)
+          _max (max x1 x2)
+          length (- _max _min)]
+      [(- (+ len1 len2) length) (< n2 n1)]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
 
