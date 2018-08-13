@@ -9,7 +9,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.p2d.cookbook
+  czlab.elmo.p2d.math
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 do->true assoc!!]])
 
@@ -24,8 +24,11 @@
 (def COS js/Math.cos)
 (def SIN js/Math.sin)
 (def TAN js/Math.tan)
+(def ACOS js/Math.acos)
 (def ATAN2 js/Math.atan2)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;VECTORS
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- CMP "" [x y]
   (<= (abs* (- x y))
@@ -37,9 +40,9 @@
   {:cells cells :size (count cells) :type type})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- vec-n "" [size]
+(defn- vec-n "" [size & [type]]
   (when-not (neg? size)
-    (vec-new* (clj->js (map (fn [_] 0) (range size))))))
+    (vec-new* (clj->js (map (fn [_] 0) (range size))) type)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- vec*
@@ -71,6 +74,19 @@
 (defn vec-eq? "" [v1 v2]
   (let [{c1 :cells s1 :size t1 :type} v1
         {c2 :cells s2 :size t2 :type} v2]
+    (if (and (= t1 t2)
+             (= s1 s2))
+      (loop [[a & m1] c1
+             [b & m2] c2 ok? true]
+        (if (or (nil? a)
+                (not ok?))
+          ok?
+          (recur m1 m2 (CMP a b)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn XXXvec-eq? "" [v1 v2]
+  (let [{c1 :cells s1 :size t1 :type} v1
+        {c2 :cells s2 :size t2 :type} v2]
     (and (= t1 t2)
          (= s1 s2)
          (every? #(CMP (_1 %) (aget c2 (_2 %)))
@@ -88,7 +104,9 @@
       (loop [i 0 SZ s1 out []]
         (if (>= i SZ)
           (res out t1)
-          (recur (+ i 1) SZ (conj out (func (aget c1 i)(aget c2 i)))))))))
+          (recur (+ i 1)
+                 SZ
+                 (conj out (func (aget c1 i)(aget c2 i)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- wrap-as-new "" [out t] (vec-new* (clj->js out) t))
@@ -115,6 +133,24 @@
         (recur (+ 1 i) SZ (conj out (* n (aget cells i))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vec-plus "" [v n]
+  (assert (number? n) "expected (vec, number)")
+  (let [{:keys [cells size type]} v]
+    (loop [i 0 SZ size out []]
+      (if (>= i SZ)
+        (wrap-as-new out type)
+        (recur (+ 1 i) SZ (conj out (+ (aget cells i) n)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vec-minus "" [v n]
+  (assert (number? n) "expected (vec, number)")
+  (let [{:keys [cells size type]} v]
+    (loop [i 0 SZ size out []]
+      (if (>= i SZ)
+        (wrap-as-new out type)
+        (recur (+ 1 i) SZ (conj out (- (aget cells i) n)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-dot "" [v1 v2]
   (vec-xxx v1 v2 * (fn [out & _]
                      (reduce (fn [sum n] (+ sum n)) 0 out))))
@@ -132,59 +168,107 @@
 (defn vec-dist "" [v1 v2] (vec-len (vec-sub v1 v2)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec-unit "" [v] (vec-scale v (invert (vec-len v))))
+(defn vec-unit "" [v]
+  (let [z (vec-len v)]
+    (if (> z EPSILON) (vec-scale v (/ 1 z)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-rot "" [v rad]
-  (let [{:keys [x y]} v
-        s (js/Math.sin rad)
-        c (js/Math.cos rad)]
-    (vec2 (- (* x c) (* y s))
-          (+ (* x s) (* y c)))))
+(defn- v2-rot "" [v angle center]
+  (let [[cx cy] (or (:cells center) [0 0])
+        [x y] (:cells v)
+        x' (- x cx)
+        y' (- y cy)
+        cos (COS angle)
+        sin (SIN angle)]
+    (vec2 (+ cx (- (* x' cos) (* y' sin)))
+          (+ cy (+ (* x' sin) (* y' cos))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- v3-rot "" [v angle center] )
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vec-rot "rotate counter-clockwise" [v angle & [center]]
+  (let [{:keys [type]} v]
+    (case type
+      ::vec2  (v2-rot v angle center)
+      ::vec3  (v3-rot v angle center) nil)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn v2-xss
+  "If positive, v2 is on top of v1,
+  if negative, v2 below v1. Take the absolute value then it will
+  be the sine of the angle between them."
+  [v1 v2]
+  (let [[x1 y1 ] (:cells v1)
+        [x2 y2 ] (:cells v2)] (- (* x1 y2) (* y1 x2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn v3-xss "" [v1 v2]
-  (let [{x2 :x y2 :y z2 :z} v2
-        {x1 :x y1 :y z1 :z} v1]
+  (let [[x2 y2 z2] (:cells v2)
+        [x1 y1 z1] (:cells v1)]
     (vec3 (- (* y1 z2) (* z1 y2))
           (- (* z1 x2) (* x1 z2))
           (- (* x1 y2) (* y1 x2)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-angle "" [v1 v2]
-  (js/Math.acos (/ (v2-dot v1 v2)
-                   (sqrt* (* (v2-lensq v1) (v2-lensq v2))))))
+(defn vec-xss "" [v1 v2]
+  (let [{s1 :size t1 :type} v1
+        {s2 :size t2 :type} v2]
+    (if (and (= t1 t2)
+             (= s1 s2))
+      (case type
+        ::vec2  (v2-xss v1 v2)
+        ::vec3  (v3-xss v1 v2) nil))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v3-angle "" [v1 v2]
-  (js/Math.acos (/ (v3-dot v1 v2)
-                   (sqrt* (* (v3-lensq v1) (v3-lensq v2))))))
+(defn vec-angle "" [v1 v2]
+  (let [{s1 :size t1 :type} v1
+        {s2 :size t2 :type} v2]
+    (when (and (= s1 s2)
+               (= t1 t2))
+      (ACOS (/ (vec-dot v1 v2)
+               (sqrt* (* (vec-lensq v1) (vec-lensq v2))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-proj "" [length dir]
-  (v2-scale dir (/ (v2-dot length dir) (v2-lensq dir))))
+(defn vec-proj "" [length dir]
+  (let [{s1 :size t1 :type} length
+        {s2 :size t2 :type} dir]
+    (when (and (= s1 s2)
+               (= t1 t2))
+      (vec-scale dir (/ (vec-dot length dir) (vec-lensq dir))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v3-proj "" [length dir]
-  (v3-scale dir (/ (v3-dot length dir) (v3-lensq dir))))
+(defn vec-perp "" [length dir]
+  (let [{s2 :size t2 :type} dir
+        {s1 :size t1 :type} length]
+    (when (and (= s1 s2)
+               (= t1 t2))
+      (vec-sub length (vec-proj length dir)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-perp "" [length dir]
-  (v2-sub length (v2-proj length dir)))
+(defn vec-reflect "" [src normal]
+  (let [{s1 :size t1 :type} src
+        {s2 :size t2 :type} normal]
+    (when (and (= s1 s2)
+               (= t1 t2))
+      (vec-sub src
+               (vec-scale normal
+                          (* 2 (vec-dot src normal)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v3-perp "" [length dir]
-  (v3-sub length (v3-proj length dir)))
+(defn vec-neg "" [v] (vec-scale v -1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v2-reflect "" [src normal]
-  (v2-sub src (v2-scale normal (* (v2-dot src normal) 2))))
+(defn v2-normal "" [v]
+  (let [[x y] (:cells v)] (vec2 y (- x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn v3-reflect "" [src normal]
-  (v3-sub src (v3-scale normal (* (v3-dot src normal) 2))))
+(defn vec-min "" [v1 v2] (vec-xxx v1 v2 min wrap-as-new))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vec-max "" [v1 v2] (vec-xxx v1 v2 max wrap-as-new))
 
+;;kenl
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (comment
 "Row Major!
@@ -243,7 +327,29 @@ handed matrices. That is, +Z goes INTO the screen.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mx-new "" [rows cols]
-  {:rows rows :cols cols :cells (make-array js/Number (* rows cols))})
+  {:rows rows :cols cols
+   :cells (clj->js (map (fn [_] 0) (range (* rows cols))))})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mat* "" [[rows cols] & args]
+  (let [sz (* rows cols)
+        az (count args)]
+    (if (and (pos? az)
+             (not= az sz))
+      (assert false "expecting more args"))
+    (if-not (every? #(number? %) args)
+      (assert false "expecting all numbers"))
+    (if (zero? az)
+      (mx-new rows cols)
+      (mx-new* rows cols (clj->js args)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mat-ident "" [size]
+  (let [sz (* size size)
+        out (clj->js (map (fn [_] 0) (range sz)))]
+    (dotimes [i size]
+      (aset out (mx-pos size size i i) 1))
+    (mx-new* size size out)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mat2 "" [& [_11 _12 _21 _22 :as args]]
