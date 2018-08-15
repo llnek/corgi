@@ -21,14 +21,18 @@
 (def ^:private TWO-PI (* 2 js/Math.PI))
 (def ^:private PI js/Math.PI)
 (def DEG-2PI 360.0)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def ATAN2 js/Math.atan2)
+(def ACOS js/Math.acos)
 (def COS js/Math.cos)
 (def SIN js/Math.sin)
 (def TAN js/Math.tan)
-(def ACOS js/Math.acos)
-(def ATAN2 js/Math.atan2)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- js-array [z] (make-array js/Number z))
+(defn- js-array [z & [v]]
+  (let [out (make-array js/Number z)]
+    (if (number? v)
+      (dotimes [i z] (aset out i v))) out))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;VECTORS
@@ -38,26 +42,22 @@
       (* EPSILON (max 1 (max (abs* x) (abs* y))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- vec-new*
-  "" [cells & [type]]
-  {:cells cells :size (count cells) :type type})
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- vec-n "" [size & [type]]
-  (when-not (neg? size)
-    (vec-new* (clj->js (map (fn [_] 0) (range size))) type)))
+(defn- vec-new* "" [arg]
+  (let [arr (cond (array? arg) arg
+                  (pos? arg) (js-array arg 0)
+                  :else (assert false))] {:cells arr}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- vec*
   "" [& [args]] (if (every? #(number? %) args) (vec-new* (clj->js args))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec3 "" [& [x y z]]
-  (vec-new* #js [(num?? x 0)(num?? y 0)(num?? z 0)] ::vec3))
+(defn vec2
+  "" [& [x y]] (vec-new* #js [(num?? x 0)(num?? y 0)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec2 "" [& [x y]]
-  (vec-new* #js [(num?? x 0)(num?? y 0)] ::vec2))
+(defn vec3
+  "" [& [x y z]] (vec-new* #js [(num?? x 0)(num?? y 0)(num?? z 0)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- modDeg "" [deg]
@@ -82,94 +82,77 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-eq? "" [v1 v2]
-  (let [{c1 :cells s1 :size t1 :type} v1
-        {c2 :cells s2 :size t2 :type} v2]
-    (if (and (= t1 t2)
-             (= s1 s2)) (array-eq? c1 c2))))
+  (let [{c1 :cells} v1
+        {c2 :cells} v2]
+    (if (= (count c1)
+           (count c2)) (array-eq? c1 c2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn YYYvec-eq? "" [v1 v2]
-  (let [{c1 :cells s1 :size t1 :type} v1
-        {c2 :cells s2 :size t2 :type} v2]
-    (if (and (= t1 t2)
-             (= s1 s2))
-      (loop [[a & m1] c1
-             [b & m2] c2 ok? true]
+  (let [{c1 :cells} v1 {c2 :cells} v2]
+    (if (= (count c1) (count c2))
+      (loop [[a & m1] c1 [b & m2] c2 ok? true]
         (if (or (nil? a)
-                (not ok?))
-          ok?
-          (recur m1 m2 (CMP a b)))))))
+                (not ok?)) ok? (recur m1 m2 (CMP a b)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn XXXvec-eq? "" [v1 v2]
-  (let [{c1 :cells s1 :size t1 :type} v1
-        {c2 :cells s2 :size t2 :type} v2]
-    (and (= t1 t2)
-         (= s1 s2)
+  (let [{c1 :cells} v1 {c2 :cells} v2]
+    (and (= (count c1)(count c2))
          (every? #(CMP (_1 %) (aget c2 (_2 %)))
-                 (partition 2 (interleave c1 (range s1)))))))
+                 (partition 2 (interleave c1 (range (count s1))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-neq? "" [v1 v2] (not (vec-eq? v1 v2)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- vec-xxx "" [v1 v2 func res]
-  (let [{c1 :cells s1 :size t1 :type} v1
-        {c2 :cells s2 :size t2 :type} v2]
-    (when (and (= t1 t2)
-               (= s1 s2))
-      (loop [i 0 SZ s1 out []]
-        (if (>= i SZ)
-          (res out t1)
-          (recur (+ i 1)
-                 SZ
-                 (conj out (func (aget c1 i)(aget c2 i)))))))))
+  (let [{c1 :cells} v1
+        {c2 :cells} v2
+        size (count c1)]
+    (when (= size (count v2))
+      (let [out (js-array size)]
+        (dotimes [i size]
+          (aset out i (func (aget c1 i)(aget c2 i)))) (res out)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- wrap-as-new "" [out t] (vec-new* (clj->js out) t))
+(defn vec-add "" [v1 v2] (vec-xxx v1 v2 + vec-new*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec-add "" [v1 v2] (vec-xxx v1 v2 + wrap-as-new))
+(defn vec-sub "" [v1 v2] (vec-xxx v1 v2 - vec-new*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec-sub "" [v1 v2] (vec-xxx v1 v2 - wrap-as-new))
+(defn vec-div "" [v1 v2] (vec-xxx v1 v2 / vec-new*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec-div "" [v1 v2] (vec-xxx v1 v2 / wrap-as-new))
+(defn vec-mult "" [v1 v2] (vec-xxx v1 v2 * vec-new*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec-mult "" [v1 v2] (vec-xxx v1 v2 * wrap-as-new))
+(defn- vec-nnn "" [v func res]
+  (let [{:keys [cells]} v
+        size (n# cells)
+        out (js-array size)]
+    (dotimes [i size]
+      (aset out i (func (aget cells i)))) (res out)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-scale "" [v n]
-  (assert (number? n) "expected (vec, number)")
-  (let [{:keys [cells size type]} v]
-    (loop [i 0 SZ size out []]
-      (if (>= i SZ)
-        (wrap-as-new out type)
-        (recur (+ 1 i) SZ (conj out (* n (aget cells i))))))))
+  {:pre [number? n]}
+  (vec-nnn v (fn [i] (* i n)) vec-new*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-plus "" [v n]
-  (assert (number? n) "expected (vec, number)")
-  (let [{:keys [cells size type]} v]
-    (loop [i 0 SZ size out []]
-      (if (>= i SZ)
-        (wrap-as-new out type)
-        (recur (+ 1 i) SZ (conj out (+ (aget cells i) n)))))))
+  {:pre [number? n]}
+  (vec-nnn v (fn [i] (+ i n)) vec-new*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-minus "" [v n]
-  (assert (number? n) "expected (vec, number)")
-  (let [{:keys [cells size type]} v]
-    (loop [i 0 SZ size out []]
-      (if (>= i SZ)
-        (wrap-as-new out type)
-        (recur (+ 1 i) SZ (conj out (- (aget cells i) n)))))))
+  {:pre [number? n]}
+  (vec-nnn v (fn [i] (- i n)) vec-new*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-dot "" [v1 v2]
-  (vec-xxx v1 v2 * (fn [out & _]
+  (vec-xxx v1 v2 * (fn [out]
                      (reduce (fn [sum n] (+ sum n)) 0 out))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -187,7 +170,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-unit "" [v]
   (let [z (vec-len v)]
-    (if (> z EPSILON) (vec-scale v (/ 1 z)))))
+    (if (> z EPSILON) (vec-scale v (invert z)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- v2-rot "" [v angle center]
