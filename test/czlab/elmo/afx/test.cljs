@@ -12,7 +12,8 @@
   czlab.elmo.afx.test
 
   (:require [czlab.elmo.p2d.math
-             :as pm :refer [vec-eq? vec2 vec3 PI]]
+             :as pm :refer [vec-neq? vec-eq? vec2 vec3 PI
+                            mat-neq? mat-eq?]]
             [clojure.string :as cs]
             [czlab.elmo.afx.core
              :as ec :refer [deftest if-some+ when-some+
@@ -31,9 +32,9 @@
   (ensure?? (let [[x y z] (vec3 1 2 3)]
               (and (= 1 x)(= 2 y)(= 3 z))) "vec3 ctor")
 
-  (ensure?? (pm/vec-neq? (vec3 2 3 0)(vec3 1 2 3)) "v3,v3 neq?")
-  (ensure?? (pm/vec-neq? (vec3 1 2 3)(vec2 2 3)) "v3 neq?")
-  (ensure?? (pm/vec-neq? (vec2 2 3)(vec3 1 2 3)) "v2 neq?")
+  (ensure?? (vec-neq? (vec3 2 3 0)(vec3 1 2 3)) "v3,v3 neq?")
+  (ensure?? (vec-neq? (vec3 1 2 3)(vec2 2 3)) "v3 neq?")
+  (ensure?? (vec-neq? (vec2 2 3)(vec3 1 2 3)) "v2 neq?")
 
   (ensure?? (vec-eq? (vec2 2 3)(vec2 2 3)) "v2 eq?")
   (ensure?? (vec-eq? (vec3 1 2 3)(vec3 1 2 3)) "v3 eq?")
@@ -96,10 +97,35 @@
   (ensure?? (vec-eq? (vec3 9 3 4)
                      (pm/vec-max (vec3 8 -3 4)(vec3 9 3 0))) "vec-max")
 
+  (ensure?? (mat-eq? (pm/mat* [3 3] 1 0 0 0 1 0 0 0 1)
+                     (pm/mat-identity 3)) "mat-identity")
+
+  (ensure?? (mat-eq? (pm/mat* [3 3] 0 0 0 0 0 0 0 0 0)
+                     (pm/mat-zero 3)) "mat-zero")
+
+  (ensure?? (mat-neq? (pm/mat* [3 3] 1 0 0 0 1 0 1 0 1)
+                      (pm/mat* [3 3] 1 0 1 0 1 0 0 0 1)) "mat-neq?")
+
+  (ensure?? (mat-eq? (pm/mat2 1 0 0 1)
+                     (pm/mat-identity 2)) "mat2")
+
+  (ensure?? (mat-eq? (pm/mat3 1 0 0 0 1 0 0 0 1)
+                     (pm/mat-identity 3)) "mat3")
+
+  (ensure?? (mat-eq? (pm/mat4 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1)
+                     (pm/mat-identity 4)) "mat4")
+
+  (ensure?? (mat-eq? (pm/mat* [3 2] 1 4 2 5 3 6)
+                     (pm/mat-xpose (pm/mat* [2 3] 1 2 3 4 5 6))) "mat-xpose")
+
+  (ensure?? (= -2 (pm/mat-det (pm/mat* [2 2] 1 2 3 4))) "mat-det")
+  (ensure?? (= -64 (pm/mat-det (pm/mat* [3 3] 1 2 3 3 4 5 7 -8 9))) "mat-det")
+
+
+
   (ensureThrown js/Error (raise! "hello" "world") "raise!"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 (js/console.log (runtest test-math "elmo test-math"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -298,7 +298,7 @@ handed matrices. That is, +Z goes INTO the screen.")
   "" [rows cols] (mat-new* rows cols (jsa* (* rows cols))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- mat* "" [[rows cols] & args]
+(defn mat* "" [[rows cols] & args]
   {:pre [(every? #(number? %) args)]}
   (if (empty? args)
     (mat-new rows cols)
@@ -306,6 +306,7 @@ handed matrices. That is, +Z goes INTO the screen.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mat-identity "" [sz]
+  {:pre [(pos? sz)]}
   (mat-new* sz
             sz
             (do-with [out (jsa* (* sz sz))]
@@ -313,8 +314,8 @@ handed matrices. That is, +Z goes INTO the screen.")
                 (aset out (CELL sz sz (+ 1 i) (+ 1 i)) 1)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn mat-zero
-  "" [sz]
+(defn mat-zero "" [sz]
+  {:pre [(pos? sz)]}
   (mat-new* sz sz (jsa* (* sz sz))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -352,7 +353,7 @@ handed matrices. That is, +Z goes INTO the screen.")
 (defn mat-neq? "" [a b] (not (mat-eq? a b)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn mat-xpose "" [m]
+(defn YYYmat-xpose "" [m]
   (let [{:keys [arr] [rows cols] :dim} m
         tmp (transient [])
         cs (partition cols arr)]
@@ -361,14 +362,13 @@ handed matrices. That is, +Z goes INTO the screen.")
     (mat-new* cols rows (clj->js (persistent! tmp)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn XXXmat-xpose "" [m]
+(defn mat-xpose "" [m]
   (let [tmp (transient [])
         {:keys [arr] [rows cols] :dim} m]
-    (dotimes [c cols]
-      (dotimes [r rows]
-        (conj! tmp (aget arr
-                         (+ c (* rows
-                                 (mod r rows)))))))
+    (dotimes [i (* rows cols)]
+      (conj! tmp (aget arr
+                       (+ (int (/ i rows))
+                          (* cols (mod i rows))))))
     (mat-new* cols rows (clj->js (persistent! tmp)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -426,16 +426,16 @@ handed matrices. That is, +Z goes INTO the screen.")
 (defn- mat-cut "" [m row col]
   (let [{:keys [arr] [rows cols] :dim} m
         ;change to zero indexed
-        row' (- 1 row)
-        col' (- 1 col)
+        row' (- row 1)
+        col' (- col 1)
         tmp (transient [])]
     (dotimes [i rows]
       (dotimes [j cols]
         (when-not (or (= i row')
                       (= j col'))
           (conj! tmp (aget arr (+ j (* i cols)))))))
-    (mat-new* (- 1 rows)
-              (- 1 cols)
+    (mat-new* (- rows 1)
+              (- cols 1)
               (clj->js (persistent! tmp)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
