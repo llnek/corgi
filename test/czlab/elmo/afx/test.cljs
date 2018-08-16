@@ -11,14 +11,8 @@
 
   czlab.elmo.afx.test
 
-  (:require [czlab.elmo.afx.algos :as algos]
-            [czlab.elmo.afx.canvas :as cv]
-            [czlab.elmo.afx.crypt :as cas]
-            ;[czlab.elmo.afx.ccsx :as cx]
-            ;[czlab.elmo.afx.boot :as bt]
-            [czlab.elmo.afx.odin :as odin]
-            [czlab.elmo.afx.ecs :as ecs]
-            [czlab.elmo.afx.ebus :as bus]
+  (:require [czlab.elmo.p2d.math
+             :as pm :refer [vec-eq? vec2 vec3 PI]]
             [clojure.string :as cs]
             [czlab.elmo.afx.core
              :as ec :refer [deftest if-some+ when-some+
@@ -29,371 +23,84 @@
 (def TMPVAR (atom nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;for testing state monad
-(defn mult3 "" [x] (* 3 x))
-(defn add2 "" [x] (+ 2 x))
+(deftest test-math
 
-;wrapper so that the actual computation is inside
-;a state-monadic value, together with the log msg
-(defn exlog "" [expr log]
-  (fn [s]
-    (let [v (:value s)
-          v' (expr v)
-          msg (str log "(" v ")")
-          log' (conj (:log s) msg)]
-      [v' {:value v' :log log'}])))
+  (ensure?? (let [[x y] (vec2 1 2)]
+              (and (= 1 x)(= 2 y))) "vec2 ctor")
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftest test-core
+  (ensure?? (let [[x y z] (vec3 1 2 3)]
+              (and (= 1 x)(= 2 y)(= 3 z))) "vec3 ctor")
 
-  (ensure?? (= 1 (_1 [1 2])) "1st")
-  (ensure?? (= 2 (_2 [1 2])) "2nd")
-  (ensure?? (= 3 (_3 [1 2 3])) "3rd")
+  (ensure?? (pm/vec-neq? (vec3 2 3 0)(vec3 1 2 3)) "v3,v3 neq?")
+  (ensure?? (pm/vec-neq? (vec3 1 2 3)(vec2 2 3)) "v3 neq?")
+  (ensure?? (pm/vec-neq? (vec2 2 3)(vec3 1 2 3)) "v2 neq?")
 
-  (ensure?? (= (ec/toFloat "1.2") 1.2) "toFloat")
-  (ensure?? (= (ec/toInt "12") 12) "toInt")
+  (ensure?? (vec-eq? (vec2 2 3)(vec2 2 3)) "v2 eq?")
+  (ensure?? (vec-eq? (vec3 1 2 3)(vec3 1 2 3)) "v3 eq?")
 
-  (ensure?? (= 2 (ec/last-index [1 2 3])) "last-index")
-  (ensure?? (= 2 (nth (ec/cdr [1 2]) 0)) "cdr")
-  (ensure?? (= 1 (ec/car [1 2])) "car")
-  (ensure?? (= 2 (ec/nexth [1 2] 0)) "nexth")
+  (ensure?? (vec-eq? (vec3 5 7 9)
+                        (pm/vec-add (vec3 1 2 3)(vec3 4 5 6))) "vec-add")
 
-  (ensure?? (= {:a 5 :z 9 :b {:c 2 :d 2}}
-               (ec/deepMerge {:a 1 :b {:c 2}}
-                             {:z 9 :a 5 :b {:d 2}})) "deepMerge,map")
+  (ensure?? (vec-eq? (vec2 1 3)
+                        (pm/vec-sub (vec2 2 3)(vec2 1 0))) "vec-sub")
 
-  (ensure?? (= {:a 5 :z 9 :b #{ :c 2 :d 3 4}}
-               (ec/deepMerge {:a 1 :b #{ :c 2 4}}
-                             {:z 9 :a 5 :b #{ :d 2 3}})) "deepMerge,set")
+  (ensure?? (vec-eq? (vec2 4 15)
+                        (pm/vec-mult (vec2 2 3)(vec2 2 5))) "vec-mult")
 
-  (ensure?? (= {:a 5 :z 9 :b [1 3]}
-               (ec/deepMerge {:a 1 :b [4]}
-                             {:z 9 :a 5 :b [1 3]})) "deepMerge,*")
+  (ensure?? (vec-eq? (vec2 3 4)
+                        (pm/vec-div (vec2 9 8)(vec2 3 2))) "vec-div")
 
-  (ensure?? (= 3 (ec/do-with [a (+ 1 2)]
-                             (/ a 3))) "do-with")
-  (ensure?? (= false (ec/do->false (+ 1 2) (= 1 1))) "do->false")
-  (ensure?? (= true (ec/do->true (+ 1 2) (= 1 2))) "do->true")
-  (ensure?? (= nil (ec/do->nil (+ 1 2) 911)) "do->nil")
+  (ensure?? (vec-eq? (vec2 27 24)
+                        (pm/vec-scale (vec2 9 8) 3 )) "vec-scale")
+  (ensure?? (vec-eq? (vec3 27 24 -21)
+                        (pm/vec-scale (vec3 9 8 -7) 3 )) "vec-scale")
 
-  (ensure?? (= "hello!"
-               (if-some+ [s (identity "hello")] (str s "!"))) "if-some+")
-  (ensure?? (= "ab"
-               (if-some+ [s (identity "")]
-                         (str s "!")
-                         (str "ab"))) "if-some+->else")
-  (ensure?? (= "$hello"
-               (when-some+ [s (identity "hello")]
-                           (count s)
-                           (str "$" s))) "when-some+")
+  (ensure?? (vec-eq? (vec2 6 5)
+                        (pm/vec-minus (vec2 9 8) 3 )) "vec-minus")
+  (ensure?? (vec-eq? (vec2 12 11)
+                        (pm/vec-plus (vec2 9 8) 3 )) "vec-plus")
 
-  (ensure?? (= 6 (do (reset! TMPVAR 0)
-                     (ec/each #(swap! TMPVAR + %) [1 2 3]) (deref TMPVAR))) "each")
+  (ensure?? (= -42 (pm/vec-dot (vec2 -9 8)(vec2 2 -3))) "v2-dot")
+  (ensure?? (= 49 (pm/vec-dot (vec3 9 8 -7)(vec3 -2 4 -5))) "v3-dot")
 
-  (ensure?? (and (ec/nichts? nil)
-                 (ec/nichts? js/undefined)) "nichts?")
+  (ensure?? (= 11 (pm/vec-xss (vec2 -9 8)(vec2 2 -3))) "v2-xss")
+  (ensure?? (vec-eq? (vec3 -12 59 52)
+                        (pm/vec-xss (vec3 9 8 -7)(vec3 -2 4 -5))) "v3-xss")
 
-  (ensure?? (= "abc&lt;&gt;&amp;&quot;&apos;xyz"
-               (ec/escXml "abc<>&\"'xyz")) "escXml")
+  (ensure?? (= 14 (pm/vec-lensq (vec3 1 2 -3))) "v3-lensq")
+  (ensure?? (= 13 (pm/vec-lensq (vec2 2 3))) "v2-lensq")
+  (ensure?? (= 5 (pm/vec-len (vec2 3 4))) "vec-len")
 
-  (ensure?? (let [[x y]
-                  (ec/split-seq [1 2 3 4 5] 3)]
-              (and (= [1 2 3] x)
-                   (= [4 5] y))) "split-seq")
+  (ensure?? (= 116 (pm/vec-distsq (vec3 7 6 5)(vec3 1 2 -3))) "v3-distsq")
+  (ensure?? (= 202 (pm/vec-distsq (vec2 2 3)(vec2 -9 -6))) "v2-distsq")
 
-  (ensure?? (= 50 (ec/percent 20 40)) "percent")
-  (ensure?? (= "3.333" (ec/toFixed (/ 10 3) 3)) "toFixed")
+  (ensure?? (vec-eq? (vec2 0.6 0.8)
+                        (pm/vec-unit (vec2 3 4))) "vec-unit")
 
-  (ensure?? (= ["123" "456" "78"]
-               (ec/split-str 3 "12345678")) "split-str")
+  (ensure?? (vec-eq? (vec2 -4 3)
+                        (pm/vec-rot (vec2 3 4) (/ PI 2))) "v2-rot")
 
-  (ensure?? (= 698 (ec/maxBy identity [78 7 698 4 5 2 -1])) "maxBy")
-  (ensure?? (= -1 (ec/minBy identity [78 7 6 4 5 2 -1])) "minBy")
+  (ensure?? (= 90 (pm/rad->deg
+                    (pm/vec-angle (vec2 3 4)(vec2 -4 3)))) "vec-angle")
 
-  (ensure?? (= 3 (ec/domonad ec/m-identity
-                             [a 1 b (inc a)] (+ a b))) "identity monad")
-  (ensureThrown "any"
-                (ec/domonad ec/m-identity
-                            [a nil
-                             b a
-                             c (ec/toStr b)] (+ a b c)) "identity monad->boom")
+  (ensure?? (vec-eq? (vec2 3 -4)
+                        (pm/vec-neg (vec2 -3 4))) "v2-neg")
 
-  (ensure?? (= 3 (ec/domonad ec/m-maybe
-                             [a 1 b (inc a)] (+ a b))) "maybe monad")
+  (ensure?? (vec-eq? (vec2 -4 3)
+                        (pm/vec-normal (vec2 3 4) :left)) "vec-normal")
+  (ensure?? (vec-eq? (vec2 4 -3)
+                        (pm/vec-normal (vec2 3 4))) "vec-normal")
 
-  (ensure?? (nil? (ec/domonad ec/m-maybe
-                              [a 1
-                               b (inc a)
-                               c nil] (+ a b c))) "maybe monad->nil")
-
-  (ensure?? (= [5, {:value 5 :log ["mult3(1)" "add2(3)"]}]
-               ((ec/domonad ec/m-state
-                            [c1 (exlog mult3 "mult3")
-                             c2 (exlog add2 "add2")]
-                            c2) {:value 1 :log []})) "state monad")
-
-  (ensure?? (= 3 (ec/run-cont
-                   (ec/domonad ec/m-continuation
-                               [x ((fn [v] (fn [c] (c v))) 1)
-                                y ((fn [v] (fn [c] (c v))) 2)]
-                               (+ x y)))) "continuation monad")
-
-  (ensure?? (let [f (fn [v] (fn [s] [v s]))
-                  lhs ((:bind ec/m-state) ((:unit ec/m-state) 911) f)
-                  rhs (f 911)
-                  lf (lhs "hello")
-                  rt (rhs "hello")]
-              (and (= (_1 lf)(_1 rt))
-                   (= (last lf)(last rt))))
-            "monad rule 1: bind(unit(x), f) ≡ f(x)")
-
-  (ensure?? (let [mv (fn [s] [3 s])
-                  lhs ((:bind ec/m-state) mv (:unit ec/m-state))
-                  lf (lhs "hello")
-                  rt (mv "hello")]
-              (and (= (_1 lf)(_1 rt))
-                   (= (last lf)(last rt))))
-            "monad rule 2: bind(m, unit) ≡ m")
-
-  (ensure?? (let [f (fn [v] (fn [s] [3 s]))
-                  g (fn [v] (fn [s] [5 s]))
-                  bb (:bind ec/m-state)
-                  mv (fn [s] [7 s])
-                  lhs (bb (bb mv f) g)
-                  rhs (bb mv (fn [v] (bb (f v) g)))
-                  lf (lhs "hello")
-                  rt (rhs "hello")]
-              (and (= (_1 lf)(_1 rt))
-                   (= (last lf)(last rt))))
-            (str "monad rule 3:"
-                 " bind(bind(m, f), g)"
-                 " ≡ bind(m, v ⇒ bind(f(v), g))"))
+  (ensure?? (vec-eq? (vec2 -1 4)
+                        (pm/vec-min (vec2 5 4)(vec2 -1 7))) "vec-min")
+  (ensure?? (vec-eq? (vec3 9 3 4)
+                     (pm/vec-max (vec3 8 -3 4)(vec3 9 3 0))) "vec-max")
 
   (ensureThrown js/Error (raise! "hello" "world") "raise!"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;test ecs
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn- compA "" [] #js{:a 50 })
-(defn- compB "" [] #js{:b 10 })
-(defn- compC "" [] #js{:c 15 })
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def compDPool (ecs/createPool
-                 (fn [] #js{:d 10}) (fn [x] x) 8))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- compD "" [] (ecs/takeFromPool! compDPool))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def tmpA
-  {:components [[:c1] [:c3]] :initor (fn [] nil) })
-
-(def tmpB
-  {:components [[:c2] [:c3]] :initor (fn [] nil) })
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def *ecs* (ecs/createECS))
-(def TEMP-VAR (atom []))
-
-(defn- sys1 "" [e t] (if (pos? t) (swap! TEMP-VAR conj 1)))
-(defn- sys2 "" [e t] (if (pos? t) (swap! TEMP-VAR conj 2)))
-(defn- sys3 "" [e t] (if (pos? t) (swap! TEMP-VAR conj 3)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def pool1 (ecs/createPool
-             (fn [] #js{:a 0}) (fn [x] x) 6))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftest ecs-test
-
-  (ensure?? (zero? (ecs/sizeOfPool pool1)) "pool,size=0")
-  (ensure?? (let [x (ecs/takeFromPool! pool1)
-                  y (ecs/takeFromPool! pool1)
-                  z (ecs/takeFromPool! pool1)]
-              (= 3 (ecs/countUsedInPool pool1))) "pool,used")
-  (ensure?? (let [x (ecs/takeFromPool! pool1)
-                  y (ecs/takeFromPool! pool1)
-                  z (ecs/takeFromPool! pool1)]
-              (ecs/returnToPool! pool1 z)
-              (= 5 (ecs/countUsedInPool pool1))) "pool,drop")
-  (ensure?? (= 6 (ecs/sizeOfPool pool1)) "pool,size>0")
-  (ensure?? (let [x (ecs/takeFromPool! pool1)
-                  y (ecs/takeFromPool! pool1)
-                  z (ecs/takeFromPool! pool1)]
-              (ecs/returnToPool! pool1 x)
-              (and (= 7 (ecs/countUsedInPool pool1))
-                   (= 12 (ecs/sizeOfPool pool1)))) "pool,grow")
-
-  (ensure?? (= 1 (do (ecs/addComponent *ecs* :c1 compA)
-                     (count (ecs/getComponentKeys *ecs*)))) "addComponent,1")
-  (ensure?? (= 3 (do (ecs/addComponent *ecs* :c2 compB :c3 compC)
-                     (count (ecs/getComponentKeys *ecs*)))) "addComponent,*")
-
-  (ensure?? (= 2 (do (ecs/removeComponent *ecs* :c1)
-                     (count (ecs/getComponentKeys *ecs*)))) "removeComponent,1")
-  (ensure?? (= 0 (do (ecs/removeComponent *ecs* :c2 :c3)
-                     (count (ecs/getComponentKeys *ecs*)))) "removeComponent,*")
-
-  (ensure?? (= 4 (do (ecs/addComponent *ecs* :c1 compA :c2 compB :c3 compC :c4 compD)
-                     (count (ecs/getComponentKeys *ecs*)))) "addComponent,**")
-
-  (ensure?? (= 2 (do (ecs/addTemplate *ecs* :t1 tmpA :t2 tmpB)
-                     (count (ecs/getTemplateKeys *ecs*)))) "addTemplate,*")
-
-  (ensure?? (= 0 (do (ecs/removeTemplate *ecs* :t1 :t2)
-                     (count (ecs/getTemplateKeys *ecs*)))) "removeTemplate,*")
-
-  (ensure?? (= 2 (do (ecs/addTemplate *ecs* :t1 tmpA :t2 tmpB)
-                     (count (ecs/getTemplateKeys *ecs*)))) "addTemplate,*")
-
-  (ensure?? (let [x (ecs/createEntity *ecs* [:c1] [:c2] [:c3])]
-              (and (ecs/componentInEntity? *ecs* x :c1 :c2 :c3)
-                   (ecs/getEntityData *ecs* x :c1)
-                   (ecs/getEntityData *ecs* x :c2)
-                   (ecs/getEntityData *ecs* x :c3))) "createEntity,getData")
-
-  (ensure?? (let [a (ecs/findComponent *ecs* :c1)
-                  b (ecs/findComponent *ecs* :c2)
-                  c (ecs/findComponent *ecs* :c3)
-                  d (ecs/findComponent *ecs* :xxx)]
-              (and a b c (ec/nichts? d))) "engine,find")
-
-  (ensure?? (let [x (ecs/createTemplateEntity *ecs* :t2)]
-              (and (ecs/componentInEntity? *ecs* x :c2 :c3)
-                   (ec/nichts? (ecs/getEntityData *ecs* x :c1))
-                   (ecs/getEntityData *ecs* x :c2)
-                   (ecs/getEntityData *ecs* x :c3))) "createTemplateEntity,getData")
-
-  (ensure?? (let [x (ecs/createTemplateEntity *ecs* :t1)
-                  y (ecs/getEntityData *ecs* x :c3)
-                  _ (ecs/removeEntity *ecs* x)
-                  z (ecs/getEntityData *ecs* x :c1)]
-              (and (some? y)
-                   (ec/nichts? z))) "removeEntity")
-
-  (ensure?? (let [x (ecs/createEntity *ecs* [:c4])
-                  ok (and (ecs/componentInEntity? *ecs* x :c4)
-                          (ecs/getEntityData *ecs* x :c4))]
-              (ecs/removeEntity *ecs* x)
-              (and ok
-                   (not (ecs/componentInEntity? *ecs* x :c4)))) "createEntity,pooled")
-
-  (ensure?? (= [1 2 3]
-               (do (reset! TEMP-VAR [])
-                   (ecs/addSystem *ecs* sys1 sys2 sys3)
-                   (ecs/updateECS *ecs* 10)
-                   @TEMP-VAR)) "engine,addSystem"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- cbbus [& xs] (swap! TMPVAR inc))
-(deftest ebus-test
-
-  (ensure?? (let [_ (reset! TMPVAR 0)
-                  b (bus/createEvBus)]
-              (bus/sub* b "a.b.c" cbbus)
-              (bus/pub b "a.b.c" "yo!")
-              (bus/pub b "a.b.c" "yo!")
-              (= 1 @TMPVAR)) "evbus, sub*")
-
-  (ensure?? (let [_ (reset! TMPVAR 0)
-                  b (bus/createEvBus)]
-              (bus/sub+ b "a.b.c" cbbus)
-              (bus/pub b "a.b.c" "yo!")
-              (bus/pub b "a.b.c" "yo!")
-              (= 2 @TMPVAR)) "evbus, sub+")
-
-  (ensure?? (let [_ (reset! TMPVAR 0)
-                  b (bus/createEvBus)
-                  s (bus/sub+ b "a.b.c" cbbus)]
-              (bus/pub b "a.b.c" "yo!")
-              (bus/pause b s)
-              (bus/pub b "a.b.c" "yo!")
-              (bus/pub b "a.b.c" "yo!")
-              (bus/resume b s)
-              (bus/pub b "a.b.c" "yo!")
-              (= 2 @TMPVAR)) "evbus, pause, resume")
-
-  (ensure?? (let [_ (reset! TMPVAR 0)
-                  b (bus/createEvBus)
-                  s (bus/sub+ b "a.b.c" cbbus)]
-              (bus/pub b "a.b.c" "yo!")
-              (bus/unsub b s)
-              (bus/pub b "a.b.c" "yo!")
-              (= 1 @TMPVAR)) "evbus, unsub")
-
-  (ensure?? (let [_ (reset! TMPVAR 0)
-                  b (bus/createRvBus)]
-              (bus/sub* b "a.b.c" cbbus)
-              (bus/pub b "a.b.c" "yo!")
-              (bus/pub b "a.b.c" "yo!")
-              (= 1 @TMPVAR)) "rvbus, sub*")
-
-  (ensure?? (let [_ (reset! TMPVAR 0)
-                  b (bus/createRvBus)]
-              (bus/sub+ b "a.b.c" cbbus)
-              (bus/pub b "a.b.c" "yo!")
-              (bus/pub b "a.b.c" "yo!")
-              (= 2 @TMPVAR)) "rvbus, sub+")
-
-  (ensure?? (let [_ (reset! TMPVAR 0)
-                  b (bus/createRvBus)
-                  s (bus/sub+ b "a.b.c" cbbus)]
-              (bus/pub b "a.b.c" "yo!")
-              (bus/pause b s)
-              (bus/pub b "a.b.c" "yo!")
-              (bus/pub b "a.b.c" "yo!")
-              (bus/resume b s)
-              (bus/pub b "a.b.c" "yo!")
-              (= 2 @TMPVAR)) "rvbus, pause, resume")
-
-  (ensure?? (let [_ (reset! TMPVAR 0)
-                  b (bus/createRvBus)
-                  s (bus/sub+ b "a.b.c" cbbus)]
-              (bus/pub b "a.b.c" "yo!")
-              (bus/unsub b s)
-              (bus/pub b "a.b.c" "yo!")
-              (= 1 @TMPVAR)) "rvbus, unsub")
-
-  (ensure?? (let [_ (reset! TMPVAR 0)
-                  b (bus/createRvBus)]
-              (bus/sub+ b "a.*.>" cbbus)
-              (bus/sub+ b "a.*.c" cbbus)
-              (bus/sub+ b "a.b.c" cbbus)
-              (bus/pub b "a.b.c" "yo!")
-              (= 3 @TMPVAR)) "rvbus, sub a.*.b")
-
-  (ensure?? (let [b (bus/createRvBus) m (deref b)]
-              (bus/sub+ b "a.*.>" cbbus)
-              (bus/sub+ b "a.*.c" cbbus)
-              (bus/sub+ b "a.b.c" cbbus)
-              (bus/unsubAll! b)
-              (= m @b)) "rvbus, unsubAll!")
-
-  (ensure?? (= 3 (count (deref (bus/createEvBus)))) "createEvBus")
-  (ensure?? (= 3 (count (deref (bus/createRvBus)))) "createRvBus"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def CAESAR-DATA "hello, bonjour, blah!")
-(def CAESAR-DLEN (count CAESAR-DATA))
-
-(deftest crypt-test
-
-  (ensure?? (let [s (cas/encrypt CAESAR-DATA 178)]
-              (and (= CAESAR-DLEN (count s)) (not= s CAESAR-DATA))) "crypt, encrypt")
-
-  (ensure?? (let [s (cas/encrypt CAESAR-DATA 178)
-                  s' (cas/decrypt s 178)] (= s' CAESAR-DATA)) "crypt, decrypt")
-  (ensure?? (let [s (cas/encrypt CAESAR-DATA 178)
-                  s' (cas/decrypt s 18)] (not= s' CAESAR-DATA)) "crypt, bad decrypt"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(js/console.log (runtest test-core "elmo test-core"))
-(js/console.log (runtest ecs-test "elmo test-ecs"))
-(js/console.log (runtest ebus-test "elmo test-ebus"))
-(js/console.log (runtest crypt-test "elmo test-crypt"))
+(js/console.log (runtest test-math "elmo test-math"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
