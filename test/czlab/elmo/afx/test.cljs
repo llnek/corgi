@@ -13,7 +13,7 @@
 
   (:require [czlab.elmo.p2d.math
              :as pm :refer [vec-neq? vec-eq? vec2 vec3 PI
-                            mat-neq? mat-eq?]]
+                            mat-neq? mat-eq? mat* mat2 mat3 mat4]]
             [clojure.string :as cs]
             [czlab.elmo.afx.core
              :as ec :refer [deftest if-some+ when-some+
@@ -97,36 +97,83 @@
   (ensure?? (vec-eq? (vec3 9 3 4)
                      (pm/vec-max (vec3 8 -3 4)(vec3 9 3 0))) "vec-max")
 
-  (ensure?? (mat-eq? (pm/mat* [3 3] 1 0 0 0 1 0 0 0 1)
+  (ensure?? (mat-eq? (mat3 1 0 0 0 1 0 0 0 1)
                      (pm/mat-identity 3)) "mat-identity")
 
-  (ensure?? (mat-eq? (pm/mat* [3 3] 0 0 0 0 0 0 0 0 0)
+  (ensure?? (mat-eq? (mat3 0 0 0 0 0 0 0 0 0)
                      (pm/mat-zero 3)) "mat-zero")
 
-  (ensure?? (mat-neq? (pm/mat* [3 3] 1 0 0 0 1 0 1 0 1)
-                      (pm/mat* [3 3] 1 0 1 0 1 0 0 0 1)) "mat-neq?")
+  (ensure?? (mat-neq? (mat3 1 0 0 0 1 0 1 0 1)
+                      (mat3 1 0 1 0 1 0 0 0 1)) "mat-neq?")
 
-  (ensure?? (mat-eq? (pm/mat2 1 0 0 1)
+  (ensure?? (mat-eq? (mat2 1 0 0 1)
                      (pm/mat-identity 2)) "mat2")
 
-  (ensure?? (mat-eq? (pm/mat3 1 0 0 0 1 0 0 0 1)
+  (ensure?? (mat-eq? (mat3 1 0 0 0 1 0 0 0 1)
                      (pm/mat-identity 3)) "mat3")
 
   (ensure?? (mat-eq? (pm/mat4 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1)
                      (pm/mat-identity 4)) "mat4")
 
-  (ensure?? (mat-eq? (pm/mat* [3 2] 1 4 2 5 3 6)
-                     (pm/mat-xpose (pm/mat* [2 3] 1 2 3 4 5 6))) "mat-xpose")
+  (ensure?? (mat-eq? (mat* [3 2] 1 4 2 5 3 6)
+                     (pm/mat-xpose (mat* [2 3] 1 2 3 4 5 6))) "mat-xpose")
 
-  (ensure?? (= -2 (pm/mat-det (pm/mat* [2 2] 1 2 3 4))) "mat-det")
-  (ensure?? (= -64 (pm/mat-det (pm/mat* [3 3] 1 2 3 3 4 5 7 -8 9))) "mat-det")
+  (ensure?? (mat-eq? (mat3 -4 -8 -4 -6 -12 -6 -2 -4 -2)
+                     (pm/mat-minor (mat3 1 2 3 3 4 5 7 8 9))) "mat-minor")
 
+  (ensure?? (mat-eq? (mat3 -4 8 -4 6 -12 6 -2 4 -2)
+                     (pm/mat-cofactor (mat3 1 2 3 3 4 5 7 8 9))) "mat-cofactor")
 
+  (ensure?? (= -2 (pm/mat-det (mat2 1 2 3 4))) "mat-det")
+  (ensure?? (= -64 (pm/mat-det (mat3 1 2 3 3 4 5 7 -8 9))) "mat-det")
+
+  (ensure?? (mat-eq? (mat* [2 3]
+                           -12 10 8 -6 -4 2)
+                     (pm/mat-scale
+                       (mat* [2 3] 6 -5 -4 3 2 -1) -2)) "mat-scale")
+
+  (ensure?? (mat-eq? (mat3 12 9 6 30 23 16 48 37 26)
+                     (pm/mat-multAB (mat* [3 2] 1 2 3 4 5 6)
+                                    (mat* [2 3] 6 5 4 3 2 1))) "mat-multAB")
+
+  (ensure?? (mat-eq? (mat3 93 42 3 -6 -30 18 67 6 -13)
+                     (pm/mat-adjugate
+                       (mat3 1 2 3 4 -5 -6 7 8 -9))) "mat-adjugate")
+
+  (ensure?? (mat-eq? (mat3 (/ 31 94) (/ 7 47) (/ 1 94)
+                           (/ -1 47) (/ -5 47) (/ 3 47)
+                           (/ 67 282) (/ 1 47) (/ -13 282))
+                     (pm/mat-inverse
+                       (mat3 1 2 3 4 -5 -6 7 8 -9))) "mat-inverse")
+
+  (ensure?? (mat-eq? (mat2 0.6 -0.7 -0.2 0.4)
+                     (pm/mat-inverse (mat2 4 7 2 6))) "mat-inverse")
+
+  (ensure?? (mat-eq? (mat4 1 0 0 0 0 1 0 0 0 0 1 0 4 7 2 1)
+                     (pm/mat4-txlate (vec3 4 7 2))) "mat4-txlate")
+
+  (ensure?? (vec-eq? (vec3 4 7 2)
+                     (pm/getTranslation
+                       (mat4 1 0 0 0 0 1 0 0 0 0 1 0 4 7 2 1))) "getTranslation")
+
+  (ensure?? (mat-eq? (mat4 4 7 2 0 5 6 7 0 9 0 3 0 0 0 0 1)
+                     (pm/mat-fromMX (mat3 4 7 2 5 6 7 9 0 3))) "mat-fromMX")
+
+  (ensure?? (mat-eq? (mat4 4 0 0 0 0 7 0 0 0 0 2 0 0 0 0 1)
+                     (pm/mat-fromVX (vec3 4 7 2))) "mat-fromVX")
+
+  (ensure?? (vec-eq? (vec3 4 7 2)
+                     (pm/getScaleFromMX
+                       (mat4 4 0 0 0 0 7 0 0 0 0 2 0 0 0 0 1))) "getScaleFromMX")
+
+  (ensure?? (mat-eq? (mat2 0 1 -1 0)
+                     (pm/rotation2x2 (/ PI 2))) "rotation2x2")
 
   (ensureThrown js/Error (raise! "hello" "world") "raise!"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (js/console.log (runtest test-math "elmo test-math"))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

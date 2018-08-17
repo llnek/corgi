@@ -423,7 +423,7 @@ handed matrices. That is, +Z goes INTO the screen.")
        (* (aget arr 1) (aget arr 2)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- mat-cut "" [m row col]
+(defn mat-cut "" [m row col]
   (let [{:keys [arr] [rows cols] :dim} m
         ;change to zero indexed
         row' (- row 1)
@@ -442,12 +442,15 @@ handed matrices. That is, +Z goes INTO the screen.")
 (defmulti mat-minor "" (fn [m] (:dim m)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod mat-minor [3 3] [m]
+(defmethod mat-minor :default [m]
   (let [tmp (transient [])
         {:keys [arr] [rows cols] :dim} m]
     (dotimes [i rows]
       (dotimes [j cols]
-        (conj! tmp (mat-det (mat-cut m i j)))))
+        ;mat-cut is 1-indexed
+        (conj! tmp (mat-det (mat-cut m
+                                     (+ 1 i)
+                                     (+ 1 j))))))
     (mat-new* rows cols (clj->js (persistent! tmp)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -457,56 +460,42 @@ handed matrices. That is, +Z goes INTO the screen.")
           (aget arr 1) (aget arr 0))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- mx-cofactor "" [minor]
-  (let [{:keys [arr] [rows cols] :dim} minor
-        tmp (jsa* (* rows cols))]
-    (dotimes [i rows]
-      (dotimes [j cols]
-        (let [k (+ i (* j cols))]
-          (aset tmp
-                k
-                (* (aget arr k)
-                   (js/Math.pow -1 (+ i j)))))))
+(defn mat-cofactor "" [m]
+  (let [{:keys [arr] [rows cols] :dim} (mat-minor m)
+        tmp (aclone arr)]
+    (dotimes [i (* rows cols)]
+      (if (odd? i) (aset tmp i (* -1 (aget tmp i)))))
     (mat-new* rows cols tmp)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn mat-cofactor "" [m] (mx-cofactor (mat-minor m)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod mat-det [3 3] [m]
-  (let [{mCells :arr} m
-        {cCells :arr} (mat-cofactor m)]
-    (reduce (fn [sum j]
-              (+ sum
-                 (aget mCells (+ j (* 3 0)))
-                 (aget cCells (+ j 0)))) 0 (range 3))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod mat-minor [4 4] [m]
+(defmethod mat-det :default [m]
   (let [tmp (transient [])
         {:keys [arr] [rows cols] :dim} m]
-    (dotimes [i rows]
-      (dotimes [j cols]
-        (conj! tmp
-               (mat-det (mat-cut m i j)))))
-    (mat-new* rows
-              cols
-              (clj->js (persistent! tmp)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmethod mat-det [4 4] [m]
-  (let [{:keys [arr]} m
-        {cCells :arr} (mat-cofactor m)]
+    (dotimes [c cols]
+      (->> (mat-cut m 1 (+ 1 c)) (mat-det) (conj! tmp)))
     (reduce (fn [sum j]
-              (+ sum
-                 (aget arr (+ j (* 4 0)))
-                 (aget cCells (+ j 0)))) 0 4)))
+              (let [v (nth tmp j)]
+                (+ sum
+                   (* (aget arr j)
+                      (if (odd? j) (* -1 v) v))))) 0 (range cols))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mat-adjugate "" [m] (mat-xpose (mat-cofactor m)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn mat-inverse "" [m]
+(defmulti mat-inverse "" (fn [m] (:dim m)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod mat-inverse [2 2] [m]
+  (let [{[a b c d] :arr
+         [rows cols] :dim} m
+        det (- (* a d) (* b c))]
+    (when-not (CMP det 0)
+      (let [det' (/ 1 det)]
+        (mat2 (* det' d) (* det' (- b)) (* det' (- c)) (* det' a))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod mat-inverse :default [m]
   (let [d (mat-det m)
         {[rows cols] :dim} m]
     (if (CMP d 0)
@@ -545,8 +534,8 @@ handed matrices. That is, +Z goes INTO the screen.")
 (defmethod getTranslation [4 4] [m]
   (let [{:keys [arr]} m]
     (vec3 (aget arr (CELL 4 4 4 1))
-          (aget arr (CELL 4 4 4 1))
-          (aget arr (CELL 4 4 4 2)))))
+          (aget arr (CELL 4 4 4 2))
+          (aget arr (CELL 4 4 4 3)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti mat-fromVX "" (fn [v] (n# v)))
@@ -575,69 +564,62 @@ handed matrices. That is, +Z goes INTO the screen.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn m4-yawPitchRoll "" [yaw pitch roll]
-  (mat-new* 4 4
-            #js [(+ (* (COS roll) (COS yaw))
-                   (* (SIN roll) (SIN pitch) (SIN yaw)))
-                 (* (SIN roll) (COS pitch))
-                 (+ (* (COS roll) (- (SIN yaw)))
-                    (* (SIN roll) (SIN pitch) (COS yaw)))
-                 0
-                 (+ (* (- (SIN roll)) (COS yaw))
-                    (* (COS roll) (SIN pitch) (SIN yaw)))
-                 (* (COS roll) (COS pitch))
-                 (+ (* (SIN roll) (SIN yaw))
-                    (* (COS roll) (SIN pitch) (COS yaw)))
-                 0
-                 (* (COS pitch) (SIN yaw))
-                 (- (SIN pitch))
-                 (* (COS pitch) (COS yaw))
-                 0
-                 0 0 0 1]))
+  (mat4 (+ (* (COS roll) (COS yaw))
+        (* (SIN roll) (SIN pitch) (SIN yaw)))
+        (* (SIN roll) (COS pitch))
+        (+ (* (COS roll) (- (SIN yaw)))
+           (* (SIN roll) (SIN pitch) (COS yaw)))
+        0
+        (+ (* (- (SIN roll)) (COS yaw))
+           (* (COS roll) (SIN pitch) (SIN yaw)))
+        (* (COS roll) (COS pitch))
+        (+ (* (SIN roll) (SIN yaw))
+           (* (COS roll) (SIN pitch) (COS yaw)))
+        0
+        (* (COS pitch) (SIN yaw))
+        (- (SIN pitch))
+        (* (COS pitch) (COS yaw))
+        0
+        0 0 0 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn XRotation "" [rad]
-  (mat-new* 4 4
-            #js [1 0 0 0
-                 0 (COS rad) (SIN rad) 0
-                 0 (- (SIN rad)) (COS rad) 0
-                 0 0 0 1]))
+  (mat4 1 0 0 0
+        0 (COS rad) (SIN rad) 0
+        0 (- (SIN rad)) (COS rad) 0
+        0 0 0 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn XRotation3x3 "" [rad]
-  (mat-new* 3 3
-            #js [1 0 0
-                 0 (COS rad) (SIN rad)
-                 0 (- (SIN rad)) (COS rad)]))
+  (mat3 1 0 0
+        0 (COS rad) (SIN rad)
+        0 (- (SIN rad)) (COS rad)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn YRotation "" [rad]
-  (mat-new* 4 4
-            #js [(COS rad) 0 (- (SIN rad)) 0
-                 0 1 0 0
-                 (SIN rad) 0 (COS rad) 0
-                 0 0 0 1]))
+  (mat4 (COS rad) 0 (- (SIN rad)) 0
+        0 1 0 0
+        (SIN rad) 0 (COS rad) 0
+        0 0 0 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn YRotation3x3 "" [rad]
-  (mat-new* 3 3
-            #js [(COS rad) 0 (- (SIN rad))
-                 0 1 0
-                 (SIN rad) 0 (COS rad)]))
+  (mat3 (COS rad) 0 (- (SIN rad))
+        0 1 0
+        (SIN rad) 0 (COS rad)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn ZRotation "" [rad]
-  (mat-new* 4 4
-            #js [(COS rad) (SIN rad) 0 0
-                 (- (SIN rad)) (COS rad) 0 0
-                 0 0 1 0
-                 0 0 0 1]))
+  (mat4 (COS rad) (SIN rad) 0 0
+        (- (SIN rad)) (COS rad) 0 0
+        0 0 1 0
+        0 0 0 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn ZRotation3x3 "" [rad]
-  (mat-new* 3 3
-            #js [(COS rad) (SIN rad) 0
-                 (- (SIN rad)) (COS rad) 0
-                 0 0 1]))
+  (mat3 (COS rad) (SIN rad) 0
+        (- (SIN rad)) (COS rad) 0
+        0 0 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mat4-rotation "" [pitch yaw roll]
@@ -663,11 +645,10 @@ handed matrices. That is, +Z goes INTO the screen.")
         [xx xy xz] (vec-xss yAxis zAxis)
         [yx yy yz] (vec-xss zAxis xAxis)
         [zx zy zz] (vec-xss xAxis yAxis)]
-    (mat-new* 4 4
-              #js [xx xy xz (nth r1 3)
-                   yx yy yz (nth r2 3)
-                   zx zy zz (nth r3 3)
-                   (nth r4 0) (nth r4 1) (nth r4 2) (nth r4 3)])))
+    (mat4 xx xy xz (nth r1 3)
+          yx yy yz (nth r2 3)
+          zx zy zz (nth r3 3)
+          (nth r4 0) (nth r4 1) (nth r4 2) (nth r4 3))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmethod mat-orthogonal [3 3] [m]
@@ -680,8 +661,7 @@ handed matrices. That is, +Z goes INTO the screen.")
         [xx xy xz] (vec-xss yAxis zAxis)
         [yx yy yz] (vec-xss zAxis xAxis)
         [zx zy zz] (vec-xss xAxis yAxis)]
-    (mat-new* 3 3
-              #js [xx xy xz yx yy yz zx zy zz])))
+    (mat3 xx xy xz yx yy yz zx zy zz)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mat4-axisAngle "" [axis rad]
@@ -695,20 +675,10 @@ handed matrices. That is, +Z goes INTO the screen.")
           (let [ilen (invert (vec-len axis))]
             [(* x' ilen) (* y' ilen) (* z' ilen)])
           [x' y' z'])]
-  (mat-new* 4 4
-            #js [(+ c (* t x x))
-                 (+ (* t x y) (* s z))
-                 (- (* t x z) (* s y))
-                 0
-                 (- (* t x y) (* s z))
-                 (+ c (* t y y))
-                 (+ (* t y z) (* s x))
-                 0
-                 (+ (* t x z)(* s y))
-                 (- (* t y z)(* s x))
-                 (+ c (* t z z))
-                 0
-                 0 0 0 1])))
+  (mat4 (+ c (* t x x)) (+ (* t x y) (* s z)) (- (* t x z) (* s y)) 0
+        (- (* t x y) (* s z)) (+ c (* t y y)) (+ (* t y z) (* s x)) 0
+        (+ (* t x z)(* s y)) (- (* t y z)(* s x)) (+ c (* t z z)) 0
+        0 0 0 1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn axisAngle3x3 "" [axis rad]
@@ -722,16 +692,9 @@ handed matrices. That is, +Z goes INTO the screen.")
           (let [ilen (invert (vec-len axis))]
             [(* x' ilen)(* y' ilen)(* z' ilen)])
           [x' y' z'])]
-    (mat-new* 3 3
-              #js [(+ c (* t x x))
-                   (+ (* t x y)(* s z))
-                   (- (* t x z)(* s y))
-                   (- (* t x y)(* s z))
-                   (+ c (* t y y))
-                   (+ (* t y z)(* s x))
-                   (+ (* t x z)(* s y))
-                   (- (* t y z)(* s x))
-                   (+ c (* t z z))])))
+    (mat3 (+ c (* t x x)) (+ (* t x y)(* s z)) (- (* t x z)(* s y))
+          (- (* t x y)(* s z)) (+ c (* t y y)) (+ (* t y z)(* s x))
+          (+ (* t x z)(* s y)) (- (* t y z)(* s x)) (+ c (* t z z)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mat-multPoint "" [v3 m4]
@@ -806,13 +769,12 @@ handed matrices. That is, +Z goes INTO the screen.")
   (let [[fx fy fz :as forward] (vec-unit (vec-sub target pos))
         [rx ry rz :as right] (vec-unit (vec-xss up forward))
         [nx ny nz :as newUp] (vec-xss forward right)]
-    (mat-new* 4 4
-              #js [rx nx fx 0
-                   ry ny fy 0
-                   rz nz fz 0
-                   (- (vec-dot right pos))
-                   (- (vec-dot newUp pos))
-                   (- (vec-dot forward pos)) 1])))
+    (mat4 rx nx fx 0
+          ry ny fy 0
+          rz nz fz 0
+          (- (vec-dot right pos))
+          (- (vec-dot newUp pos))
+          (- (vec-dot forward pos)) 1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;https://msdn.microsoft.com/en-us/library/windows/desktop/bb147302(v=vs.85).aspx
@@ -843,11 +805,10 @@ handed matrices. That is, +Z goes INTO the screen.")
         _41 (/ (+ left right) (- left right))
         _42 (/ (+ top bottom) (- bottom top))
         _43 (/ zNear (- zNear zFar))]
-    (mat-new* 4 4
-              #js [_11 0 0 0
-                   0 _22 0 0
-                   0 0 _33 0
-                   _41 _42 _43 1])))
+    (mat4 _11 0 0 0
+          0 _22 0 0
+          0 0 _33 0
+          _41 _42 _43 1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti mat-decompose "" (fn [m] (:dim m)))
