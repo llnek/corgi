@@ -53,6 +53,9 @@
   "" [& [x y z]] #js [(num?? x 0)(num?? y 0)(num?? z 0)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vec-zero "" [sz] (jsa* sz))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- modDeg "" [deg]
   (let [d (if (> deg DEG-2PI)
             (modDeg (- deg DEG-2PI)) deg)]
@@ -172,6 +175,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmethod vec-rot 3 [v angle & [center]])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn v2-xss*
+  "normal to vector" [a v]
+  (assert (number? a))
+  (let [[x y] v] (vec2 (* (- a) y) (* a x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti vec-xss "" (fn [v1 v2] (n# v1)))
@@ -558,9 +567,14 @@ handed matrices. That is, +Z goes INTO the screen.")
     (vec3 (nth r1 0) (nth r2 1) (nth r3 2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rotation2x2 "" [angle]
-  (mat2 (COS angle) (SIN angle)
-        (- (SIN angle)) (COS angle)))
+(defn mat-vmult "" [m v]
+  {:pre [(= (_2 (:dim m))(n# v))]}
+  (let [m2 (mat-multAB m
+                       (mat-new* (n# v) 1 v))] (:arr m2)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn rotation2x2 "counter-clockwise" [angle]
+  (mat2 (COS angle) (- (SIN angle)) (SIN angle) (COS angle)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn m4-yawPitchRoll "" [yaw pitch roll]

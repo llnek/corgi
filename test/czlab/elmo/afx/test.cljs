@@ -166,10 +166,11 @@
                      (pm/getScaleFromMX
                        (mat4 4 0 0 0 0 7 0 0 0 0 2 0 0 0 0 1))) "getScaleFromMX")
 
-  (ensure?? (mat-eq? (mat2 0 1 -1 0)
-                     (pm/rotation2x2 (/ PI 2))) "rotation2x2")
+  (ensure?? (vec-eq? (vec2 -23 42)
+                     (pm/mat-vmult (mat2 3 -5 7 2) (vec2 4 7))) "mat-vmult")
 
-  (ensureThrown js/Error (raise! "hello" "world") "raise!"))
+  (ensure?? (mat-eq? (mat2 0 -1 1 0)
+                     (pm/rotation2x2 (/ PI 2))) "rotation2x2"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (js/console.log (runtest test-math "elmo test-math"))
