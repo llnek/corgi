@@ -23,7 +23,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn raise! "" [& args] (throw (js/Error. (apply str args ))))
 (defn noopy "" [& xs] js/undefined)
-(def EPSILON 0.0001)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def EPSILON (or 0.0000000001 js/Number.EPSILON))
+(def *pos-inf* js/Number.POSITIVE_INFINITY)
+(def *neg-inf* js/Number.NEGATIVE_INFINITY)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn debug* "" [& msgs] (js/console.log (apply str msgs)))

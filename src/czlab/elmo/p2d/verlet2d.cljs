@@ -13,35 +13,37 @@
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [f#* _1 n# assoc!! nexth]])
 
-  (:require [czlab.elmo.afx.core :as ec :refer [invert abs* sqr* num??]]
+  (:require [czlab.elmo.afx.core
+             :as ec :refer [invert abs* sqr* num?? *pos-inf* *neg-inf*]]
             [czlab.elmo.p2d.core
              :as pc :refer [*gWorld* dynamic? Body]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [V2_ZERO *pos-inf* *neg-inf* batchOps!
-                            Point2D vec2 PI TWO-PI wrap??
-                            v2-len v2-scale v2-add v2-dist v2-sdiv
-                            v2-rot v2-sub v2-dot v2-neg v2-unit]]
+             :as gx :refer [canvasBatchOps! Point2D]]
+            [czlab.elmo.afx.math
+             :as ma :refer [vec-zero vec2 PI TWO-PI wrap??
+                            vec-len vec-scale vec-add vec-dist
+                            vec-rot vec-sub vec-dot vec-neg vec-unit]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- Vertex "" [body pos]
-  (atom {:body body :pos pos :prev pos :accel V2_ZERO}))
+  (atom {:body body :pos pos :prev pos :accel (vec-zero 2)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- Strut "" [body V1 V2]
   (atom {:v1 V1
          :v2 V2
          :body body
-         :olen (v2-dist (:pos @V1) (:pos @V2))}))
+         :olen (vec-dist (:pos @V1) (:pos @V2))}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- calcCenter! "" [B]
   (let [{:keys [edges]} @B
         pos (loop [i 0 SZ (n# edges) cx 0 cy 0]
               (if (>= i SZ)
-                (v2-sdiv (vec2 cx cy) SZ)
+                (vec-scale (vec2 cx cy) (/ 1 SZ))
                 (let [{:keys [v1]} @(nth edges i)
-                      {:keys [x y]} (:pos @v1)]
+                      [x y] (:pos @v1)]
                   (recur (+ 1 i) SZ (+ cx x) (+ cy y)))))
         [pmin pmax]
         (pc/calcMinMax (mapv #(:pos @(:v1 (deref %))) edges))]
@@ -71,9 +73,9 @@
     (ocall! ctx "beginPath")
     (dotimes [i (n# outer)]
       (let [{:keys [v1 v2]} @(nth outer i)
-            {x1 :x y1 :y} (:pos @v1)
-            {x2 :x y2 :y} (:pos @v2)]
-        (batchOps! ctx ["moveTo" x1 y1] ["lineTo" x2 y2])))
+            [x1 y1] (:pos @v1)
+            [x2 y2] (:pos @v2)]
+        (canvasBatchOps! ctx ["moveTo" x1 y1] ["lineTo" x2 y2])))
     (ocall! ctx "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -82,7 +84,7 @@
         {:keys [vertices]} S]
     (assoc!! B :angle (+ angle angle'))
     (doseq [v vertices
-            :let [p (v2-rot (:pos @v) center angle')]]
+            :let [p (vec-rot (:pos @v) angle' center)]]
       (assoc!! v :pos p :prev p))
     (assoc!! B
              :edges
@@ -106,7 +108,8 @@
         {:keys [shape]} @B
         vs' (mapv #(Vertex B %) vs)]
     (assoc!! B
-             :shape (assoc shape :vertices vs')
+             :shape (assoc shape
+                           :fnv #(:pos (deref %)) :vertices vs')
              :struts []
              :edges (loop [i 0 SZ (dec (n# vs')) e' []]
                       (if (>= i SZ)
@@ -122,7 +125,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ci-info "" [&[depth normal edge vertex]]
   (atom {:depth (num?? depth 0)
-         :normal (or normal V2_ZERO)
+         :normal (or normal (vec-zero 2))
          :edge (or edge nil)
          :vertex (or vertex nil)}))
 
@@ -131,22 +134,22 @@
   (let [{:keys [pos prev accel]} @v]
     (assoc!! v
              :prev pos
-             :pos (v2-add pos
-                          (v2-add (v2-sub pos prev)
-                                  (v2-scale accel t2)))) v))
+             :pos (vec-add pos
+                           (vec-add (vec-sub pos prev)
+                                    (vec-scale accel t2)))) v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ensureStrut!"" [edge]
   (let [{:keys [olen v1 v2]} @edge
         {p1 :pos} @v1
         {p2 :pos} @v2
-        v12 (v2-sub p2 p1)
-        diff (- (v2-len v12) olen)
-        N (-> (v2-unit v12)
-              (v2-scale (* diff 0.5)))]
+        v12 (vec-sub p2 p1)
+        diff (- (vec-len v12) olen)
+        N (-> (vec-unit v12)
+              (vec-scale (* diff 0.5)))]
     ;;push apart by half of the difference
-    (assoc!! v1 :pos (v2-add p1 N))
-    (assoc!! v2 :pos (v2-sub p2 N)) edge))
+    (assoc!! v1 :pos (vec-add p1 N))
+    (assoc!! v2 :pos (vec-sub p2 N)) edge))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- updateStruts! "" [B]
@@ -176,7 +179,7 @@
       (if (>= i SZ)
         [minp maxp]
         (let [{:keys [v1]} @(nth edges i)
-              dp (v2-dot (:pos @v1) axis)]
+              dp (vec-dot (:pos @v1) axis)]
           (recur (+ 1 i)
                  SZ (min dp minp) (max dp maxp)))))))
 
@@ -190,20 +193,20 @@
   (let [{:keys [edges] c1 :pos} @B1
         {c2 :pos} @B2
         {cn :normal} @ci
-        sign (v2-dot cn (v2-sub c1 c2))]
+        sign (vec-dot cn (vec-sub c1 c2))]
 
     ;;line equation is N*( R - R0 ). We choose B2 ;;as R0
     ;;the normal N is given by the collision normal
     ;;revert the collision normal if it points away from B1
     (if (neg? sign)
-      (assoc!! ci :normal (v2-neg cn)))
+      (assoc!! ci :normal (vec-neg cn)))
 
     (loop [i 0 SZ (n# edges)
            cn (:normal @ci) dist *pos-inf*]
       (when (< i SZ)
         ;;calc dist of the vertex from the line using the line equation
         (let [{:keys [v1]} @(nth edges i)
-              d (v2-dot cn (v2-sub (:pos @v1) c2))
+              d (vec-dot cn (vec-sub (:pos @v1) c2))
               t? (< d dist)]
           (if t? (assoc!! ci :vertex v1))
           (recur (+ 1 i)
@@ -229,9 +232,9 @@
             (collision* B2 B1 ci) (collision* B1 B2 ci)))
         (let [e' (if (< i ec1) (nth e1 i) (nth e2 (- i ec1)))
               {:keys [v1 v2]} @e'
-              {x1 :x y1 :y} (:pos @v1)
-              {x2 :x y2 :y} (:pos @v2)
-              axis (v2-unit (vec2 (- y1 y2) (- x2 x1)))
+              [x1 y1] (:pos @v1)
+              [x2 y2] (:pos @v2)
+              axis (vec-unit (vec2 (- y1 y2) (- x2 x1)))
               lineA (projectToAxis B1 axis)
               lineB (projectToAxis B2 axis)
               dist (intersection?? lineA lineB)
@@ -271,10 +274,10 @@
   (let [{:keys [vertex edge normal depth]} @ci
         {vx :x vy :y} (:pos @vertex)
         {:keys [v1 v2]} @edge
-        {x1 :x y1 :y} (:pos @v1)
-        {x2 :x y2 :y} (:pos @v2)
-        cv (v2-scale normal depth)
-        {nx :x ny :y} cv
+        [x1 y1] (:pos @v1)
+        [x2 y2] (:pos @v2)
+        cv (vec-scale normal depth)
+        [nx ny] cv
         T (if (> (abs* (- x1 x2)) (abs* (- y1 y2)))
             (/ (- vx nx x1) (- x2 x1))
             (/ (- vy ny y1) (- y2 y1)))
@@ -282,15 +285,15 @@
         offset (invert (+ (sqr* T) (sqr* T')))]
     (when (dynamic? (:body @edge))
       (assoc!! v1
-               :pos (v2-sub (:pos @v1)
-                            (v2-scale cv (* T' 0.5 offset))))
+               :pos (vec-sub (:pos @v1)
+                             (vec-scale cv (* T' 0.5 offset))))
       (assoc!! v2
-               :pos (v2-sub (:pos @v2)
-                            (v2-scale cv (* T 0.5 offset)))))
+               :pos (vec-sub (:pos @v2)
+                             (vec-scale cv (* T 0.5 offset)))))
     (if (dynamic? (:body @vertex))
       (assoc!! vertex
-               :pos (v2-add (:pos @vertex)
-                            (v2-scale cv 0.5))))))
+               :pos (vec-add (:pos @vertex)
+                             (vec-scale cv 0.5))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- checkCollision* "" [posCorrection]

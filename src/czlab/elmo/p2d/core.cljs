@@ -11,14 +11,17 @@
 
   czlab.elmo.p2d.core
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 do->true assoc!!]])
+  (:require-macros [czlab.elmo.afx.core
+                    :as ec :refer [_1 _2 do->true assoc!!]])
 
-  (:require [czlab.elmo.afx.core :as ec :refer [sqr* n# num?? invert]]
+  (:require [czlab.elmo.afx.core
+             :as ec :refer [*pos-inf* *neg-inf* sqr* n# num?? invert]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [PI V2_ZERO v2-len v2-lensq
-                            *pos-inf* *neg-inf* wrap??
-                            v2-add v2-scale v2-sub
-                            v2-xss toVec2 vec2 _cocos2dx?]]))
+             :as gx :refer [_cocos2dx? toVec2]]
+            [czlab.elmo.afx.math
+             :as ma :refer [PI vec-zero vec-len vec-lensq
+                            wrap??
+                            vec-add vec-scale vec-sub vec-xss vec2]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private *bodyNum* (atom 0))
@@ -49,8 +52,8 @@
                         :oid (nextBodyNum)
                         :valid? true
                         :type :body
-                        :accel V2_ZERO
-                        :vel V2_ZERO
+                        :accel (vec-zero 2)
+                        :vel (vec-zero 2)
                         :bxRadius 0
                         :ii 0 :im 0
                         :i 0 :m 0
@@ -71,7 +74,6 @@
     (setPosition! B pt angle)
     (ec/addToStore! samples B)))
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn calcMinMax "" [S]
   (let [{:keys [vertices]} S]
@@ -80,7 +82,7 @@
            xmax *neg-inf* ymax *neg-inf*]
       (if (>= i SZ)
         [(vec2 xmin ymin) (vec2 xmax ymax)]
-        (let [{:keys [x y]} (nth vertices i)]
+        (let [[x y] (nth vertices i)]
           (recur (+ 1 i)
                  SZ
                  (min xmin x) (min ymin y)
@@ -89,15 +91,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findRightMost?? "" [vertices]
   (loop [i 1 SZ (n# vertices)
-         right 0 cx (:x (_1 vertices))]
+         right 0 cx (_1 (_1 vertices))]
     (if (>= i SZ)
       right
-      (let [x (:x (nth vertices i))
+      (let [x (_1 (nth vertices i))
             [r x'] (if (> x cx)
                      [i x]
                      (if (and (= x cx)
-                              (< (:y (nth vertices i))
-                                 (:y (nth vertices right))))
+                              (< (_2 (nth vertices i))
+                                 (_2 (nth vertices right))))
                        [i cx] [right cx]))] (recur (+ 1 i) SZ r x')))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -123,13 +125,13 @@
                          (if (= pos curIndex)
                            i
                            (let [v' (nth vertices (last hull))
-                                 e1 (v2-sub (nth vertices pos) v')
-                                 e2 (v2-sub (nth vertices i) v')
-                                 c (v2-xss e1 e2)]
+                                 e1 (vec-sub (nth vertices pos) v')
+                                 e2 (vec-sub (nth vertices i) v')
+                                 c (vec-xss e1 e2)]
                              (if (or (neg? c)
                                      (and (zero? c)
-                                          (> (v2-lensq e2)
-                                             (v2-lensq e1)))) i pos))))))
+                                          (> (vec-lensq e2)
+                                             (vec-lensq e1)))) i pos))))))
               q? (= nextIndex rightMost)]
           (recur (if q? hull (conj hull nextIndex)) nextIndex q?))))))
 
@@ -142,18 +144,19 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- calcPolyonMass "" [P density]
-  (let [{{:keys [vertices] :as S} :shape} @P
+  (let [{{:keys [vertices fnv] :as S} :shape} @P
+        gv (if (fn? fnv) fnv identity)
         inv3 (/ 1 3)
         density (num?? density 1)]
     ;;calculate centroid and moment of interia
     (loop [i 0 SZ (n# vertices)
-           c V2_ZERO area 0 I 0]
+           c (vec-zero 2) area 0 I 0]
       (if (>= i SZ)
-        ;[(v2-scale c (invert area)) (* density area) (* density I)]
+        ;[(vec-scale c (invert area)) (* density area) (* density I)]
         [(* density area) (* density I)]
-        (let [{x2 :x y2 :y :as p2} (nth vertices (wrap?? i SZ))
-              {x1 :x y1 :y :as p1} (nth vertices i)
-              D (v2-xss p1 p2)
+        (let [[x2 y2 :as p2] (gv (nth vertices (wrap?? i SZ)))
+              [x1 y1 :as p1] (gv (nth vertices i))
+              D (vec-xss p1 p2)
               ;;triangle, 3rd vertex is origin
               triArea (* 0.5 D)
               x' (+ (sqr* x1) (* x2 x1) (sqr* x2))
@@ -161,8 +164,8 @@
           ;;use area to weight the centroid average, not just vertex position
           (recur (+ 1 i)
                  SZ
-                 (v2-add c (v2-scale (v2-add p1 p2)
-                                     (* triArea inv3)))
+                 (vec-add c (vec-scale (vec-add p1 p2)
+                                       (* triArea inv3)))
                  (+ area triArea)
                  (+ I (* 0.25 inv3 D (+ x' y')))))))))
 
@@ -196,14 +199,14 @@
     (if (number? friction) (assoc!! B :statF friction))
     (let [{:keys [m]} @B
           {:keys [gravity]} @*gWorld*]
-      (assoc!! B :accel (if (zero? m) V2_ZERO gravity))) B))
+      (assoc!! B :accel (if (zero? m) (vec-zero 2) gravity))) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setStatic! "" [B]
   (assoc!! B
            :im 0 :m 0
            :i 0 :ii 0
-           :vel V2_ZERO :accel V2_ZERO :gvel 0 :torque 0) B)
+           :vel (vec-zero 2) :accel (vec-zero 2) :gvel 0 :torque 0) B)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn static? "" [obj]

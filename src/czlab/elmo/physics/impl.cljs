@@ -21,10 +21,11 @@
                     oget-x oget-y oget-left oget-top]])
   (:require
     [czlab.elmo.afx.core :as ec :refer [xmod raise! noopy]]
-    [czlab.elmo.p2d.cookbook :as cb]
+    ;[czlab.elmo.p2d.cookbook :as cb]
     [czlab.elmo.afx.gfx2d
-     :as gx :refer [PI m2-vmult mat2*
-                    v2-add v2-rot vec2 Point2D Size2D]]
+     :as gx :refer [Point2D Size2D]]
+    [czlab.elmo.afx.math
+     :as ma :refer [PI mat-vmult rotation2x2 vec-add vec-rot vec2]]
     [czlab.elmo.p2d.core :as pc :refer [addBody]]
     [czlab.elmo.p2d.physics2d :as py]
     [czlab.elmo.p2d.impulse :as im]
@@ -36,28 +37,29 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleDraw "" [B node i cur]
-  (let [{:keys [pos angle]
-         {:keys [radius]} :shape} @B
-        c (if (= i cur)
-            js/cc.color.RED js/cc.color.GREEN)]
+  (let [{:keys [angle] {:keys [radius]} :shape [x y] :pos} @B
+        c (if (= i cur) js/cc.color.RED js/cc.color.GREEN)]
     ;; flip rotation for cocos2d
-    (ocall! node "drawCircle" (clj->js pos) radius (- angle) 100 true 2 c)))
+    (ocall! node "drawCircle" #js {:x x :y y} radius (- angle) 100 true 2 c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- polyDraw "" [B node i cur]
+(defn- XXpolyDraw "" [B node i cur]
   (let [{{:keys [vertices]} :shape :keys[pos angle]} @B
         c (if (= i cur) js/cc.color.RED js/cc.color.WHITE)
         angle' (- (* 2 angle))
-        vs (mapv #(v2-rot % pos angle') vertices)]
+        vs (mapv #(let [[x y] (vec-rot % angle' pos)] #js {:x x :y y}) vertices)]
     ;;flip rotation for cocos2d
-    (ocall! node "drawPoly" (clj->js vertices) nil 2 c)))
+    (ocall! node "drawPoly" (clj->js vs) nil 2 c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- XXpolyDraw "" [B node i cur]
+(defn- polyDraw "" [B node i cur]
   (let [{{:keys [u vertices]} :shape :keys[pos angle]} @B
         c (if (= i cur) js/cc.color.RED js/cc.color.WHITE)
-        ;u (mat2* (- angle))
-        vs (mapv #(v2-add pos (m2-vmult u %)) vertices)]
+        vs (mapv #(let [[x y]
+                        (vec-add pos
+                                 (mat-vmult u (vec2 (_1 %)
+                                                    (_2 %))))]
+                   #js {:x x :y y}) vertices)]
     ;;flip rotation for cocos2d
     (ocall! node "drawPoly" (clj->js vs) nil 2 c)))
 
@@ -73,7 +75,7 @@
       (apply polyDraw args)) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn init "" [state]
+(defn XXinit "" [state]
   (let [pw (py/initPhysics -98 60
                           (:arena @state)
                           {:cc2dx? true
@@ -130,7 +132,7 @@
     (addBody p x y)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn XXinit "" [state]
+(defn init "" [state]
   (let [pw (im/initPhysics -98 60
                           (:arena @state)
                           {:cc2dx? true :cur 0 :bodyDrawer drawBody})

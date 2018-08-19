@@ -11,16 +11,21 @@
 
   czlab.elmo.p2d.physics_demo
 
-  (:require [czlab.elmo.afx.core :as ec :refer [invert]]
+  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 _2]])
+
+  (:require [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]
+            [czlab.elmo.afx.core :as ec :refer [invert]]
             [czlab.elmo.p2d.core
              :as pc :refer [addBody move! rotate! draw step*]]
             [czlab.elmo.p2d.physics2d
              :as py :refer [alterBodyAttr! Rectangle Circle]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [pythag pythagSQ TWO-PI PI vec2 V2_ZERO _cocos2dx?
-                            v2-len v2-add v2-sub v2-dot Point2D Size2D
-                            v2-neg v2-scale v2-rot v2-unit v2-dist]]
-            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
+             :as gx :refer [Point2D Size2D _cocos2dx?]]
+            [czlab.elmo.afx.math
+             :as ma :refer [pythag pythagSQ TWO-PI PI
+                            vec2 vec-zero
+                            vec-len vec-add vec-sub vec-dot
+                            vec-neg vec-scale vec-rot vec-unit vec-dist]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def gWorld nil)
@@ -106,13 +111,13 @@
 (defn- updateUIEcho "" []
   (let [{:keys [uiEcho cur samples]} @gWorld
         obj (ec/nthStore samples cur)
-        {:keys [statF bounce m gvel vel angle pos]} @obj]
+        {:keys [statF bounce m gvel vel angle] [x y] :pos} @obj]
     (->> (str "<p><b>Selected Object:</b>:</p>"
               "<ul style=\"margin:-10px\">"
               "<li>Id: " cur "</li>"
-              "<li>Center: " (:x pos) "," (:y pos) "</li>"
+              "<li>Center: " x "," y "</li>"
               "<li>Angle: " angle "</li>"
-              "<li>Velocity: " (:x vel) "," (:y vel) "</li>"
+              "<li>Velocity: " (_1 vel) "," (_2 vel) "</li>"
               "<li>AngluarVelocity: " gvel "</li>"
               "<li>Mass: " m "</li>"
               "<li>Friction: " statF "</li>"

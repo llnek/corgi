@@ -17,18 +17,19 @@
 
   (:require [czlab.elmo.afx.core
              :as ec :refer [abs* sqr* sqrt* fuzzyZero?
-                            num??
+                            num?? *pos-inf* *neg-inf*
                             invert EPSILON fuzzyEqual?]]
             [czlab.elmo.p2d.core
              :as pc :refer [Body *gWorld* dynamic? static?]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [PI TWO-PI V2_ZERO Point2D
-                            wrap?? *pos-inf* *neg-inf*
-                            mat2 mat2* m2-vmult m2-xpose
-                            v2-normal polyDraw*
-                            v2-neg v2-unit v2-scale v2-sdiv
-                            v2-len v2-lensq v2-dist v2-distsq
-                            vec2 v2-add v2-sub v2-dot v2-xss v2-sxss]]))
+             :as gx :refer [Point2D polyDraw*]]
+            [czlab.elmo.afx.math
+             :as ma :refer [PI TWO-PI vec-zero wrap??
+                            mat2 rotation2x2 mat-vmult mat-xpose
+                            vec-normal
+                            vec-neg vec-unit vec-scale
+                            vec-len vec-lensq vec-dist vec-distsq
+                            vec2 vec-add vec-sub vec-dot vec-xss v2-xss*]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private *dispatch* (atom {}))
@@ -59,12 +60,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- setPolyAngle
-  "" [P radians] (assoc P :u (mat2* radians)))
+  "" [P radians] (assoc P :u (rotation2x2 radians)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- drawPoly "" [P ctx]
   (let [{{:keys [u vertices]} :shape c :pos} @P]
-    (-> (mapv #(v2-add c (m2-vmult u %)) vertices) (polyDraw* ctx)) P))
+    (-> (mapv #(vec-add c (mat-vmult u %)) vertices) (polyDraw* ctx)) P))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- setPosPoly "" [P pt & more] (assoc!! P :pos pt) P)
@@ -73,7 +74,7 @@
 (defn- polygon* "" []
   (Body (assoc (gx/Polygon [])
                :normals []
-               :u (mat2)
+               :u (rotation2x2 0)
                :setAngle setPolyAngle) {:repos setPosPoly}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -101,12 +102,12 @@
       (if (>= i SZ)
         (do (assoc!! P :shape (assoc S :normals out)) P)
         (let [i2 (wrap?? i SZ)
-              face (v2-sub (nth vertices i2)
-                           (nth vertices i))]
-          (assert (> (v2-lensq face) EE))
+              face (vec-sub (nth vertices i2)
+                            (nth vertices i))]
+          (assert (> (vec-lensq face) EE))
           (recur (+ 1 i)
                  SZ
-                 (conj out (v2-unit (v2-normal face)))))))))
+                 (conj out (vec-unit (vec-normal face)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Polygon "" [vertices & [attrs]]
@@ -127,7 +128,7 @@
       (if (>= i SZ)
         bv
         (let [v (nth vertices i)
-              p' (v2-dot v dir)
+              p' (vec-dot v dir)
               b? (> p' proj)]
           (recur (inc i) SZ (if b? p' proj) (if b? v bv)))))))
 
@@ -135,8 +136,8 @@
 (defn- applyImpulseBody! "" [B impulse contactVector]
   (let [{:keys [vel im ii gvel]} @B]
     (assoc!! B
-             :vel (v2-add vel (v2-scale impulse im))
-             :gvel (+ gvel (* ii (v2-xss contactVector impulse)))) B))
+             :vel (vec-add vel (vec-scale impulse im))
+             :gvel (+ gvel (* ii (vec-xss contactVector impulse)))) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn manifold "" [& [a b]]
@@ -146,7 +147,7 @@
          ;;depth of penetration from collision
          :penetration 0
          ;;From A to B
-         :normal V2_ZERO
+         :normal (vec-zero 0)
          ;;Points of contact during collision
          :contacts []
          ;;Mixed restitution
@@ -180,18 +181,18 @@
         (if (zero? E) (assoc!! M :bounce 0))
         ;;calculate radii from COM to contact
         (let [c (nth contacts i)
-              ra (v2-sub c posA)
-              rb (v2-sub c posB)
-              rv (v2-sub (v2-sub (v2-add velB
-                                         (v2-sxss gvelB rb)) velA)
-                         (v2-sxss gvelA ra))]
+              ra (vec-sub c posA)
+              rb (vec-sub c posB)
+              rv (vec-sub (vec-sub (vec-add velB
+                                            (v2-xss* gvelB rb)) velA)
+                         (v2-xss* gvelA ra))]
           ;;Determine if we should perform a resting collision or not
           ;;The idea is if the only thing moving this object is gravity,
           ;;then the collision should be performed without any restitution
           (recur (+ 1 i)
                  SZ
-                 (if (< (v2-lensq rv)
-                        (+ (v2-lensq (v2-scale gravity frameSecs)) EPSILON)) 0 E))))) M))
+                 (if (< (vec-lensq rv)
+                        (+ (vec-lensq (vec-scale gravity frameSecs)) EPSILON)) 0 E))))) M))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- applyImpulseOnManifold! "" [M]
@@ -204,49 +205,49 @@
                  SZ
                  (let [c (nth contacts i)
                        ;;calculate radii from COM to contact
-                       ra (v2-sub c posA)
-                       rb (v2-sub c posB)
+                       ra (vec-sub c posA)
+                       rb (vec-sub c posB)
                        ;;relative velocity
-                       rv (v2-sub (v2-sub (v2-add velB
-                                                  (v2-sxss gvelB rb)) velA)
-                                  (v2-sxss gvelA ra))
-                       contactVel (v2-dot rv normal)]
+                       rv (vec-sub (vec-sub (vec-add velB
+                                                     (v2-xss* gvelB rb)) velA)
+                                  (v2-xss* gvelA ra))
+                       contactVel (vec-dot rv normal)]
                    ;;do not resolve if velocities are separating
                    (if (pos? contactVel)
                      false
-                     (let [raCrossN (v2-xss ra normal)
-                           rbCrossN (v2-xss rb normal)
+                     (let [raCrossN (vec-xss ra normal)
+                           rbCrossN (vec-xss rb normal)
                            invMass (+ imA imB
                                       (* (sqr* raCrossN) iiA)
                                       (* (sqr* rbCrossN) iiB))
                            ;;calculate impulse scalar
                            j (-> (- (+ 1 bounce))
                                  (* contactVel) (/ invMass) (/ SZ))
-                           impulse (v2-scale normal j)]
+                           impulse (vec-scale normal j)]
                        ;;Apply impulse
-                       (applyImpulseBody! A (v2-neg impulse) ra)
+                       (applyImpulseBody! A (vec-neg impulse) ra)
                        (applyImpulseBody! B impulse rb)
                        ;;Friction impulse
                        (let [{gvelA :gvel velA :vel} @A
                              {gvelB :gvel velB :vel} @B
-                             rv (v2-sub (v2-sub (v2-add velB
-                                                        (v2-sxss gvelB rb)) velA)
-                                        (v2-sxss gvelA ra))
-                             T (->> (v2-dot rv normal)
-                                    (v2-scale normal)
-                                    (v2-sub rv) (v2-unit))
+                             rv (vec-sub (vec-sub (vec-add velB
+                                                           (v2-xss* gvelB rb)) velA)
+                                        (v2-xss* gvelA ra))
+                             T (->> (vec-dot rv normal)
+                                    (vec-scale normal)
+                                    (vec-sub rv) (vec-unit))
                              ;; j tangent magnitude
-                             jT (-> (- (v2-dot rv T)) (/ invMass) (/ SZ))]
+                             jT (-> (- (vec-dot rv T)) (/ invMass) (/ SZ))]
                          ;; Don't apply tiny friction impulses
                          (if (ec/fuzzyZero? jT)
                            false
                            ;;coulumb's law
                            (let [tangentImpulse
                                  (if (< (abs* jT) (* j statF))
-                                   (v2-scale T jT)
-                                   (v2-scale T (* dynaF (- j))))]
+                                   (vec-scale T jT)
+                                   (vec-scale T (* dynaF (- j))))]
                              ;;Apply friction impulse
-                             (applyImpulseBody! A (v2-neg tangentImpulse) ra)
+                             (applyImpulseBody! A (vec-neg tangentImpulse) ra)
                              (applyImpulseBody! B tangentImpulse rb) true))))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -257,8 +258,8 @@
         {imB :im velB :vel} @B]
     (if (ec/fuzzyZero? (+ imA imB))
       ;;infinite mass Correction
-      (do (assoc!! A :vel V2_ZERO)
-          (assoc!! B :vel V2_ZERO))
+      (do (assoc!! A :vel (vec-zero 2))
+          (assoc!! B :vel (vec-zero 2)))
       (applyImpulseOnManifold! M)) M))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -268,16 +269,16 @@
         {posB :pos imB :im} @B
         slop' 0.05 ;;Penetration allowance
         percent' 0.4 ;; Penetration percentage to correct
-        jiggle (v2-scale normal
-                         (* percent'
-                            (/ (max (- penetration slop') 0) (+ imA imB))))]
-    (assoc!! A :pos (v2-sub posA (v2-scale jiggle imA)))
-    (assoc!! B :pos (v2-add posB (v2-scale jiggle imB))) M))
+        jiggle (vec-scale normal
+                          (* percent'
+                             (/ (max (- penetration slop') 0) (+ imA imB))))]
+    (assoc!! A :pos (vec-sub posA (vec-scale jiggle imA)))
+    (assoc!! B :pos (vec-add posB (vec-scale jiggle imB))) M))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn applyForce "" [B f]
   (swap! B (fn [{:keys [accel] :as root}]
-             (assoc root :accel (v2-add accel f)))) B)
+             (assoc root :accel (vec-add accel f)))) B)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- integrateForces! "" [B dt]
@@ -287,8 +288,8 @@
     (when-not (zero? im)
       (assoc!! B
                :gvel (+ gvel (* dt2 torque ii))
-               :vel (v2-add vel (v2-scale (-> gravity
-                                              (v2-add (v2-scale accel im))) dt2)))) B))
+               :vel (vec-add vel (vec-scale (-> gravity
+                                                (vec-add (vec-scale accel im))) dt2)))) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- integrateVelocity! "" [B dt]
@@ -297,7 +298,7 @@
     (when-not (zero? im)
       (assoc!! B
                :angle angle'
-               :pos (v2-add pos (v2-scale vel dt)))
+               :pos (vec-add pos (vec-scale vel dt)))
       (setOrient! B angle')
       (integrateForces! B dt)) B))
 
@@ -320,7 +321,7 @@
     ;;clear all forces
     (ec/eachStore samples
                   (fn [b _]
-                    (assoc!! b :accel V2_ZERO :torque 0)))))
+                    (assoc!! b :accel (vec-zero 2) :torque 0)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleToCircle "" [M B1 B2]
@@ -330,8 +331,8 @@
         {radB :radius} B
         radius (+ radA radB)
         ;;calculate translational vector, which is normal
-        normal (v2-sub posB posA)
-        distSQ (v2-lensq normal)]
+        normal (vec-sub posB posA)
+        distSQ (vec-lensq normal)]
     (cond
       (>= distSQ (sqr* radius))
       ;;Not in contact
@@ -343,11 +344,11 @@
                    :penetration radA
                    :normal (vec2 1 0) :contacts [posA])
           (swap! M
-                 #(let [n (v2-sdiv normal dist)]
+                 #(let [n (vec-scale normal (/ 1 dist))]
                     (assoc %
                            :penetration (- radius dist)
                            :normal n
-                           :contacts [(v2-add (v2-scale n radA) posA)]))))))))
+                           :contacts [(vec-add (vec-scale n radA) posA)]))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleToPolygon* "" [M B1 B2 center separation faceNormal]
@@ -363,37 +364,37 @@
     ;;check to see if center is within polygon
     (if (< separation EPSILON)
       (swap! M
-             #(let [n (v2-neg (m2-vmult bu
-                                       (nth normals faceNormal)))]
+             #(let [n (vec-neg (mat-vmult bu
+                                          (nth normals faceNormal)))]
                 (assoc %
                        :normal n
                        :penetration radA
-                       :contacts [(v2-add (v2-scale n radA) posA)])))
+                       :contacts [(vec-add (vec-scale n radA) posA)])))
       ;;determine which voronoi region of the edge center of circle lies within
-      (let [dot1 (v2-dot (v2-sub center v1) (v2-sub v2 v1))
-            dot2 (v2-dot (v2-sub center v2) (v2-sub v1 v2))]
+      (let [dot1 (vec-dot (vec-sub center v1) (vec-sub v2 v1))
+            dot2 (vec-dot (vec-sub center v2) (vec-sub v1 v2))]
         (assoc!! M :penetration (- radA separation))
         (cond
           ;;Closest to v1
           (<= dot1 0)
-          (when-not (> (v2-distsq center v1) (sqr* radA))
+          (when-not (> (vec-distsq center v1) (sqr* radA))
             (assoc!! M
-                     :normal (v2-unit (m2-vmult bu (v2-sub v1 center)))
-                     :contacts [(v2-add (m2-vmult bu v1) posB)]))
+                     :normal (vec-unit (mat-vmult bu (vec-sub v1 center)))
+                     :contacts [(vec-add (mat-vmult bu v1) posB)]))
           ;;Closest to v2
           (<= dot2 0)
-          (when-not (> (v2-distsq center v2) (sqr* radA))
+          (when-not (> (vec-distsq center v2) (sqr* radA))
             (assoc!! M
-                     :normal (v2-unit (m2-vmult bu (v2-sub v2 center)))
-                     :contacts [(v2-add (m2-vmult bu v2) posB)]))
+                     :normal (vec-unit (mat-vmult bu (vec-sub v2 center)))
+                     :contacts [(vec-add (mat-vmult bu v2) posB)]))
           ;;Closest to face
           :else
           (let [n (nth normals faceNormal)
-                n' (v2-neg (m2-vmult bu n))]
-            (when-not (> (v2-dot (v2-sub center v1) n) radA)
+                n' (vec-neg (mat-vmult bu n))]
+            (when-not (> (vec-dot (vec-sub center v1) n) radA)
               (assoc!! M
                        :normal n'
-                       :contacts [(v2-add (v2-scale n' radA) posA)]))))))))
+                       :contacts [(vec-add (vec-scale n' radA) posA)]))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- circleToPolygon "" [M B1 B2]
@@ -403,16 +404,16 @@
         {:keys [vertices normals] bu :u} B
         {radA :radius} A
         ;;Transform circle center to Polygon model space
-        center (m2-vmult (m2-xpose bu)
-                         (v2-sub posA posB))]
+        center (mat-vmult (mat-xpose bu)
+                          (vec-sub posA posB))]
     ;;Find edge with minimum penetration
     ;;Exact concept as using support points in Polygon vs Polygon
     (loop [i 0 SZ (n# vertices)
            sep *neg-inf* n 0 break? false]
       (if (or break? (>= i SZ))
         (if-not break? (circleToPolygon* M B1 B2 center sep n))
-        (let [s (v2-dot (nth normals i)
-                        (v2-sub center (nth vertices i)))
+        (let [s (vec-dot (nth normals i)
+                         (vec-sub center (nth vertices i)))
               [s' n' t']
               (cond (> s radA) [sep n true]
                     (> s sep) [s i break?]
@@ -421,7 +422,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- polygonToCircle "" [M B1 B2]
   (circleToPolygon M B2 B1)
-  (assoc!! M :normal (v2-neg (:normal @M))))
+  (assoc!! M :normal (vec-neg (:normal @M))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findAxisLeastPenetration "" [A B]
@@ -432,19 +433,19 @@
   (loop [i 0 SZ (n# vertices) bestD *neg-inf* bestIndex 0]
     (if (>= i SZ)
       [bestD bestIndex]
-      (let [nw (m2-vmult au (nth normals i))
+      (let [nw (mat-vmult au (nth normals i))
             ;;Transform face normal into B's model space
-            buT (m2-xpose bu)
-            n (m2-vmult buT nw)
+            buT (mat-xpose bu)
+            n (mat-vmult buT nw)
             ;;Retrieve support point from B along -n
-            s (findSupportPoint?? B (v2-neg n))
+            s (findSupportPoint?? B (vec-neg n))
             ;;Retrieve vertex on face from A, transform into
             ;;B's model space
-            v (m2-vmult buT
-                       (v2-sub (v2-add (->> (nth vertices i)
-                                            (m2-vmult au)) posA) posB))
+            v (mat-vmult buT
+                         (vec-sub (vec-add (->> (nth vertices i)
+                                                (mat-vmult au)) posA) posB))
             ;;Compute penetration distance (in B's model space)
-            d (v2-dot n (v2-sub s v))
+            d (vec-dot n (vec-sub s v))
             b? (> d bestD)]
         (recur (+ 1 i)
                SZ
@@ -457,18 +458,18 @@
         {posI :pos} @bI
         ;;Calculate normal in incident's frame of reference
         refNormal (->> (nth (:normals refPoly) refIndex)
-                       (m2-vmult (:u refPoly)) ;; To world space
-                       (m2-vmult (m2-xpose iu)))]  ;To incident's model space
+                       (mat-vmult (:u refPoly)) ;; To world space
+                       (mat-vmult (mat-xpose iu)))]  ;To incident's model space
     ;;Find most anti-normal face on incident polygon
     (loop [i 0 SZ (n# vertices)
            iFace 0 minDot *pos-inf*]
       (if (>= i SZ)
         ;;Assign face vertices for incidentFace
-        [(v2-add (m2-vmult iu (nth vertices iFace)) posI)
-         (v2-add (m2-vmult iu
-                           (nth vertices (wrap?? iFace SZ))) posI)]
+        [(vec-add (mat-vmult iu (nth vertices iFace)) posI)
+         (vec-add (mat-vmult iu
+                             (nth vertices (wrap?? iFace SZ))) posI)]
         ;loop
-        (let [dot (v2-dot refNormal (nth normals i))
+        (let [dot (vec-dot refNormal (nth normals i))
               b? (< dot minDot)]
           (recur (+ 1 i)
                  SZ
@@ -480,8 +481,8 @@
         out (array face0 face1)
         ;;Retrieve distances from each endpoint to the line
         ;;d = ax + by - c
-        d1 (- (v2-dot n face0) c)
-        d2 (- (v2-dot n face1) c)
+        d1 (- (vec-dot n face0) c)
+        d2 (- (vec-dot n face1) c)
         sp 0
         ;;If negative (behind plane) clip
         sp (if (<= d1 0) (do (aset out sp face0) (inc sp)) sp)
@@ -490,7 +491,7 @@
         sp (if (< (* d1 d2) 0) ;;less than to ignore -0.0f
              (let [;;Push interesection point
                    alpha (/ d1 (- d1 d2))]
-                 (aset out sp (v2-add face0 (v2-scale (v2-sub face1 face0) alpha)))
+                 (aset out sp (vec-add face0 (vec-scale (vec-sub face1 face0) alpha)))
                  (inc sp)) sp)]
   (assert (not= sp 3))
   ;;Assign our new converted values
@@ -505,7 +506,7 @@
         ;flip Always point from a to b
         [refPoly incPoly refIndex flip?]
         ;;Determine which shape contains reference face
-        (if (gx/biasGreater? penetrationA penetrationB)
+        (if (ma/biasGreater? penetrationA penetrationB)
           [A B faceA false]
           [B A faceB true])
         {bR :body} refPoly
@@ -519,20 +520,20 @@
         refIndex (wrap?? refIndex (n# rverts))
         v2 (nth rverts refIndex)
         ;;Transform vertices to world space
-        v1 (v2-add (m2-vmult ru v1) posR)
-        v2 (v2-add (m2-vmult ru v2) posR)
+        v1 (vec-add (mat-vmult ru v1) posR)
+        v2 (vec-add (mat-vmult ru v2) posR)
         ;;Calculate reference face side normal in world space
-        sidePlaneNormal (v2-unit (v2-sub v2 v1))
+        sidePlaneNormal (vec-unit (vec-sub v2 v1))
         ;;Orthogonalize
-        refFaceNormal (vec2 (:y sidePlaneNormal) (- (:x sidePlaneNormal)))
+        refFaceNormal (vec2 (_2 sidePlaneNormal) (- (_1 sidePlaneNormal)))
         ;;ax + by = c
         ;; c is distance from origin
-        refC (v2-dot refFaceNormal v1)
-        negSide (- (v2-dot sidePlaneNormal v1))
-        posSide (v2-dot sidePlaneNormal v2)
+        refC (vec-dot refFaceNormal v1)
+        negSide (- (vec-dot sidePlaneNormal v1))
+        posSide (vec-dot sidePlaneNormal v2)
         ;;Clip incident face to reference face side planes
         [sp incidentFaces]
-        (clip?? (v2-neg sidePlaneNormal) negSide incidentFaces)
+        (clip?? (vec-neg sidePlaneNormal) negSide incidentFaces)
         ;;Due to floating point error, possible to not have required points
         quit1? (< sp 2)
         [sp incidentFaces]
@@ -545,15 +546,15 @@
       ;;Flip
       (assoc!! M
                :normal
-               (if flip? (v2-neg refFaceNormal) refFaceNormal))
+               (if flip? (vec-neg refFaceNormal) refFaceNormal))
       ;;Keep points behind reference face
-      (let [sep (- (v2-dot refFaceNormal (_1 incidentFaces)) refC)]
+      (let [sep (- (vec-dot refFaceNormal (_1 incidentFaces)) refC)]
         (if (<= sep 0)
           (assoc!! M
                    :contacts [(_1 incidentFaces)]
                    :penetration (- sep))
           (assoc!! M :penetration 0)))
-      (let [sep (- (v2-dot refFaceNormal (_2 incidentFaces)) refC)]
+      (let [sep (- (vec-dot refFaceNormal (_2 incidentFaces)) refC)]
         (when (<= sep 0)
           (swap! M
                  (fn [{:keys [penetration contacts] :as root}]

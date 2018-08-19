@@ -17,9 +17,11 @@
             [czlab.elmo.p2d.core :as pc :refer [addBody]]
             [czlab.elmo.p2d.impulse :as ie :refer [Circle]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [pythag pythagSQ TWO-PI PI vec2 V2_ZERO _cocos2dx?
-                            v2-len v2-add v2-sub v2-dot Point2D Size2D
-                            v2-neg v2-scale v2-rot v2-unit v2-dist]]
+             :as gx :refer [Point2D Size2D _cocos2dx?]]
+            [czlab.elmo.afx.math
+             :as ma :refer [pythag pythagSQ TWO-PI PI vec2
+                            vec-len vec-add vec-sub vec-dot vec-zero
+                            vec-neg vec-scale vec-rot vec-unit vec-dist]]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

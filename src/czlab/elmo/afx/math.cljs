@@ -9,18 +9,20 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.p2d.math
+  czlab.elmo.afx.math
 
-  (:require-macros [czlab.elmo.afx.core :as ec :refer [_1 _2 _3 do-with assoc!!]])
+  (:require-macros [czlab.elmo.afx.core
+                    :as ec :refer [_1 _2 _3 do-with assoc!!]])
 
-  (:require [czlab.elmo.afx.core :as ec :refer [sqrt* abs* sqr* n# num?? invert]]))
+  (:require [czlab.elmo.afx.core
+             :as ec :refer [EPSILON sqrt* abs* sqr* n# num?? invert]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private EPSILON js/Number.EPSILON)
 (def ^:private NEG-DEG-2PI (- 360.0))
 (def TWO-PI (* 2 js/Math.PI))
 (def PI js/Math.PI)
 (def DEG-2PI 360.0)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private ATAN2 js/Math.atan2)
 (def ^:private ACOS js/Math.acos)
@@ -124,17 +126,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-scale "" [v n]
-  {:pre [number? n]}
+  {:pre [(number? n)]}
   (vec-nnn v (fn [i] (* i n)) identity))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-plus "" [v n]
-  {:pre [number? n]}
+  {:pre [(number? n)]}
   (vec-nnn v (fn [i] (+ i n)) identity))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-minus "" [v n]
-  {:pre [number? n]}
+  {:pre [(number? n)]}
   (vec-nnn v (fn [i] (- i n)) identity))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -157,7 +159,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-unit "" [v]
   (let [z (vec-len v)]
-    (if (> z EPSILON) (vec-scale v (invert z)))))
+    (if (> z EPSILON) (vec-scale v (invert z)) (aclone v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti vec-rot "" (fn [v angle & [center]] (n# v)))
@@ -843,6 +845,19 @@ handed matrices. That is, +Z goes INTO the screen.")
           [(ATAN2 (- (nth r2 2))
                   (nth r2 1))
            (ATAN2 (- (nth r3 0)) sy) 0])] (vec3 x y z)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pythagSQ "" [x y] (+ (* x x) (* y y)))
+(defn pythag "" [x y] (sqrt* (pythagSQ x y)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn wrap?? "" [i len] (mod (+ 1 i) len))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn biasGreater? "" [a b]
+  (let [biasRelative 0.95
+        biasAbsolute 0.01]
+    (>= a (+ (* b biasRelative) (* a biasAbsolute)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

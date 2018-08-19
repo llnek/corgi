@@ -13,14 +13,16 @@
 
   (:require-macros [czlab.elmo.afx.core :as ec :refer [assoc!!]])
 
-  (:require [czlab.elmo.afx.core :as ec :refer [invert]]
+  (:require [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]
+            [czlab.elmo.afx.core :as ec :refer [invert]]
             [czlab.elmo.p2d.core :as pc :refer [addBody]]
             [czlab.elmo.p2d.verlet2d :as vt :refer [Polygon]]
             [czlab.elmo.afx.gfx2d
-             :as gx :refer [pythag pythagSQ TWO-PI PI vec2 V2_ZERO _cocos2dx?
-                            v2-len v2-add v2-sub v2-dot Point2D
-                            v2-neg v2-scale v2-unit v2-dist]]
-            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
+             :as gx :refer [Point2D _cocos2dx?]]
+            [czlab.elmo.afx.math
+             :as ma :refer [pythag pythagSQ TWO-PI PI vec2
+                            vec-len vec-add vec-sub vec-dot
+                            vec-zero vec-neg vec-scale vec-unit vec-dist]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def gWorld nil)
