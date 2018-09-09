@@ -9,7 +9,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.crenshaw.tiny
+  czlab.elmo.crenshaw.tiny11
 
   (:require-macros [czlab.elmo.afx.core
                     :as ec :refer [_1 _2 _3 do-with assoc!!]])
@@ -87,6 +87,15 @@
   (abort!! (str s " Expected")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- duplicate!! "" [n]
+  (abort!! (str "Duplicate Identifier: " n)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- checkIdent "" []
+  (if (not= *token* "")
+    (expected!! "Identifier")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- isAlpha? "" [c]
   (>= (js/String.prototype.indexOf.call UPPER (upCase c)) 0))
 
@@ -99,7 +108,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- isWhite?
-  "" [c] (contains? #{" " "\t"} c))
+  "" [c] (contains? #{" " "\t" "\r" "\n"} c))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- isMulop?
@@ -118,37 +127,47 @@
   "" [] (while (isWhite? *ch*) (getChar)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- newLine "" []
-  (while (= *ch* "\r")
-    (getChar)
-    (if (= *ch* "\n") (getChar))
-    (skipWhite)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- match "" [x]
-  (newLine)
-  (if (= *ch* x)
-    (getChar)
-    (expected!! (str "`"  x "`")))
-  (skipWhite))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- getName "" []
-  (newLine)
-  (if-not (isAlpha? *ch*) (expected!! "Name"))
-  (loop [s "" dummy nil]
+  (skipWhite)
+  (if-not (isAlpha? *ch*)
+    (expected!! "Identifier"))
+  (set! *token* "")
+  (set! *value* "")
+  (loop [v "" dummy nil]
     (if-not (isAlNum? *ch*)
-      (do (skipWhite) (set! *value* s) s)
-      (recur (str s (upCase *ch*)) (getChar)))))
+      (set! *value* v)
+      (recur (str v (upCase *ch*)) (getChar))))
+  *value*)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- getNum "" []
-  (newLine)
-  (if-not (isDigit? *ch*) (expected!! "Integer"))
+  (skipWhite)
+  (if-not (isDigit? *ch*)
+    (expected!! "Number"))
+  (set! *token* "#")
+  (set! *value* "")
   (loop [v "" dummy nil]
     (if-not (isDigit? *ch*)
-      (do (skipWhite) (js/parseInt v))
-      (recur (str v *ch*) (getChar)))))
+      (set! *value* v)
+      (recur (str v *ch*) (getChar))))
+  *value*)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- getOp "" []
+  (skipWhite)
+  (set! *token* *ch*)
+  (set! *value* *ch*)
+  (getChar))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- nextToken "" []
+  (skipWhite)
+  (cond
+    (isAlpha? *ch*)
+    (getName)
+    (isDigit? *ch*)
+    (getNum)
+    :else (getOp)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- lookup?? "" [arr s]
@@ -165,26 +184,32 @@
   (>= (lookup?? *symbols* n) 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- checkTable
+  "" [n] (if-not (inTable? n) (undefined!! n)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- checkDup
+  "" [n] (if (inTable? n) (duplicate!! n)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- addEntry "" [N T]
-  (if (inTable? N)
-    (abort!! (str "Duplicate Identifier: " N)))
+  (checkDup N)
   (if (>= *NEntry* MAX-ENTRY)
-    (abort!! (str "Symbol Table Full")))
-  (aset *symbols* *NEntry* N)
+    (abort!! "Symbol Table Full"))
   (aset *symtypes* *NEntry* T)
-  (set! *NEntry* (inc *NEntry*)))
+  (aset *symbols* *NEntry* N)
+  (set! *NEntry* (+ 1 *NEntry*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- scan "" []
-  (getName)
-  (set! *token*
-        (or (get *keywords* *value*) ""))
-  *token*)
+  (if (= *token* "")
+    (set! *token*
+          (or (get *keywords* *value*) ""))) *token*)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- matchString "" [x]
-  (if (not= *value* x)
-    (expected!! (str "`" x "`"))))
+  (if (not= *value* x) (expected!! (str "`" x "`")))
+  (nextToken))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- isAddop? "" [c]
@@ -206,16 +231,10 @@
     (aset *symbols* n "")
     (aset *symtypes* n " "))
   (getChar)
-  (scan))
+  (nextToken))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- fin "" []
-  (if (= *ch* "\r") (getChar))
-  (if (= *ch* "\n") (getChar)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- postLabel
-  "" [L] (writeLn L ":"))
+(defn- postLabel "" [L] (writeLn L ":"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- header "" []
@@ -231,34 +250,24 @@
   (emitLn "Place-holder for epilog"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- alloc "" [N]
-  (if (inTable? N)
-    (abort!! (str "Duplicate Variable Name: " N)))
-  (addEntry N "v")
-  (write "var " N  " : integer = ")
-  (if (= *ch* "=")
-    (do (match "=")
-        (when (= *ch* "-")
-          (write *ch*)
-          (match "-"))
-        (writeLn (getNum) ";"))
-    (writeLn "0;")))
+(defn- allocate "" [name val]
+  (writeLn "Var " name " : integer = " val ";"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- decl "" []
-  (alloc (getName))
-  (while (= *ch* ",")
-    (match ",")
-    (alloc (getName))))
+(defn- alloc "" []
+  (nextToken)
+  (if (not= *token* "")
+    (expected!! "Variable Name"))
+  (checkDup *value*)
+  (addEntry *value* "v")
+  (allocate *value* "0")
+  (nextToken))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- topDecls "" []
-  (loop [token (scan)]
-    (if (not= "b" token)
-      (if (= "v" token)
-        (decl)
-        (abort!! (str "Unrecognized Keyword: " *value*)))
-      (recur (scan)))))
+  (scan)
+  (while (= *token* "v") (alloc))
+  (while (= *token* ",") (alloc)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- clear "" []
@@ -270,8 +279,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- loadConst "" [n]
-  (emit "MOV EAX, ")
-  (writeLn n))
+  (emitLn (str "MOV EAX, " n)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- loadVar "" [name]
@@ -307,11 +315,18 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- store "" [name]
-  (if-not (inTable? name) (undefined!! name))
   (emitLn (str "MOV " name ", EAX")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- notIt "" [] (emitLn "NOT EAX"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readIt
+  "" [name]
+  (emitLn "CALL READ") (store name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- writeIt "" [] (emitLn "CALL WRITE"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- popAnd "" []
@@ -373,117 +388,111 @@
   (emitLn (str "JE " L)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- equals "" []
-  (match "=")
+(defn- compareExpression "" []
   (expression)
-  (popCompare)
+  (popCompare))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- nextExpression "" []
+  (nextToken)
+  (compareExpression))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- equals "" []
+  (nextExpression)
   (setEqual))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- lessOrEqual "" []
-  (match "=")
-  (expression)
-  (popCompare)
+  (nextExpression)
   (setLessOrEqual))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- notEqual "" []
-  (match ">")
-  (expression)
-  (popCompare)
+  (nextExpression)
   (setNEqual))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- less "" []
-  (match "<")
-  (case *ch*
+  (nextToken)
+  (case *token*
     "=" (lessOrEqual)
     ">" (notEqual)
-    (do (expression)
-        (popCompare)
+    (do (compareExpression)
         (setLess))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- greater "" []
-  (match ">")
-  (if (= *ch* "=")
-    (do (match "=")
-        (expression)
-        (popCompare)
-        (setGreaterOrEqual))
-    (do (expression)
-        (popCompare)
-        (setGreater))))
+  (nextToken)
+  (if (= *token* "=")
+    (do (nextExpression) (setGreaterOrEqual))
+    (do (compareExpression) (setGreater))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- relation "" []
   (expression)
-  (when (isRelop? *ch*)
+  (when (isRelop? *token*)
     (push)
-    (case *ch*
+    (case *token*
       "=" (equals)
-      "#" (notEqual)
       "<" (less)
       ">" (greater)) nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- notFactor "" []
-  (if (= *ch* "!")
-    (do (match "!")
+  (if (= *token* "!")
+    (do (nextToken)
         (relation)
         (notIt))
     (relation)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- boolTerm "" []
-  (newLine)
   (notFactor)
-  (while (= *ch* "&")
+  (while (= *token* "&")
     (push)
-    (match "&")
+    (nextToken)
     (notFactor)
-    (popAnd)
-    (newLine)))
+    (popAnd)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- boolOr "" []
-  (match "|")
+  (nextToken)
   (boolTerm)
   (popOr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- boolXor "" []
-  (match "~")
+  (nextToken)
   (boolTerm)
   (popXor))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- boolExpression "" []
-  (newLine)
   (boolTerm)
-  (while (isOrop? *ch*)
+  (while (isOrop? *token*)
     (push)
-    (case *ch*
-      "|" (boolOr)
-      "~" (boolXor) nil)
-    (newLine)))
+    (case *token* "|" (boolOr) "~" (boolXor) nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doIf "" []
+  (nextToken)
   (boolExpression)
   (let [L1 (newLabel)
         _ (branchFalse L1)
         _ (block)
-        X (if (= *token* "l")
-            (let [L2 (newLabel)]
-              (branch L2)
-              (postLabel L1)
-              (block) L2) L1)]
-    (postLabel X)
+        L2 (if (= *token* "l")
+             (let [_ (nextToken)
+                   L2 (newLabel)]
+               (branch L2)
+               (postLabel L1)
+               (block) L2) L1)]
+    (postLabel L2)
     (matchString "ENDIF")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doWhile "" []
+  (nextToken)
   (let [L1 (newLabel)
         L2 (newLabel)]
     (postLabel L1)
@@ -496,126 +505,94 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- factor "" []
-  (cond
-    (= *ch* "(")
-    (do (match "(")
+  (if (= *token* "(")
+    (do (nextToken)
         (boolExpression)
-        (match ")"))
-    (isAlpha? *ch*)
-    (loadVar (getName))
-    :else
-    (loadConst (getNum))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- negFactor "" []
-  (match "-")
-  (if (isDigit? *ch*)
-    (loadConst (- (getNum)))
-    (do (factor)
-        (negate))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- firstFactor "" []
-  (case *ch*
-    "+" (do (match "+")
-            (factor))
-    "-" (negFactor)
-    (factor)))
+        (matchString ")"))
+    (do (case *token*
+          "" (loadVar *value*)
+          "#" (loadConst *value*)
+          (expected!! "Math Factor"))
+        (nextToken))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mult "" []
-  (match "*")
+  (nextToken)
   (factor)
   (popMul))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- div "" []
-  (match "/")
+  (nextToken)
   (factor)
   (popDiv))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- term1 "" []
-  (newLine)
-  (while (isMulop? *ch*)
-    (push)
-    (case *ch*
-      "*" (mult)
-      "/" (div)
-      nil)
-    (newLine)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- term "" []
   (factor)
-  (term1))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- firstTerm "" []
-  (firstFactor)
-  (term1))
+  (while (isMulop? *token*)
+    (push)
+    (case *token* "*" (mult) "/" (div) nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- add "" []
-  (match "+")
+  (nextToken)
   (term)
   (popAdd))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- subtract "" []
-  (match "-")
+  (nextToken)
   (term)
   (popSub))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- expression "" []
-  (newLine)
-  (firstTerm)
-  (while (isAddop? *ch*)
+  (if (isAddop? *token*) (clear) (term))
+  (while (isAddop? *token*)
     (push)
-    (case *ch*
-      "+" (add)
-      "-" (subtract)
-      nil)
-    (newLine)))
+    (case *token* "+" (add) "-" (subtract) nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- assignment "" []
+  (checkTable *value*)
   (let [name *value*]
-    (match "=")
+    (nextToken)
+    (matchString "=")
     (boolExpression)
     (store name)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readVar "" []
-  (emitLn "CALL READ")
-  (store *value*))
+  (checkIdent)
+  (checkTable *value*)
+  (readIt *value*)
+  (nextToken))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- writeVar "" []
-  (emitLn "CALL WRITE"))
+(defn- writeVar "" [] (emitLn "CALL WRITE"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doRead "" []
-  (match "(")
-  (getName)
+  (nextToken)
+  (matchString "(")
   (readVar)
-  (while (= *ch* ",")
-    (match ",")
-    (getName)
+  (while (= *token* ",")
+    (nextToken)
     (readVar))
-  (match ")"))
+  (matchString ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doWrite "" []
-  (match "(")
+  (nextToken)
+  (matchString "(")
   (expression)
-  (writeVar)
-  (while (= *ch* ",")
-    (match ",")
+  (writeIt)
+  (while (= *token* ",")
+    (nextToken)
     (expression)
-    (writeVar))
-  (match ")"))
+    (writeIt))
+  (matchString ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- block "" []
@@ -630,30 +607,20 @@
     (scan)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- main* "" []
+(defn main "" []
+  (init)
+  (matchString "PROGRAM")
+  (header)
+  (topDecls)
   (matchString "BEGIN")
   (prolog)
   (block)
   (matchString "END")
-  (epilog))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- prog "" []
-  (matchString "PROGRAM")
-  (header)
-  (topDecls)
-  (main*)
-  (match "."))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn main "" []
-  (init)
-  (prog)
-  (if (not= *ch* "\r")
-    (abort!! (str "Unexpected data after .")))
+  (epilog)
   (readLn)
   (readLn))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+
 
