@@ -7,8 +7,8 @@
     {:output-to "rtst/test.js"
      :output-dir "rtst"
      :externs ["externs/cc.js"]
-     ;:optimizations :whitespace
-     :optimizations :advanced
+     :optimizations :whitespace
+     ;:optimizations :advanced
      :verbose true})
   (println "... done. Elapsed" (/ (- (System/nanoTime) start) 1e9) "seconds"))
 
