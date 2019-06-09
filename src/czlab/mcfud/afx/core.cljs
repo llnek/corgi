@@ -12,9 +12,9 @@
   czlab.mcfud.afx.core
 
   (:require-macros [czlab.mcfud.afx.core
-                    :as ec :refer [do-with defvoid
-                                   defvoid-
-                                   n# _1 defmonad clog]])
+                    :as c :refer [n# _1 cc+ in?
+                                  if-func fn_1 fn_2 fn_* atom?
+                                  do-with-transient do-with defmonad]])
 
   (:require [clojure.string :as cs]
             [clojure.set :as cst]
@@ -29,360 +29,233 @@
 (def NEG-INF js/Number.NEGATIVE_INFINITY)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sqrt*
-
-  "Square root of a number."
-  [n]
-
-  (js/Math.sqrt n))
+(defn abs* "Absolute value." [n] (js/Math.abs n))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn abs*
-
-  "Absolute value of a number."
-  [n]
-
-  (js/Math.abs n))
+(defn sqrt* "Square root." [n] (js/Math.sqrt n))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sqr*
-
-  "Square a number."
-  [n]
-
-  (* n n))
+(defn sqr* "Square a number." [n] (* n n))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn raise!
-
   "Throw an exception."
   [& args]
-
   (throw (js/Error. (cs/join "" args))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def undef-fn (constantly js/undefined))
-(def false-fn (constantly false))
-(def true-fn (constantly true))
-(def nil-fn (constantly nil))
+(def fn-undef (constantly js/undefined))
+(def fn-false (constantly false))
+(def fn-true (constantly true))
+(def fn-nil (constantly nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn debug*
-
-  "Debug log to console."
-  [& msgs]
-
-  (clog msgs))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn info*
-
-  "Info log to console."
-  [& msgs]
-
-  (clog msgs))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn warn*
-
-  "Warning log to console."
-  [& msgs]
-
-  (clog msgs))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn error*
-
-  "Error log to console."
-  [& msgs]
-
-  (clog msgs))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn x->str
-
-  "Call toString on the argument."
-  [x]
-
-  (.toString (if (number? x) (js/Number x) x)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn clj->json
-
-  "Clojure object to string."
-  [obj]
-
-  (js/JSON.stringify (clj->js obj)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn repeatStr
-
-  "Repeat the string N times."
-  [times s]
-
-  (gs/repeat s times))
+(defn repeat-str
+  "Repeat string n times."
+  [times s] (gs/repeat s times))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn zero??
-
-  "Safe test if zero."
-  [n]
-
-  (and (number? n) (zero? n)))
+  "Safe test zero?"
+  [n] (and (number? n) (zero? n)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pos??
-
-  "Safe test if positive."
-  [n]
-
-  (and (number? n) (pos? n)))
+  "Safe test pos?"
+  [n] (and (number? n) (pos? n)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn neg??
-
-  "Safe test if negative."
-  [n]
-
-  (and (number? n) (neg? n)))
+  "Safe test neg?"
+  [n] (and (number? n) (neg? n)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn numFlip
-
-  "Invert a number if not zero."
+(defn num-flip
+  "Invert number if not zero."
   [x]
-
-  (if (number? x) (if (zero?? x) 0 (/ 1 x)) 0))
+  (if (number? x) (if (zero? x) 0 (/ 1 x)) 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn nneg?
-
-  "True if not negative."
-  [x]
-
-  (not (neg?? x)))
+(defn nneg? "Not neg?" [x] (not (neg?? x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn num??
-
-  "If arg is not a number, return something else."
-  [arg n]
-
-  (if (number? arg) arg n))
+  "If n is not a number, return other."
+  [n other] (if (number? n) n other))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn numSign
-
-  "Return the sign of the number."
+(defn num-sign
+  "Sign of the number."
   [n]
-
   (cond (zero?? n) 0 (pos?? n) 1 :else -1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn s->float
-
-  "A string into float."
-  [x]
-
-  (gs/toNumber x))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn s->int
-
-  "A string into int."
-  [x]
-
-  (gs/toNumber x))
+(defn str->num "String to number." [s] (gs/toNumber s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn nestr?
-
-  "Non empty string"
-  [s]
-
-  (and (string? s) (not-empty s)))
+  "Non empty string?"
+  [s] (and (string? s) (not-empty s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn estr?
-
-  "Empty string"
-  [s]
-
-  (not (nestr? s)))
+(defn estr? "Empty string?" [s] (not (nestr? s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn nichts?
-
-  "True if object is either null of undefined"
-  [obj]
-
-  (or (undefined? obj) (nil? obj)))
+  "Object is null or undefined?"
+  [obj] (or (undefined? obj) (nil? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn escXml
-
-  "Escape XML special chars"
+(defn esc-xml
+  "Escape XML special chars."
   [s]
-
-  (let [out (array)]
-    (doseq [c s]
-      (.push out (condp = c
-                   "&" "&amp;"
-                   ">" "&gt;"
-                   "<" "&lt;"
-                   "\"" "&quot;"
-                   "'" "&apos;" c))) (cs/join "" out)))
+  (loop [i 0 SZ (n# s) ret (c/tvec*)]
+    (if (>= i SZ)
+      (cs/join "" (c/pert! ret))
+      (let [c (nth s i)]
+        (recur (+ 1 i) SZ (conj! ret
+                                 (condp = c
+                                   "&" "&amp;"
+                                   ">" "&gt;"
+                                   "<" "&lt;"
+                                   "\"" "&quot;"
+                                   "'" "&apos;" c)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn splitSeq
-
+(defn split-seq
   "Split a collection into 2 parts"
   [coll cnt]
-
   (if (< cnt (n# coll))
     (vector (take cnt coll)
             (drop cnt coll))
-    (vector (concat [] coll) [])))
+    (vector (cc+ [] coll) [])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn percent
-
   "Return the percentage."
   [numerator denominator]
-
   (* 100.0 (/ numerator denominator)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn numToFixed
-
+(defn num->fixed
   "Print number to n decimals."
   [n & [digits]]
-
   (ocall (js/Number. n) "toFixed" (num?? digits 2)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn splitStr
-
-  "Returns a sequence of strings of n characters each."
+(defn split-str
+  "Split a string into n chars each."
   [n string]
-
   (map #(cs/join "" %) (partition-all n string)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn minBy
+(defn compare-asc*
+  "A generic compare function."
+  [f]
+  (fn_2 (cond (< (f ____1) (f ____2)) -1
+              (> (f ____1) (f ____2)) 1 :else 0)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn compare-des*
+  "A generic compare function."
+  [f]
+  (fn_2 (cond (< (f ____1) (f ____2)) 1
+              (> (f ____1) (f ____2)) -1 :else 0)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- xxx-by
+  "Used by min-by & max-by - internal."
+  [cb f coll]
+  (if (not-empty coll)
+    (reduce cb (_1 coll) (rest coll)) js/undefined))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn min-by
   "Find item with minimum value as defined by the function."
   [f coll]
-
-  (if (not-empty coll)
-    (reduce #(if (< (f %1)
-                    (f %2)) %1 %2) (_1 coll) (rest coll)) js/undefined))
+  (xxx-by #(if (< (f %1) (f %2)) %1 %2) f coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn maxBy
-
+(defn max-by
   "Find item with maximum value as defined by the function."
   [f coll]
-
-  (if (not-empty coll)
-    (reduce #(if (< (f %1)
-                    (f %2)) %2 %1) (_1 coll) (rest coll)) js/undefined))
+  (xxx-by #(if (< (f %1) (f %2)) %2 %1) f coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn randRange
-
-  "Return a random number between this 2 numbers."
+(defn rand-range
+  "Pick a random number between 2 limits."
   [from to]
-
   (js/Math.floor (+ from (* (rand) (+ 1 (- to from))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn isSSL?
-
-  "True if the browser url is secured."
+(defn is-ssl?
+  "If the browser url is secured?"
   []
-
   (and js/window
        js/window.location
-       (contains? js/window.location.protocol "https")))
+       (in? js/window.location.protocol "https")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getWebSockProtocol
-
-  "Return the websocket protocol."
+(defn get-websock-protocol
+  "Websocket protocol prefix."
   []
-
-  (if (isSSL?) "wss://" "ws://"))
+  (if (is-ssl?) "wss://" "ws://"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn fmtUrl
-
+(defn fmt-url
   "Format a URL based on the current web address host."
   [scheme uri]
-
   (if (and js/window
            js/window.location)
       (str scheme js/window.location.host uri) ""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn objectize
+(defn str->js
+  "String to js-object."
+  [s] (if (string? s) (js/JSON.parse s)))
 
-  "Parse json string into js-object."
-  [s]
-
-  (if (string? s) (js/JSON.parse s)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn str->clj
+  "String to clj-object."
+  [s] (js->clj (str->js s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn jsonize
-
-  "JS object into json string."
+  "To json string."
   [obj]
-
-  (if (some? obj) (js/JSON.stringify obj) ""))
+  (condp = obj
+    js/undefined nil
+    nil "null"
+    (js/JSON.stringify (if (or (array? obj)
+                               (object? obj)) obj (clj->js obj)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn jsonize*
-
-  "Clojure object into json string."
-  [obj]
-
-  (jsonize (clj->js obj)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn fillArray
-
-  "Return js-array with length (len) and filled with value."
+(defn fill-array
+  "JS-array with length (len) filled with value."
   [value len]
-
-  (do-with [arr (array)] (dotimes [_ len] (.push arr value))))
+  (do-with [out (array)] (dotimes [_ len] (.push out value))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn copyArray
-
-  "Copy data into another js-array."
+(defn copy-array
+  "Copy data into another JS-array."
   [src des]
   {:pre [(= (n# src)(n# des))
          (and (array? src)(array? des))]}
-
   (do-with [des]
-           (dotimes [n (n# src)] (aset des n (nth src n)))))
+    (dotimes [n (n# src)] (aset des n (nth src n)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn isMobile?
-
-  "Test if the client is a mobile device."
+(defn is-mobile?
+  "If client is a mobile device."
   [navigator]
-
   (if (some? navigator)
     (-> #"(?i)Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini"
         (re-matches (oget navigator "?userAgent")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn isSafari?
-
-  "Test if the client is Safari browser."
+(defn is-safari?
+  "If client is Safari browser."
   [navigator]
-
   (if (some? navigator)
     (and (re-matches #"Safari"
                      (oget navigator "?userAgent"))
@@ -391,36 +264,27 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pde
-
   "Prevent default propagation of this event."
   [e]
-
-  (if (fn? (oget e "?preventDefault"))
-    (ocall e "preventDefault")
-    (oset! e "returnValue" false)))
+  (if-func [f (oget e "?preventDefault")]
+    (ocall e "preventDefault") (oset! e "returnValue" false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn clamp
-
   "Clamp a value between 2 limits."
-  [low high a]
-
-  (if (< a low) low (if (> a high) high a)))
+  [low high v]
+  (if (< v low) low (if (> v high) high v)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn randSign
-
+(defn rand-sign
   "Randomly pick positive or negative."
   []
-
   (if (zero? (rem (js/Math.floor (rand 10)) 2)) -1 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn randItem
-
-  "Randomly choose an item from this array."
+(defn crand
+  "Randomly choose an item from an array."
   [coll]
-
   (let [sz (n# coll)]
     (condp = sz
       0 js/undefined
@@ -428,76 +292,67 @@
       (nth coll (js/Math.floor (* (rand) sz))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn randPercent
-
+(defn prand
   "Randomly choose a percentage in step of 10."
   []
-
-  (randItem [0.1 0.9 0.3 0.7 0.6 0.5 0.4 0.8 0.2]))
+  (crand [0.1 0.9 0.3 0.7 0.6 0.5 0.4 0.8 0.2]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn toBasicAuthHeader
-
+(defn basic-auth-header
   "Format input into HTTP Basic Authentication."
   [user pwd]
-
   ["Authorization" (str "Basic "
                         (b64/encodeString (str "" user ":" pwd) true))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn deepMerge
-
+(defn deep-merge
   "Merge (deep) of clojure data."
   [a b & more]
-
-  (let [tmp (transient a)]
+  (do-with-transient [tmp (c/tmap* a)]
     (doseq [[k vb] b
             :let [va (get a k)]]
-      (assoc! tmp k (if-not (contains? a k)
-                      vb
-                      (cond (and (map? vb) (map? va))
-                            (deepMerge va vb)
-                            (and (set? vb) (set? va))
-                            (cst/union va vb)
-                            :else vb))))
-    (persistent! tmp)))
+      (assoc! tmp
+              k
+              (if-not (in? a k)
+                vb
+                (cond (and (map? vb)
+                           (map? va))
+                      (deep-merge va vb)
+                      (and (set? vb)
+                           (set? va))
+                      (cst/union va vb)
+                      :else vb))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;testing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private T_OKAY "PASSED")
-(def ^:private T_EROR "FAILED")
-(defn ensureTest
-
+(def ^:private T-OKAY "PASSED")
+(def ^:private T-EROR "FAILED")
+(defn ensure-test
   "Assert a test condition, returning a message."
   [cnd msg]
-
-  (str (try (if cnd T_OKAY T_EROR)
-            (catch js/Error e T_EROR)) ": " msg))
+  (str (try (if cnd T-OKAY T-EROR)
+            (catch js/Error e T-EROR)) ": " msg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn ensureTestThrown
-
-  "Assert a exception thrown during test."
+(defn ensure-test-thrown
+  "Assert an exception is thrown during test."
   [expected error msg]
-
   (str (if (nichts? error)
-         T_EROR
+         T-EROR
          (cond (string? expected)
                (if (or (= expected "any")
-                       (= expected error)) T_OKAY T_EROR)
+                       (= expected error)) T-OKAY T-EROR)
                (instance? expected error)
-               T_OKAY
+               T-OKAY
                :else
-               T_EROR)) ": " msg))
+               T-EROR)) ": " msg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn runtest
-
   "Run a test group, returning the summary."
   [test & [title]]
   {:pre [(fn? test)]}
-
   (let [f #(cs/starts-with? % "P")
         mark (system-time)
         results (test)
@@ -506,12 +361,12 @@
         diff (- (system-time) mark)
         perc (int (* 100 (/ ok sum)))]
     (cs/join "\n"
-             [(repeatStr 78 "+")
+             [(repeat-str 78 "+")
               (or title "test")
               (js/Date.)
-              (repeatStr 78 "+")
+              (repeat-str 78 "+")
               (cs/join "\n" results)
-              (repeatStr 78 "=")
+              (repeat-str 78 "=")
               (cs/join "" ["Passed: " ok "/" sum " [" perc  "%]"])
               (str "Failed: " (- sum ok))
               (cs/join "" ["cpu-time: " diff "ms"])])))
@@ -519,54 +374,44 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;monads
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmonad monad-identity
-
+(defmonad m-identity
   "Monad describing plain computations. This monad does in fact nothing
   at all. It is useful for testing, for combination with monad
   transformers, and for code that is parameterized with a monad."
-
-  (vector :bind (fn [mv mf] (mf mv)) :unit (fn [x] x)))
+  (vector :bind (fn [mv mf] (mf mv)) :unit identity))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmonad monad-maybe
-
+(defmonad m-maybe
   "Monad describing computations with possible failures. Failure is
   represented by nil, any other value is considered valid. As soon as
   a step returns nil, the whole computation will yield nil as well."
-
-  (vector :unit (fn [x] x)
+  (vector :unit identity
           :bind (fn [mv mf] (if-not (nichts? mv) (mf mv)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmonad monad-list
-
+(defmonad m-list
   "Monad describing multi-valued computations, i.e. computations
   that can yield multiple values. Any object implementing the seq
   protocol can be used as a monadic value."
-
   (vector :bind (fn [mv mf] (flatten (map mf mv)))
-          :unit (fn [x] (vector x))
+          :unit (fn_1 (vector ____1))
           :zero []
-          :plus (fn [& xs] (flatten xs))))
+          :plus (fn_* (flatten ____xs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmonad monad-state
-
+(defmonad m-state
   "Monad describing stateful computations. The monadic values have the
   structure (fn [old-state] [result new-state])."
-
-  (vector :unit (fn [v] (fn [x] [v x]))
+  (vector :unit (fn [v] (fn [s] [v s]))
           :bind (fn [mv mf]
                   (fn [s]
                     (let [[v s'] (mv s)] ((mf v) s'))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmonad monad-continuation
-
+(defmonad m-continuation
   "Monad describing computations in continuation-passing style. The monadic
   values are functions that are called with a single argument representing
   the continuation of the computation, to which they pass their result."
-
   (vector :unit (fn [v] (fn [cont] (cont v)))
           :bind (fn [mv mf]
                   (fn [cont]
@@ -574,13 +419,51 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn run-cont
-
   "Execute the computation cont
   in the cont monad and return its result."
   [cont]
-
   (cont identity))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;in memory store
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn new-memset
+  "New in-memory object store. Object must be an atom."
+  [& [batch]]
+  (atom {:batch (num?? batch 10) :size 0 :next 0 :slots #js[]}))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn add->set! "" [store obj]
+  {:pre [(atom? obj)]}
+  (do-with [obj]
+    (swap! store
+           (fn [{:keys [:next :size
+                        :batch :slots] :as root}]
+             (let [g #(do (c/n-times batch (.push slots nil))
+                          (+ size batch))
+                   next1 (+ 1 next)
+                   size' (if (< next size) size (g))]
+               (swap! obj #(assoc % :____slot next))
+               (aset slots next obj)
+               (assoc root :next next1 :size size'))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn drop->set!
+  "Free the object from the store."
+  [store obj]
+  (if (atom? obj)
+    (swap! store
+           (fn [{:keys [:next :slots] :as root}]
+             (let [next1 (- next 1)
+                   tail (aget slots next1)
+                   slot' (:____slot @tail)
+                   epos' (:____slot @obj)]
+               ;move the tail to old slot
+               (aset slots next1 nil)
+               (aset slots epos' tail)
+               (swap! tail #(assoc % :____slot epos'))
+               (swap! obj #(dissoc % :____slot))
+               (merge root {:next next1}))))) store)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

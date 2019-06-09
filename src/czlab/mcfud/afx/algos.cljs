@@ -11,81 +11,77 @@
 
   czlab.mcfud.afx.algos
 
-  (:require-macros [czlab.mcfud.afx.core :as ec
-                                         :refer [_1 n#]])
-  (:require [czlab.mcfud.afx.core :as ec
-                                  :refer [zero?? POS-INF NEG-INF]]))
+  (:require [czlab.mcfud.afx.core
+             :as c :refer [n# _1 zero?? POS-INF NEG-INF]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(declare negamax)
+(declare nega)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mark!!
-
   "Checkpoint the current game state."
   [current other lastMove state]
-
-  (atom {:lastBestMove lastMove
+  (atom {:last-best-move lastMove
          :other other :cur current :state state}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- negamax*
-
+(defn- nega*
   "The core of the nega max algo."
-  [{:keys [nextMoves
-           makeMove
-           switchPlayer
-           undoMove] :as board} game depth maxDepth alpha beta]
-
-  (let [attempts (nextMoves game)
-        sz (n# attempts)
-        m1 (_1 attempts)]
-    (when (= depth maxDepth)
-      (swap! game #(assoc % :lastBestMove m1)))
-    (loop [n 0 break? false
-           bestValue' NEG-INF bestMove' m1 alpha' alpha beta' beta]
-      (if (or break? (>= n sz))
-        bestValue'
-        (let [move (nth attempts n)
-              n' (+ 1 n)]
-          (doto game (makeMove move) (switchPlayer))
-          (let [rc (- (negamax board
-                               game
-                               (- depth 1) maxDepth (- beta') (- alpha')))
-                bestValue'' (max bestValue' rc)]
-            (doto game (switchPlayer) (undoMove move))
+  [board game level depth alpha beta]
+  (let [{:keys [make-move
+                undo-move
+                next-moves
+                switch-player]} board
+        tries (next-moves game)
+        sz (n# tries)
+        m1 (_1 tries)]
+    (if (= level depth)
+      (swap! game #(assoc % :last-best-move m1)))
+    (loop [n 0 brk? false v' NEG-INF
+           move' m1 A' alpha B' beta]
+      (if (or brk? (>= n sz))
+        v'
+        (let [n' (+ 1 n) move (nth tries n)]
+          (make-move game move)
+          (switch-player game)
+          (let [rc (- (nega board
+                            game
+                            (- level 1)
+                            depth
+                            (- B')
+                            (- A'))) v'' (max v' rc)]
+            (switch-player game)
+            (undo-move game move)
             ;;check
-            (if (< alpha' rc)
-              (do (when (= depth maxDepth)
-                    (swap! game #(assoc % :lastBestMove move)))
-                  (recur n' (if (>= rc beta') true break?) bestValue'' move rc beta'))
-              (recur n' break? bestValue'' bestMove' alpha' beta'))))))))
+            (if (< A' rc)
+              (do (if (= level depth)
+                    (swap! game #(assoc % :last-best-move move)))
+                  (recur n'
+                         (if (>= rc B')
+                           true brk?)
+                         v'' move rc B'))
+              (recur n' brk? v'' move' A' B'))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- negamax
-
-  "The entry point of the nega max algo."
-  [{:keys [isOver? evalScore] :as board} game depth maxDepth alpha beta]
-
-  (if (or (zero?? depth)
-          (isOver? game))
-    (evalScore game)
-    (negamax* board game depth maxDepth alpha beta)))
+(defn- nega
+  "Entry point of the nega max algo."
+  [board game level depth alpha beta]
+  (let [{:keys [is-over? eval-score]} board]
+    (if (or (zero?? level)
+            (is-over? game))
+      (eval-score game)
+      (nega* board game level depth alpha beta))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn evalNegaMax
-
+(defn negamax
   "Run the algo nega-max, returning the next best move."
-  [{:keys [marker syncState] :as board} depth & args]
-
-  (apply syncState args)
+  [{:keys [marker sync-state] :as board} level & args]
+  (apply sync-state args)
   (let [game (marker)]
-    (negamax board game
-             depth depth
-             NEG-INF POS-INF) (:lastBestMove @game)))
+    (nega board game
+          level level
+          NEG-INF POS-INF) (:last-best-move @game)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
-
 

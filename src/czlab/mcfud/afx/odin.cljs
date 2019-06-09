@@ -11,226 +11,181 @@
 
   czlab.mcfud.afx.odin
 
-  (:require-macros [czlab.mcfud.afx.core
-                    :as ec :refer [trye! defvoid defvoid-]])
-
-  (:require [czlab.mcfud.afx.ebus :as ebus]
+  (:require [czlab.mcfud.afx.ebus :as e]
             [czlab.mcfud.afx.core
-             :as ec :refer [info* warn* debug* objectize jsonize]]
+             :as c :refer [do-with defenum trye!
+                           let->nil debug* warn* fn_1]]
             [oops.core :refer [oget oset! ocall oapply
                                ocall! oapply! oget+
                                oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def msg-network 1)
-(def msg-session 2)
+(defenum net not-connected 0 connected)
+(defenum msg network 1 session)
+(defenum evt
+  playreq 1
+  joinreq
+  start
+  stop
+  restart
+  replay
+  poke-move
+  poke-wait
+  poke-rumble
+  play-move
+  quit-game
+  await-start
+  sync-arena)
 
-(def evt-playgame-req 3)
-(def evt-joingame-req 4)
-
-(def evt-playreq-nok 10)
-(def evt-joinreq-nok 11)
-(def evt-user-nok 12)
-(def evt-game-nok 13)
-(def evt-room-nok 14)
-(def evt-room-filled 15)
-(def evt-rooms-full 16)
-
-(def evt-playreq-ok 30)
-(def evt-joinreq-ok 31)
-
-(def evt-await-start 40)
-(def evt-sync-arena 45)
-(def evt-poke-rumble 46)
-
-(def evt-restart 50)
-(def evt-start 51)
-(def evt-stop 52)
-(def evt-poke-move 53)
-(def evt-poke-wait 54)
-(def evt-play-move 55)
-(def evt-replay 56)
-
-(def evt-quit-game 60)
-
-(def evt-player-joined 90)
-(def evt-started 95)
-(def evt-connected 98)
-(def evt-error 99)
-(def evt-closed 100)
-
-(def net-not-connected 0)
-(def net-connected 1)
+(defenum evt
+  playreq-ok 100
+  joinreq-ok
+  playreq-nok
+  joinreq-nok
+  user-nok
+  game-nok
+  room-nok
+  room-filled
+  rooms-full
+  player-joined
+  started
+  connected
+  error
+  closed)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- mkEvent
-
-  "Create a new event object."
+(defn- mkevent
+  "New event object."
   [eventType code payload]
-
-  {:timeStamp (system-time) :etype eventType :ecode code :source payload})
+  {:time-stamp (system-time) :etype eventType :ecode code :source payload})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- mkPlayRequest
-
+(defn- mk-play-request
   "Create a PLAY REQUEST event."
   [game user pwd]
-
-  (mkEvent evt-playgame-req
-           -1
-           {:game game :user user :password pwd}))
+  (mkevent evt-playreq -1 {:game game :user user :password pwd}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- mkJoinRequest
-
+(defn- mk-join-request
   "Create a JOIN REQUEST event."
   [room user pwd]
-
-  (mkEvent evt-joingame-req
-           -1
-           {:room room :user user :password pwd}))
+  (mkevent evt-joinreq -1 {:room room :user user :password pwd}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- json-decode
-
   "Decode the input json string."
   [input]
-
-  (let [obj (or (trye! (objectize input)) #js{})]
-    (merge {:etype -1 :ecode -1} (js->clj obj))))
+  (merge {:etype -1 :ecode -1}
+         (trye! (c/str->clj input))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- getPlayRequest
-
+(defn- get-play-request
   "Get the PLAY REQUEST as json string."
   [game user password]
-
-  (jsonize (clj->js (mkPlayRequest game user password))))
+  (c/jsonize (mk-play-request game user password)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;connecting 0 open 1 closing 2 closed 3
-(defvoid odinConnect
-
+(defn odin-connect!
   "Connect to this url and request a websocket upgrade."
   [odin url]
+  (do-with [odin]
+    (let [ws (new js/WebSocket url)
+          {:keys [ebus game user password]} @odin]
+      (oset! ws
+             "onopen"
+             (fn_1 (ocall ws "send" (get-play-request game user password))))
 
-  (let [ws (new js/WebSocket url)
-        {:keys [ebus game user password]} @odin]
-    (->>
-      (fn [_]
-        (ocall ws
-               "send"
-               (getPlayRequest game user password)))
-      (oset! ws "onopen"))
-
-    (->>
-      (fn [e]
-        (let [{:keys [etype ecode] :as evt}
-              (json-decode (oget e "data"))]
-          (case etype
-            (msg-network | msg-session)
-            (ebus/pub ebus (str etype "." ecode) evt)
-            (warn* "unhandled evt: " etype ", code= " ecode))))
-      (oset! ws "onmessage"))
-
-    (->>
-      (fn [_] (debug* "closing websocket."))
-      (oset! ws "onclose"))
-
-    (->>
-      (fn [e] (debug* "websocket error: " e))
-      (oset! ws "onerror"))
-
-    (swap! odin #(assoc % :wsock ws))))
-
+      (oset! ws
+             "onmessage"
+             (fn_1 (let [{:keys [etype ecode] :as evt}
+                         (json-decode (oget ____1 "data"))]
+                     (case etype
+                       (msg-network | msg-session)
+                       (e/pub ebus (str etype "." ecode) evt)
+                       (warn* "unhandled evt: " etype ", code= " ecode)))))
+      (oset! ws "onclose" (fn_1 (debug* "closing websocket.")))
+      (oset! ws "onerror" (fn_1 (debug* "websocket error: " ____1)))
+      (swap! odin #(assoc % :wsock ws)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn odinSession
-
+(defn odin-session
   "Create a session."
   [config]
-
   (atom (merge {:subcs #{}
                 :wsock nil
-                :ebus (ebus/newEventBus)} config)))
+                :ebus (e/new-event-bus)} config)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn odinSend
+(defn- ready?
+  "If socket ready?"
+  [wsock]
+  (= 1 (oget wsock "readyState")))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn odin-send
   "Send this event through the socket."
   [odin evt]
-
-  (let [{:keys [wsock]} @odin]
+  (let->nil [{:keys [wsock]} @odin]
     (if (and (some? wsock)
-             (= 1 (oget wsock "readyState")))
-      (ocall wsock "send" (jsonize (clj->js evt))))))
+             (ready? wsock)) (ocall wsock "send" (c/jsonize evt)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn odinListen
-
+(defn odin-listen
   "Listen to this message-type and event."
   [odin msgType evtCode callback]
-
   (let [{:keys [ebus subcs]} @odin
-        h (ebus/sub+ ebus
-                     (str msgType "." evtCode) callback)]
+        h (e/sub+ ebus
+                  (str msgType "." evtCode) callback)]
     (swap! odin
            #(update-in %
                        [:subcs]
-                       (fn [c] (conj c h)))) h))
+                       (fn_1 (conj ____1 h)))) h))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn odinListen+
-
+(defn odin-listen+
   "Listen to all message events."
   [odin callback]
-
-  [(odinListen odin msg-network ">" callback)
-   (odinListen odin msg-session ">" callback)])
+  [(odin-listen odin msg-network ">" callback)
+   (odin-listen odin msg-session ">" callback)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvoid odinCancelAll!
-
+(defn odin-cancel-all!
   "Cancel and remove all subscribers."
   [odin]
-
-  (swap! odin
-         (fn [{:keys [ebus] :as root}]
-           (ebus/unsubAll! ebus)
-           (assoc root :subcs #{}))))
+  (do-with [odin]
+    (swap! odin
+           (fn [{:keys [ebus] :as root}]
+             (e/unsub-all! ebus)
+             (assoc root :subcs #{})))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvoid odinCancel!
-
+(defn odin-cancel!
   "Cancel this subscriber."
   [odin subid]
-
-  (swap! odin
-         (fn [{:keys [ebus subcs] :as root}]
-           (ebus/unsub ebus subid)
-           (assoc root :subcs (disj subcs subid)))))
+  (do-with [odin]
+    (swap! odin
+           (fn [{:keys [ebus subcs] :as root}]
+             (e/unsub! ebus subid)
+             (assoc root :subcs (disj subcs subid))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvoid odinClose
-
+(defn- odin-close!
   "Close the connection to the socket."
   [odin]
-
-  (odinCancelAll! odin)
-  (swap! odin
-         (fn [{:keys [wsock] :as root}]
-           (if (and (some? wsock)
-                    (= 1 (oget wsock "readyState")))
-             (trye! (ocall wsock "close")))
-           (assoc root :wsock nil))))
+  (odin-cancel-all! odin)
+  (do-with [odin]
+    (swap! odin
+           (fn [{:keys [wsock] :as root}]
+             (if (and (some? wsock)
+                      (ready? wsock))
+               (trye! (ocall wsock "close")))
+             (assoc root :wsock nil)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvoid disconnect
-
-  "Disconnect from the socket."
-  [odin]
-
-  (odinClose odin))
+(defn odin-disconnect!
+  "Close the socket."
+  [odin] (odin-close! odin))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

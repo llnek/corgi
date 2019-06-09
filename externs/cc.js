@@ -2,6 +2,7 @@
 //function as gl.  and this gl will shadow the window.gl that
 //cocos2dx internally creates.  so need to do this so goog won't
 //touch the name gl
+var dbody=document.body;
 var gl={};
 var cp={
   BoxShape: function(){},
@@ -52,10 +53,17 @@ var cc = {
                runScene:function(){} },
 
   eventManager: {
+    resumeTarget: function(){},
+    pauseTarget: function(){},
     addListener: function(){}
   },
   LoaderScene : { preload:function(){} }
 };
+
+var emgr=cc.eventManager;
+var dtor=cc.director;
+var view=cc.view;
+var sys=cc.sys;
 
 var jsb={
   fileUtils: {
@@ -77,6 +85,8 @@ cc.Node.prototype.setScale=function(){};
 cc.Node.prototype.addChild=function(){};
 cc.Node.prototype.setAnchorPoint=function(){};
 
+var nproto=cc.Node.prototype;
+
 cc.DrawNode=function(){};
 cc.Sequence=function(){};
 cc.Sequence.create=function(){};
@@ -92,10 +102,12 @@ cc.MenuItemFont.setFontSize=function(){};
 
 cc.Director=function(){};
 cc.Director.PROJECTION_2D={};
+var Dtor=cc.Director;
 
 cc.loader={
   load:function(){}
 };
+var cldr=cc.loader;
 
 cc.audioEngine= {
   setMusicVolume:function(){},
@@ -159,6 +171,8 @@ cc.Scene=function(){};
 cc.Scene.prototype.extend=function() {};
 cc.Scene.prototype.addChild=function(){};
 cc.Scene.prototype._super=function(){};
+
+var sproto=cc.Scene.prototype;
 
 cc.SpriteBatchNode=function(){};
 cc.textureCache={

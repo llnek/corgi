@@ -11,14 +11,9 @@
 
   czlab.mcfud.afx.gfx2d
 
-  (:require-macros [czlab.mcfud.afx.core
-                    :as ec :refer [defvoid defvoid- half* _1 n# assoc!!]])
-
   (:require [oops.core :refer [oget oset! oapply!+ ocall!]]
-            [czlab.mcfud.afx.core
-             :as ec :refer [num?? numFlip sqrt* abs*]]
-            [czlab.mcfud.afx.math
-             :as ma :refer [TWO-PI wrap?? vec2 vec-rot vec-zero]]))
+            [czlab.mcfud.afx.math :as m :refer [TWO-PI vec2]]
+            [czlab.mcfud.afx.core :as c :refer [do->nil atom? cc+ _1 n# num??]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;(def *coordinate-system* :right-handed)
@@ -26,70 +21,59 @@
 (def ^:private _cocos2dx? true)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvoid canvasBatchOps!
-
+(defn canvas-batch!
   "Apply a sequence of operations to the html5 canvas,
   with each op being [method arg1 arg2 ...]"
   [ctx & callArgs]
-
-  (doseq [a callArgs] (oapply!+ ctx (_1 a) (rest a))))
+  (doseq [a callArgs
+          :let [[x & xs] a]] (oapply!+ ctx x xs)) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- addPt??
-
+(defn- addpt??
   "Add a point to the object."
   [obj & [pt]]
-
   (if (array? pt) (assoc obj :pos pt) obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;graphics
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Area
-
-  "Represents the size of an area."
+  "Size of a rectangle."
   [width height]
-
-  {:wide width :tall height})
+  {:width width :height height})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Rect
-
   "Defines a rectangle, origin is left+bottom, and area."
   [origin width height]
   {:pre [(array? origin)]}
-
-  (let [[x y] origin] {:x x :y y :wide width :tall height}))
+  (let [[x y] origin] {:x x :y y :width width :height height}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn textStyle
-
+(defn text-style
   "Html5 Text Style object."
   []
-
   {:font "14px 'Arial'"
    :fill "#dddddd" :align "left" :base "top" })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvoid drawShape
-
+(defn draw-shape
   "Draw the shape onto the html5 canvas."
   [s canvas & args]
-
   (let [{:keys [draw]}
-        (if (map? s) s @s)] (apply draw (concat [s canvas] args))))
+        (cond
+          (atom? s) @s
+          (map? s) s :else nil)] (apply draw (cc+ [s canvas] args))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- polyArea
-
+(defn- poly-area
   "Calculate the area of this polygon."
   [{:keys [vertices] :as P}]
-
   (loop [i 0
          SZ (n# vertices) area 0]
     (if (>= i SZ)
-      (half* (abs* area))
-      (let [i2 (wrap?? i SZ)
+      (* .5 (c/abs* area))
+      (let [i2 (m/wrap?? i SZ)
             [xn yn] (nth vertices i2)
             [xi yi] (nth vertices i)]
         (recur (+ 1 i)
@@ -97,17 +81,15 @@
                (+ area (- (* xi yn) (* xn yi))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn calcPolyCenter
-
+(defn calc-poly-center
   "Find the center point of this polygon."
   [{:keys [vertices] :as P}]
-
-  (loop [A (* 6 (polyArea P))
+  (loop [A (* 6 (poly-area P))
          i 0
          SZ (n# vertices) cx 0 cy 0]
     (if (>= i SZ)
       (vec2 (/ cx A) (/ cy A))
-      (let [i2 (wrap?? i SZ)
+      (let [i2 (m/wrap?? i SZ)
             [xn yn] (nth vertices i2)
             [xi yi] (nth vertices i)]
         (recur A
@@ -117,173 +99,145 @@
                (+ cy (* (+ yi yn) (- (* xi yn) (* xn yi)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvoid cfgStyle!
-
+(defn cfg-style!
   "Apply styles to the canvas."
   [canvas styleObj]
-
-  (when-some [line (:line styleObj)]
-    (if-some [c (:cap line)] (oset! canvas "!lineCap" c))
-    (if-some [w (:width line)] (oset! canvas "!lineWidth" w)))
-  (when-some [k (:stroke styleObj)]
-    (if-some [s (:style k)] (oset! canvas "!strokeStyle" s))))
+  (do->nil
+    (when-some [line (:line styleObj)]
+      (if-some [c (:cap line)] (oset! canvas "!lineCap" c))
+      (if-some [w (:width line)] (oset! canvas "!lineWidth" w)))
+    (when-some [k (:stroke styleObj)]
+      (if-some [s (:style k)] (oset! canvas "!strokeStyle" s)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvoid polyDraw*
-
+(defn poly-draw*
   "Draw and connect this set of points onto the canvas."
   [vs canvas]
   {:pre [(or (list? vs)(vector? vs))]}
-
-  (ocall! canvas "beginPath")
-  (loop [i 0
-         SZ (n# vs)]
-    (when (< i SZ)
-      (let [i2 (wrap?? i SZ)
-            [x1 y1] (nth vs i)
-            [x2 y2] (nth vs i2)]
-        (canvasBatchOps! canvas
-                         ["moveTo" x1 y1]
-                         ["lineTo" x2 y2])
-        (recur (+ 1 i) SZ))))
-  (ocall! canvas "stroke"))
+  (do->nil
+    (ocall! canvas "beginPath")
+    (loop [i 0
+           SZ (n# vs)]
+      (when (< i SZ)
+        (let [i2 (m/wrap?? i SZ)
+              [x1 y1] (nth vs i)
+              [x2 y2] (nth vs i2)]
+          (c/jsto canvas
+                  ["moveTo" x1 y1]
+                  ["lineTo" x2 y2])
+          (recur (+ 1 i) SZ))))
+    (ocall! canvas "stroke")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvoid- polyDraw
-
+(defn- poly-draw
   "Draw this polygon."
   [p canvas]
-
-  (polyDraw* (:vertices p) canvas))
+  (poly-draw* (:vertices p) canvas))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Polygon
-
   "Create a polygonal shape."
   [vertices & [center]]
-
-  (addPt?? {:type :polygon
-            :draw polyDraw
+  (addpt?? {:type :polygon
+            :draw poly-draw
             :vertices (or vertices [])} center))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Edge
-
   "Define an edge of a shape."
   [v1 v2]
-
   {:v1 v1 :v2 v2})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvoid circleDraw*
-
+(defn circle-draw*
   "Draw a circle onto the canvas.  If a starting point
   is provided, draw a line to the center."
   [center radius angle canvas & [startPt?]]
-
   (let [[cx cy] center
         angle' (num?? angle 0)]
-    (canvasBatchOps! canvas
-                     ["beginPath"]
-                     ["arc" cx cy radius 0 TWO-PI true])
+    (c/jsto canvas
+            ["beginPath"]
+            ["arc" cx cy radius 0 TWO-PI true])
     (when startPt?
       (let [sp (vec2 (+ cx radius) cy)
-            [x y] (vec-rot sp angle' center)]
-        (canvasBatchOps! canvas
-                         ["moveTo" cx cy] ["lineTo" x y])))
-    (canvasBatchOps! canvas ["closePath"] ["stroke"])))
+            [x y] (m/vec-rot sp angle' center)]
+        (c/jsto canvas ["moveTo" cx cy] ["lineTo" x y])))
+    (c/jsto canvas ["closePath"] ["stroke"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvoid- circleDraw
-
+(defn- circle-draw
   "Draw a circle."
   [{:keys [radius pos] :as C} canvas & [center
                                         angle
                                         startPt?]]
-
-  (-> (or pos center (vec-zero 2))
-      (circleDraw* radius angle canvas startPt?)))
+  (-> (or pos center (m/vec-zero 2))
+      (circle-draw* radius angle canvas startPt?)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Circle
-
   "Create a circle shape."
   [radius & [center]]
-
-  (addPt?? {:draw circleDraw
+  (addpt?? {:draw circle-draw
             :type :circle :radius radius} center))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvoid- rectDraw
-
+(defn- rect-draw
   "Draw a reactgle, not used."
-  [{:keys [vertices wide tall] :as R} canvas & [angle]]
-
+  [{:keys [vertices width height] :as R} canvas & [angle]]
   (let [[x y] (nth vertices 0)]
-    (canvasBatchOps! canvas
-                     ["save"]
-                     ["translate" x y]
-                     ["rotate" (num?? angle 0)]
-                     ["strokeRect" 0 0 wide tall] ["restore"])))
+    (c/jsto canvas
+            ["save"]
+            ["translate" x y]
+            ["rotate" (num?? angle 0)]
+            ["strokeRect" 0 0 width height] ["restore"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rotRectVertices
-
+(defn rot-rect-vertices
   "Rotate a set of points."
   [vs pivot angle]
-
   (let [[v0 v1 v2 v3] vs]
-    (vector (vec-rot v0 angle pivot) (vec-rot v1 angle pivot)
-            (vec-rot v2 angle pivot) (vec-rot v3 angle pivot))))
+    (vector (m/vec-rot v0 angle pivot) (m/vec-rot v1 angle pivot)
+            (m/vec-rot v2 angle pivot) (m/vec-rot v3 angle pivot))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn calcRectVertices
-
+(defn calc-rect-vertices
   "Find the vertices of a rectangle."
   [[x y :as center] width height]
-
-  (let [hh (half* height)
-        hw (half* width)
+  (let [hh (* .5 height)
+        hw (* .5 width)
         base (if _cocos2dx? (- y hh) (+ y hh))
-        peak (if _cocos2dx? (+ y hh) (- y hh))
+        top (if _cocos2dx? (+ y hh) (- y hh))
         rhs (+ x hw)
         lhs (- x hw)]
-    (vector (vec2 lhs peak) (vec2 rhs peak)
+    (vector (vec2 lhs top) (vec2 rhs top)
             (vec2 rhs base) (vec2 lhs base))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Rectangle
-
   "Create a rectangle shape."
-  [{:keys [wide tall] :as area} & [p0]]
-
-  (let [p0 (or p0 (vec-zero 2))]
-    (-> (calcRectVertices p0 wide tall)
+  [{:keys [width height] :as area} & [p0]]
+  (let [p0 (or p0 (m/vec-zero 2))]
+    (-> (calc-rect-vertices p0 width height)
         (Polygon p0)
-        (assoc :type :rectangle :wide wide :tall tall))))
+        (assoc :type :rectangle :width width :height height))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvoid- lineDraw
-
+(defn- line-draw
   "Draw a line onto canvas."
   [line canvas]
-
   (let [{:keys [v1 v2]} line
         [ax ay] v1
         [ex ey] v2]
-    (canvasBatchOps! canvas
-                     ["beginPath"]
-                     ["moveTo" ax ay] ["lineTo" ex ey] ["stroke"])))
+    (c/jsto canvas
+            ["beginPath"]
+            ["moveTo" ax ay] ["lineTo" ex ey] ["stroke"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Line
-
   "Create a line shape."
   [ptA ptB]
-
-  {:v1 ptA :v2 ptB :draw lineDraw :type :line})
+  {:v1 ptA :v2 ptB :draw line-draw :type :line})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
 
