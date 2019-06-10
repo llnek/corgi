@@ -326,27 +326,27 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;testing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private T-OKAY "PASSED")
-(def ^:private T-EROR "FAILED")
+(def ^:private t-bad "FAILED")
+(def ^:private t-ok "PASSED")
 (defn ensure-test
   "Assert a test condition, returning a message."
   [cnd msg]
-  (str (try (if cnd T-OKAY T-EROR)
-            (catch js/Error e T-EROR)) ": " msg))
+  (str (try (if cnd t-ok t-bad)
+            (catch js/Error e t-bad)) ": " msg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn ensure-test-thrown
   "Assert an exception is thrown during test."
   [expected error msg]
   (str (if (nichts? error)
-         T-EROR
+         t-bad
          (cond (string? expected)
                (if (or (= expected "any")
-                       (= expected error)) T-OKAY T-EROR)
+                       (= expected error)) t-ok t-bad)
                (instance? expected error)
-               T-OKAY
+               t-ok
                :else
-               T-EROR)) ": " msg))
+               t-bad)) ": " msg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn runtest
@@ -437,8 +437,8 @@
   {:pre [(atom? obj)]}
   (do-with [obj]
     (swap! store
-           (fn [{:keys [:next :size
-                        :batch :slots] :as root}]
+           (fn [{:keys [next size
+                        batch slots] :as root}]
              (let [g #(do (c/n-times batch (.push slots nil))
                           (+ size batch))
                    next1 (+ 1 next)
@@ -453,7 +453,7 @@
   [store obj]
   (if (atom? obj)
     (swap! store
-           (fn [{:keys [:next :slots] :as root}]
+           (fn [{:keys [next slots] :as root}]
              (let [next1 (- next 1)
                    tail (aget slots next1)
                    slot' (:____slot @tail)

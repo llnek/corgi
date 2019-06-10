@@ -14,10 +14,10 @@
   (:require [czlab.mcfud.afx.core :as c :refer [if-some+ fn_* fn_1 n# _1 _2]]
             [czlab.mcfud.cc.ccsx
              :as x :refer [P-BOT CV-X CV-Z CV-O xcfg]]
-            [czlab.mcfud.cc.dialog :as d]
             [czlab.rygel.tictactoe.board :as b]
-            [czlab.mcfud.afx.algos :as a]
+            [czlab.mcfud.cc.dialog :as d]
             [czlab.mcfud.afx.ebus :as u]
+            [czlab.mcfud.afx.algos :as a]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -62,9 +62,6 @@
     -1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sync-status [] (write-status ""))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- switch-over []
   (let [{:keys [scene
                 pmap
@@ -73,8 +70,7 @@
         next' (if (= turn CV-X) CV-O CV-X)
         {:keys [ptype pid]} (get G (get pmap next'))]
     (swap! xcfg
-           (fn_1 (update-in ____1
-                            [:game] #(assoc % :turn next'))))
+           #(assoc-in % [:game :turn] next'))
     (if (= P-BOT ptype)
       (ocall! scene
               "scheduleOnce" (run-bot false) bot-time))
@@ -99,9 +95,7 @@
   (x/sfx-effect :game-tie)
   (on-end)
   (swap! xcfg
-         (fn_1 (update-in ____1
-                          [:game]
-                          #(assoc % :running? false)))))
+         #(assoc-in % [:game :running?] false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- won-game [value]

@@ -125,7 +125,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn is-portrait?
-  "if screen is oriented vertically."
+  "If screen is oriented vertically."
   []
   (let [[w h] (r-> (vrect))] (> h w)))
 
@@ -189,8 +189,8 @@
   "Calculate halves of width and height."
   [r]
   (js/cc.rect 0 0
-              (* .5 (oget-width r))
-              (* .5 (oget-height r))))
+              (/ (oget-width r) 2)
+              (/ (oget-height r) 2)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn get-height
@@ -218,8 +218,8 @@
 (defn trace-enclosure
   "Test if this box is hitting boundaries.
   If hit, the new position and velocities are returned."
-  [B rect vel dt]
-  (let [{:keys [top bottom left right]} (r->b4 B)
+  [R rect vel dt]
+  (let [{:keys [top bottom left right]} (r->b4 R)
         [hw hh] (r-> (half-rect rect))
         [cx cy] (p-> (mid-rect rect))
         [vx vy] (p-> vel)
@@ -246,7 +246,6 @@
 ;;cc.Node stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def WS-URI "/network/odin/websocket")
-(def game-data (atom nil))
 
 (defenum G ONE 1 TWO NET)
 (defenum P MAN 1 BOT)
@@ -303,7 +302,8 @@
   [e obj]
   (do->true
     (js/cc.eventManager.addListener
-      (oset! obj "!event" e) (:arena @game-data))))
+      (oset! obj "!event" e)
+      (gcbyn (get-in @xcfg [:game :scene]) "arena"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn has-keys?
@@ -318,12 +318,12 @@
   [s]
   (when (has-keys?)
     (debug* "about to listen to key events")
-    (->> (if (array? s)
-           #js{:onKeyPressed (fn_2 (aset s ____1 true))
-               :onKeyReleased (fn_2 (aset s ____1 false))}
-           #js{:onKeyPressed (fn_2 (e/pub s "key.down" ____1 ____2))
-               :onKeyReleased (fn_2 (e/pub s "key.up" ____1 ____2))})
-         (subevent js/cc.EventListener.KEYBOARD))))
+    (subevent js/cc.EventListener.KEYBOARD
+              (if (array? s)
+                #js{:onKeyPressed (fn [a b] (aset s a true))
+                    :onKeyReleased (fn [a b] (aset s a false))}
+                #js{:onKeyPressed (fn [a b] (e/pub s "key.down" a b))
+                    :onKeyReleased (fn [a b] (e/pub s "key.up" a b))}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn has-mouse?
@@ -339,11 +339,11 @@
     (debug* "about to listen to mouse events")
     (subevent js/cc.EventListener.MOUSE
               #js{:onMouseMove
-                  (fn_1 (if (= (ocall ____1 "getButton")
+                  (fn [a] (if (= (ocall a "getButton")
                                js/cc.EventMouse.BUTTON_LEFT)
-                          (e/pub s "mouse.move" ____1)))
-                  :onMouseDown (fn_1 (e/pub s "mouse.down" ____1))
-                  :onMouseUp (fn_1 (e/pub s "mouse.up" ____1))})))
+                            (e/pub s "mouse.move" a)))
+                  :onMouseDown (fn [a] (e/pub s "mouse.down" a))
+                  :onMouseUp (fn [a] (e/pub s "mouse.up" a))})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn has-touch?
@@ -352,7 +352,7 @@
   (some? (oget js/cc.sys.capabilities "?touches")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn on-touchall
+(defn on-touch-all
   "Subscribe to touch-all events."
   [s]
   (when (has-touch?)
@@ -360,17 +360,18 @@
     (let [obj #js{:onTouchesBegan c/fn-true
                   :prevTouchId -1
                   :onTouchesEnded
-                  (fn_2 (e/pub s "touch.all.end" ____1 ____2))}]
+                  (fn [a b] (e/pub s "touch.all.end" a b))}]
       (oset! obj
              "!onTouchesMoved"
-             (fn_2 (let [id (oget-id (_1 ____1))]
-                     (if (not= (oget obj "?prevTouchId") id)
-                       (oset! obj "!prevTouchId" id)
-                       (e/pub s "touch.all.move" ____1 ____2)))))
+             (fn [a b]
+               (let [id (oget-id (_1 a))]
+                 (if (not= (oget obj "?prevTouchId") id)
+                   (oset! obj "!prevTouchId" id)
+                   (e/pub s "touch.all.move" a b)))))
       (subevent js/cc.EventListener.TOUCH_ALL_AT_ONCE obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn on-touchone
+(defn on-touch-one
   "Subscribe to touch-one events."
   [s]
   (when (has-touch?)
@@ -378,8 +379,8 @@
     (subevent js/cc.EventListener.TOUCH_ONE_BY_ONE
               #js{:onTouchBegan c/fn-true
                   :swallowTouches true
-                  :onTouchMoved (fn_2 (e/pub s "touch.one.move" ____1 ____2))
-                  :onTouchEnded (fn_2 (e/pub s "touch.one.end" ____1 ____2))})))
+                  :onTouchMoved (fn [a b] (e/pub s "touch.one.move" a b))
+                  :onTouchEnded (fn [a b] (e/pub s "touch.one.end" a b))})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn anchor-value
@@ -427,18 +428,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- peg-menu??
   "Place a menu by anchoring to its parent."
-  [B anchor menu tag total padding flat?]
+  [R anchor menu tag total padding flat?]
   (do-with [menu]
     (let [{:keys [top bottom left right]}
-          (r->b4 B)
+          (r->b4 R)
           [width height]
           (r-> (bsize (gcbyt menu tag)))
           t (+ (* padding (- total 1))
                (* total (if flat? width height)))
           [w h] (if flat? [t height] [width t])
-          [cx cy :as cp] (p-> (mid-rect B))
-          hw (* .5 w)
-          hh (* .5 h)
+          [cx cy :as cp] (p-> (mid-rect R))
+          [hw hh] (c/mapfv / 2 w h)
           [x y]
           (condp = anchor
             ANCHOR-TOP-LEFT [(+ left hw) (- top hh)]
@@ -535,7 +535,7 @@
 (defn fire!
   "Publish a message on this topic."
   [topic & args]
-  (if-some [b (-> (:arena @game-data)
+  (if-some [b (-> (get-in @xcfg [:game :scene])
                   (oget "?ebus"))] (apply e/pub b (cc+1 topic args))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -606,8 +606,8 @@
   []
   (do->nil
     (swap! xcfg
-           #(update-in %
-                       [:audio :open?] (fn_1 (not ____1))))))
+           (fn_1 (update-in ____1
+                            [:audio :open?] #(not %))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sfx? "If sound is on?" [] (get-in @xcfg [:audio :open?]))
@@ -692,8 +692,7 @@
   (let [{:keys [topLeft image
                 dir parent curLives]} @g
         [width height] (r-> (bsize image))
-        hh (* .5 height)
-        hw (* .5 width)
+        [hw hh] (c/mapfv / 2 width height)
         w (* width (if (pos? dir) 1 -1))]
     (do-with [g]
       (swap! g
@@ -742,18 +741,11 @@
   (center!! R node (x/sprite* frame) tag zOrder))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn update-score
-;;kenl
-  "Update score."
-  [node score]
-  (ocall! node "setString" (str score)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn peg-to-anchor
   "Peg something to its parent based on the anchor-points."
-  [B node where]
-  (let [[x y] (p-> (mid-rect B))
-        {:keys [top bottom left right]} B]
+  [R node where]
+  (let [[x y] (p-> (mid-rect R))
+        {:keys [top bottom left right]} (r->b4 R)]
     (do-with [node]
       (x/pos! node
               (condp = where

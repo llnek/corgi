@@ -1,4 +1,4 @@
-;; Copyright ©  2013-2018, Kenneth Leung. All rights reserved.
+;; Copyright ©  2013-2019, Kenneth Leung. All rights reserved.
 ;; The use and distribution terms for this software are covered by the
 ;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;; which can be found in the file epl-v10.html at the root of this distribution.
@@ -27,15 +27,21 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn game-board [size gspace]
-  (let [actor (atom 0)
-        gop #(condp = %
-               CV-X CV-O
-               CV-O CV-X nil)
-        grid (c/fill-array CV-Z (* size size))]
+  (let [grid (c/fill-array CV-Z (* size size))
+        grid-size (n# grid)
+        actor (atom 0)
+        gop #(condp = % CV-X CV-O CV-O CV-X nil)]
     {:first-move (fn_0 (if (every? #(= CV-Z %) grid)
-                         (c/rand-range 0 (dec (n# grid))) -1))
-     :sync-state (fn [seed cur]
-                   (c/copy-array seed grid) (reset! actor cur))
+                         (c/rand-range 0 (- grid-size 1)) -1))
+     :sync-state! (fn [seed cur]
+                    (reset! actor cur)
+                    (c/copy-array seed grid)
+                    (atom (a/Snapshot. @actor
+                                       (gop @actor)
+                                       (.slice grid 0) -1)))
+     :best-move! (fn [game move]
+                   (swap! game
+                          #(assoc % :last-best-move move)))
      :next-moves #(loop [state (:state (deref %))
                          i 0
                          CZ (n# state)
@@ -47,17 +53,14 @@
                              CZ
                              (if (= CV-Z
                                     (nth state i)) (conj! out i) out))))
-     :undo-move #(aset (:state (deref %1)) %2 CV-Z)
-     :make-move #(let [{:keys [state cur]} (deref %1)]
-                   (if (= CV-Z (nth state %2))
-                     (aset state %2 cur)
-                     (c/raise! "cell [" %2 "] is not free.")))
-     :switch-player #(swap! %
-                            (fn [{:keys [cur other] :as S}]
-                              (assoc S :cur other :other cur)))
-     :get-other-player gop
-     :take-snapshot #(a/mark!! @actor
-                               (gop @actor) -1 (.slice grid 0))
+     :undo-move! #(aset (:state (deref %1)) %2 CV-Z)
+     :make-move! #(let [{:keys [state cur]} (deref %1)]
+                    (if (= CV-Z (nth state %2))
+                      (aset state %2 cur)
+                      (c/raise! "cell [" %2 "] is not free.")))
+     :switch-play! #(swap! %
+                           (fn [{:keys [cur other] :as S}]
+                             (assoc S :cur other :other cur)))
      :eval-score #(let [{:keys [other state]} (deref %)]
                     ;;if we lose, return a nega value
                     (if (number? (_1 (is-win?? other state gspace))) -100  0))

@@ -145,15 +145,13 @@
     (u/sub+ ebus "mouse.up" (fn_* (apply t/on-click  ____xs)))
     (u/sub+ ebus "touch.one.end" (fn_* (apply t/on-touch ____xs)))
     ;select who starts
-    (swap! xcfg
-           (fn_1 (update-in ____1
-                            [:game] #(assoc % :turn turn))))
+    (swap! xcfg #(assoc-in % [:game :turn] turn))
     (let [{:keys [ptype pid]} (get G (get pmap turn))]
       (when (= G-ONE gmode)
         ;if single player, create the A.I.
         (swap! xcfg
-               (fn_1 (update-in ____1
-                                [:game] #(assoc % :bot (b/game-board grid-size gspace)))))
+               #(assoc-in %
+                          [:game :bot] (b/game-board grid-size gspace)))
         ;if bot starts, run it
         (if (= P-BOT ptype)
           (ocall! scene
@@ -196,9 +194,7 @@
       (init-game-scene)
       (x/debug* "game cfg= " (c/jsonize (:game @xcfg)))
       (swap! xcfg
-             (fn_1 (update-in ____1
-                              [:game]
-                              #(assoc % :running? true)))))))
+             #(assoc-in % [:game :running?] true)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn options-scene [& [options]]
@@ -217,15 +213,11 @@
                               {CV-X :pother CV-O :player})]
                       (swap! xcfg
                              (fn [root]
-                               (-> (update-in root [:game] #(assoc % :pmap m))
-                                   (update-in [:game :player]
-                                              #(assoc %
-                                                      :pvalue
-                                                      (if (zero? n) CV-X CV-O)))
-                                   (update-in [:game :pother]
-                                              #(assoc %
-                                                      :pvalue
-                                                      (if (zero? n) CV-O CV-X))))))))
+                               (-> (assoc-in root [:game :pmap] m)
+                                   (assoc-in [:game :player :pvalue]
+                                             (if (zero? n) CV-X CV-O))
+                                   (assoc-in [:game :pother :pvalue]
+                                             (if (zero? n) CV-O CV-X)))))))
           {:keys [quit?] :or {quit? true}} options
           {:keys [player begin-with]} (:game @xcfg)
           layer (x/add-> scene (x/layer*))
@@ -267,7 +259,7 @@
 (defn menu-scene []
   (do-with [scene (x/scene*)]
     (let [fopts (fn_* (x/push-scene (options-scene {:quit? false})))
-          {:keys [start-scene]} (:game @xcfg)
+          {:keys [start-scene]} @xcfg
           pms {:no (fn_* (x/run-scene nil))
                :yes (fn [ws p0 msg]
                       (->> (merge {:ws ws :pnum p0} msg)
@@ -326,7 +318,6 @@
                                 (0 4) "#z.png" "#o.png"))
                      {:pos (x/mid-rect mp) :scale scale}))
         (map-grid-pos R grid-size scale)))))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

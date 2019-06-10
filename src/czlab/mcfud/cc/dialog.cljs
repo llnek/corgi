@@ -39,11 +39,11 @@
   "Show dialog box background."
   []
   (let [[width height] (r-> (x/vrect))
-        x (* 0.5 (* width (- 1 0.6)))
-        y (* 0.5 (* height (- 1 0.6)))]
+        x (/ (* width .4) 2)
+        y (/ (* height .4) 2)]
     (x/set!! (new js/cc.LayerColor
                   (x/color* 123 123 123)
-                  (* 0.6 width) (* 0.6 height))
+                  (* .6 width) (* .6 height))
              {:pos (js/cc.p x y)})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -52,7 +52,7 @@
   [d0 options]
   (do-with [dlg (x/layer*)]
     (let [{:keys [msg yes no cleanup]} options
-          fnt (x/gres+ :fonts :text)
+          fnt (x/gres+ :assets :fonts :text)
           finz #(do (x/remove! d0)
                     (x/remove! dlg)
                     (if (fn? cleanup) (cleanup)))]

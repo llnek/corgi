@@ -12,6 +12,7 @@
   czlab.mcfud.afx.core
 
   (:refer-clojure :exclude [var-get var-set]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro debug* "Log to console." [& msgs] `(js/console.log (str ~@msgs)))
 (defmacro warn* "Log to console." [& msgs] `(js/console.log (str ~@msgs)))
@@ -25,11 +26,10 @@
   (def xyz-a 1)
   (def xyz-b 2)
   (def xyz-c 3)"
-
   [name_ & args]
   (let [[e1 n] (take 2 args)
         more (concat [e1] (drop 2 args))]
-    (assert (number? n) "expecting a number")
+    (assert (number? n) "enum expecting a number")
     `(do ~@(loop [v n [m & ms] more out []]
             (if (nil? m)
               out
@@ -145,6 +145,7 @@
   "Wrap code into a function which takes in var-args."
   [& forms]
   `(fn [& ~'____xs] ~@forms))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro fn_3
   "Wrap code into a function which takes in 3 arg."
@@ -187,6 +188,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro pert!
   "Alias for persistent!." [c] `(persistent! ~c))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro atomic
+  "Atomize fields as map." [& args] `(atom (hash-map ~@args )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro mapfv
@@ -314,6 +319,7 @@
         _ (assert (= 2 sz) "too many in bindings")]
     `(let [~X ~(_2 bindings)
            ~(_1 bindings) ~X] (when (> (count ~X) 0) ~@forms))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro if-some+
   "bindings => binding-form test
@@ -431,7 +437,7 @@
 (defmacro deftest
   "A test group."
   [name & body]
-  `(def ~name (fn_0 (filter #(not-nil? %) [~@body]))))
+  `(def ~name (fn [] (filter #(not-nil? %) [~@body]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro ensure??

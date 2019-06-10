@@ -21,8 +21,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handle-multi-devices []
-  (let [{{:keys [policy landscape?]} :game} @xcfg
+  (let [{:keys [policy size landscape?]} (:game @xcfg)
         [w h] (r-> (x/frame-size))
+        [dw dh] (r-> size)
         [X Y dir] (cond (or (>= w 2048)
                             (>= h 2048))
                         [2048 1536 :hdr]
@@ -36,20 +37,21 @@
                             (>= h 960))
                         [960 640 :hds]
                         :else [480 320 :sd])]
-    (apply x/set-dev-res! (cc+ (if landscape? [X Y] [Y X]) [policy]))
-    (swap! xcfg #(assoc-in % [:game :res-dir] dir))
+    (swap! xcfg #(assoc-in % [:game :resdir] dir))
+    (x/set-dev-res! dw dh policy)
     ;;device window size or canvas size.
     (debug* "view.frameSize = [" w ", " h "]")
+    (debug* "game.designSize = [" dw ", " dh "]")
     ;;need to prefix "assets" for andriod
     (do-with [searchs (js/jsb.fileUtils.getSearchPaths)]
-      (doseq [p (->> ["assets/res/" "res/"]
-                     (map #(str % dir)))] (.push searchs p))
+      (doseq [p (map #(str % dir)
+                     ["assets/res/" "res/"])] (.push searchs p))
       (doseq [p ["assets/src" "src"]] (.push searchs p)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- core-assets []
-  #js [(gres+ :loader ::czlab)
-       (gres+ :loader ::preloader)])
+  #js [(gres+ :assets :loader ::czlab)
+       (gres+ :assets :loader ::preloader)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- game-assets []
