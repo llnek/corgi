@@ -19,14 +19,14 @@
 (defn- no-win? [game] (not-any? #(= % CV-Z) game))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- is-win?? [who game gspace]
+(defn- is-win?? [who game goals]
   (if-some [combo (some (fn [c]
                           (if (every? #(= % who)
-                                      (map #(nth game %) c)) c)) gspace)]
+                                      (map #(nth game %) c)) c)) goals)]
     [who combo] [nil nil]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn game-board [size gspace]
+(defn ttt [size goals]
   (let [grid (c/fill-array CV-Z (* size size))
         grid-size (n# grid)
         actor (atom 0)
@@ -63,10 +63,10 @@
                              (assoc S :cur other :other cur)))
      :eval-score #(let [{:keys [other state]} (deref %)]
                     ;;if we lose, return a nega value
-                    (if (number? (_1 (is-win?? other state gspace))) -100  0))
+                    (if (number? (_1 (is-win?? other state goals))) -100  0))
      :is-over? #(let [{:keys [cur other state]} (deref %)]
-                  (or (number? (_1 (is-win?? cur state gspace)))
-                      (number? (_1 (is-win?? other state gspace)))
+                  (or (number? (_1 (is-win?? cur state goals)))
+                      (number? (_1 (is-win?? other state goals)))
                       (no-win? state)))}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

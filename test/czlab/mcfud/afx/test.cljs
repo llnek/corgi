@@ -347,10 +347,17 @@
 
   (ensure?? (let [_ (reset! TMPVAR 0)
                   b (bus/new-event-bus)]
+              (bus/sub* b 12345 cbbus)
+              (bus/pub b 12345 "yo!")
+              (bus/pub b 12345 "yo!")
+              (= 1 @TMPVAR)) "evbus, sub*(int)")
+
+  (ensure?? (let [_ (reset! TMPVAR 0)
+                  b (bus/new-event-bus)]
               (bus/sub* b "a.b.c" cbbus)
               (bus/pub b "a.b.c" "yo!")
               (bus/pub b "a.b.c" "yo!")
-              (= 1 @TMPVAR)) "evbus, sub*")
+              (= 1 @TMPVAR)) "evbus, sub*(str)")
 
   (ensure?? (let [_ (reset! TMPVAR 0)
                   b (bus/new-event-bus)]

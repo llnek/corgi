@@ -85,10 +85,10 @@
         (raise! "bad call collide?")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn set-dev-res!
-  "Set device resolution, policy and orientation."
+(defn design-res!
+  "Set design resolution, policy and orientation."
   [width height policy]
-  (js/view.setDesignResolutionSize width height policy))
+  (js/cc.view.setDesignResolutionSize width height policy))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vrect
@@ -288,7 +288,7 @@
 (defn mifont-text*
   "Create a menu-item label."
   [name size & [font]]
-  (-> (mifont-item* name size font) (ocall! "setEnabled" false)))
+  (do-with [f (mifont-item* name size font)] (ocall! f "setEnabled" false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn toggle-select!
@@ -297,90 +297,94 @@
   (ocall! t "setSelectedIndex" v) t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; event subscriptions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defenum MOUSE UP 200 DOWN MOVE)
+(defenum KEY UP 100 DOWN)
+(defenum TOUCH-ONE END 300 MOVE)
+(defenum TOUCH-ALL END 400 MOVE)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- ecb-p2 [t] (fn [a b] (e/pub (:ebus @xcfg) t a b)))
+(defn- ecb-p1 [t] (fn [a] (e/pub (:ebus @xcfg) t a)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- keys-listener-obj []
+  #js {:onKeyPressed (ecb-p2 KEY-DOWN)
+       :onKeyReleased (ecb-p2 KEY-UP)
+       :event js/cc.EventListener.KEYBOARD})
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- mouse-listener-obj []
+  #js {:event js/cc.EventListener.MOUSE
+       :onMouseDown (ecb-p1 MOUSE-DOWN)
+       :onMouseUp (ecb-p1 MOUSE-UP)
+       :onMouseMove (fn [e]
+                      (if (= (ocall e "getButton")
+                             js/cc.EventMouse.BUTTON_LEFT)
+                        (e/pub (:ebus @xcfg) MOUSE-MOVE e)))})
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- touchall-listener-obj []
+  (let [prev #js [-1]]
+    #js{:onTouchesBegan c/fn-true
+        :onTouchesEnded (ecb-p2 TOUCH-ALL-END)
+        :event js/cc.EventListener.TOUCH_ALL_AT_ONCE
+        :onTouchesMoved (fn [a b]
+                          (let [id (ocall (_1 a) "getID")]
+                            (if (not= (_1 prev) id)
+                              (aset prev 0 id)
+                              (e/pub (:ebus @xcfg) TOUCH-ALL-MOVE a b))))}))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- touchone-listener-obj []
+  #js {:event js/cc.EventListener.TOUCH_ONE_BY_ONE
+       :onTouchBegan c/fn-true
+       :swallowTouches true
+       :onTouchMoved (ecb-p2 TOUCH-ONE-MOVE)
+       :onTouchEnded (ecb-p2 TOUCH-ONE-END)})
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- subevent
-  "Subscribe to an event."
-  [e obj]
-  (do->true
-    (js/cc.eventManager.addListener
-      (oset! obj "!event" e)
-      (gcbyn (get-in @xcfg [:game :scene]) "arena"))))
+  "Add an event-listener, storing it for removal."
+  [obj-ctor ctx]
+  (let [obj (obj-ctor)
+        h (js/cc.eventManager.addListener obj ctx)]
+    (swap! xcfg
+           (fn_1 (update-in ____1
+                            [:listeners] #(conj % h))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn has-keys?
   "If key-pad is available?"
-  []
-  (and (not-native?)
+  [] (and (not-native?)
        (some? (oget js/cc.sys.capabilities "?keyboard"))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn on-keys
-  "Subscribe to key polling."
-  [s]
-  (when (has-keys?)
-    (debug* "about to listen to key events")
-    (subevent js/cc.EventListener.KEYBOARD
-              (if (array? s)
-                #js{:onKeyPressed (fn [a b] (aset s a true))
-                    :onKeyReleased (fn [a b] (aset s a false))}
-                #js{:onKeyPressed (fn [a b] (e/pub s "key.down" a b))
-                    :onKeyReleased (fn [a b] (e/pub s "key.up" a b))}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn has-mouse?
   "If mouse is available?"
-  []
-  (some? (oget js/cc.sys.capabilities "?mouse")))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn on-mouse
-  "Subscribe to mouse events."
-  [s]
-  (when (has-mouse?)
-    (debug* "about to listen to mouse events")
-    (subevent js/cc.EventListener.MOUSE
-              #js{:onMouseMove
-                  (fn [a] (if (= (ocall a "getButton")
-                               js/cc.EventMouse.BUTTON_LEFT)
-                            (e/pub s "mouse.move" a)))
-                  :onMouseDown (fn [a] (e/pub s "mouse.down" a))
-                  :onMouseUp (fn [a] (e/pub s "mouse.up" a))})))
+  [] (some? (oget js/cc.sys.capabilities "?mouse")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn has-touch?
   "If touch is available?"
-  []
-  (some? (oget js/cc.sys.capabilities "?touches")))
+  [] (some? (oget js/cc.sys.capabilities "?touches")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn on-touch-all
-  "Subscribe to touch-all events."
-  [s]
-  (when (has-touch?)
-    (debug* "about to listen to touch-all events")
-    (let [obj #js{:onTouchesBegan c/fn-true
-                  :prevTouchId -1
-                  :onTouchesEnded
-                  (fn [a b] (e/pub s "touch.all.end" a b))}]
-      (oset! obj
-             "!onTouchesMoved"
-             (fn [a b]
-               (let [id (oget-id (_1 a))]
-                 (if (not= (oget obj "?prevTouchId") id)
-                   (oset! obj "!prevTouchId" id)
-                   (e/pub s "touch.all.move" a b)))))
-      (subevent js/cc.EventListener.TOUCH_ALL_AT_ONCE obj))))
+(defn- accept-keys [node]
+  (when (has-keys?)
+    (debug* "Accept key events")
+    (subevent keys-listener-obj node)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn on-touch-one
-  "Subscribe to touch-one events."
-  [s]
+(defn- accept-mouse [node]
+  (when (has-mouse?)
+    (debug* "Accept mouse events")
+    (subevent mouse-listener-obj node)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- accept-touch [node multi-touch?]
   (when (has-touch?)
-    (debug* "about to listen to touch-one events")
-    (subevent js/cc.EventListener.TOUCH_ONE_BY_ONE
-              #js{:onTouchBegan c/fn-true
-                  :swallowTouches true
-                  :onTouchMoved (fn [a b] (e/pub s "touch.one.move" a b))
-                  :onTouchEnded (fn [a b] (e/pub s "touch.one.end" a b))})))
+    (if multi-touch?
+      (do (debug* "Accept touch-all events")
+          (subevent touchall-listener-obj node))
+      (do (debug* "Accept touch-one events")
+          (subevent touchone-listener-obj node)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn anchor-value
@@ -418,12 +422,12 @@
   (let [{:keys [scale color
                 pos show? anchor]
          :or {show? true}} options]
-    (doto node
-      (x/visible! show?)
-      (x/scale! scale)
-      (x/color! color)
-      (x/pos! pos)
-      (x/anchor! anchor))))
+    (do-with [node]
+      (if (some? color) (x/color! node color))
+      (if (some? pos) (x/pos! node pos))
+      (x/visible! node show?)
+      (if (number? scale) (x/scale! node scale))
+      (if (some? anchor) (x/anchor! node anchor)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- peg-menu??
@@ -521,7 +525,7 @@
           SZ (n# arr)
           end (- SZ 1)
           plen (n# pms)]
-      (loop [i SZ out (c/tvec*)]
+      (loop [i 0 out (c/tvec*)]
         (if (>= i SZ)
           (cs/join "" (c/pert! out))
           (recur (+ 1 i)
@@ -621,7 +625,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sfx-play?? [what key & [options]]
   (let [{:keys [vol repeat?]} options
-        p (get-in @xcfg [:assets :sounds key])]
+        p (gres+ :assets :sounds key)]
     (do->nil
       (when (and (sfx?)
                  (some? p))
@@ -849,6 +853,46 @@
   (ocall! node "attr" attrsObj) node)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn enable-event-handlers
+  "Enable all possible event listeners."
+  [node & [multi-touch?]]
+  (do->nil
+    (if (native?)
+      (accept-touch node multi-touch?)
+      (doto node (accept-keys) (accept-mouse)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn disable-event-handlers
+  "Disable all event listeners."
+  []
+  (do->nil
+    (swap! xcfg
+           (fn [root]
+             (doseq [v (:listeners root)]
+               ;(debug* "removing listener= " v)
+               (js/cc.eventManager.removeListener v))
+             (assoc root :listeners [])))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn shutdown
+  "Complete shutdown of framework." []
+  (disable-event-handlers))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn bootstrap
+  "Bootstrap framework."
+  [work]
+  (let [lang (keyword js/cc.sys.language)
+        f #(c/deep-merge %
+                         (js/cc.game.____configurator))]
+    (debug* "bootstrap(), lang= " (name lang))
+    (swap! xcfg #(assoc (f %) :lang lang))
+    (work)
+    (sfx-music-vol! (get-in @xcfg [:audio :volume]))
+    (let [[w h] (r-> (js/cc.view.getDesignResolutionSize))]
+      (debug* "design= [" w ", " h "], loaded & running.  OK"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; patch the config object!!!
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (reset! xcfg
@@ -858,9 +902,11 @@
          :appid ""
          :assets {:images {} :sheets {}
                   :tiles {} :fonts {} :sounds {}
-                  :loader {::czlab "core/ZotohLab.png"
-                           ::preloader "core/preloader_bar.png"}}
+                  :loader {:czlab "core/ZotohLab.png"
+                           :preloader "core/preloader_bar.png"}}
          :audio {:volume 0.5 :open? true :track nil}
+         :ebus (e/new-event-bus)
+         :listeners []
          :levels {}
          :start-scene fn-nil
          :run-once fn-nil

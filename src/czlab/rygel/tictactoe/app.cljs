@@ -23,9 +23,9 @@
                  :pmap {CV-X :player CV-O :pother}
                  :player {:pvalue CV-X}
                  :pother {:pvalue CV-O}
-                 :size {:width 1536 :height 2048}
+                 :size (js/cc.rect 0 0 1536 2048)
                  :landscape? false
-                 :begin-with CV-Z
+                 :begin-with CV-X
                  :grid-size 3
                  :bot-time 0.5
                  :player-time 7}
@@ -35,14 +35,14 @@
                             :game-bg "tictactoe/imgs/bg.png"}
                    :sheets {:lang-pics "tictactoe/l10n/images.plist"
                             :game-pics "tictactoe/imgs/images.plist"}
-                   :sounds {:game-end "snds/MineExplosion"
-                            :player "snds/ElevatorBeep"
-                            :pother "snds/MineBeep"
-                            :game-tie "snds/Death" }
+                   :sounds {:game-end "snds/MineExplosion.mp3"
+                            :player "snds/ElevatorBeep.mp3"
+                            :pother "snds/MineBeep.mp3"
+                            :game-tie "snds/Death.mp3"}
                    :fonts {:label "fnts/SmallTypeWriting.fnt"
                            :title "fnts/AutoMission.fnt"
                            :c "fnts/Subito.fnt"
-                           :text "fnts/CoffeeBuzzed.fnt" }}})
+                           :text "fnts/CoffeeBuzzed.fnt"}}})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set! js/cc.game.____configurator

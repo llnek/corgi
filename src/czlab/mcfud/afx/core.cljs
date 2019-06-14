@@ -165,7 +165,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- xxx-by
   "Used by min-by & max-by - internal."
-  [cb f coll]
+  [cb coll]
   (if (not-empty coll)
     (reduce cb (_1 coll) (rest coll)) js/undefined))
 
@@ -173,13 +173,13 @@
 (defn min-by
   "Find item with minimum value as defined by the function."
   [f coll]
-  (xxx-by #(if (< (f %1) (f %2)) %1 %2) f coll))
+  (xxx-by #(if (< (f %1) (f %2)) %1 %2) coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn max-by
   "Find item with maximum value as defined by the function."
   [f coll]
-  (xxx-by #(if (< (f %1) (f %2)) %2 %1) f coll))
+  (xxx-by #(if (< (f %1) (f %2)) %2 %1) coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rand-range

@@ -40,10 +40,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mksub
   "Make a subscriber object."
-  [topic lnr r?]
+  [bus topic lnr r?]
   {:pre [(fn? lnr)]}
-  (assert (re-matches re-subj topic)
-          (str "Error in topic: " topic))
+  (if (rv? bus)
+      (assert (re-matches re-subj topic)
+              (str "Error in topic: " topic)))
   {:status (atom 1)
    :async? false
    :action lnr
@@ -158,7 +159,7 @@
   "Subscribe to a topic."
   [bus topic lsnr r?]
   (let [path (plevels bus topic)
-        sub (mksub topic lsnr r?)]
+        sub (mksub bus topic lsnr r?)]
     (do-with [id (:id sub)]
       (swap! bus
              #(-> (update-in % path assoc id sub)

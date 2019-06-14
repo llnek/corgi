@@ -37,7 +37,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn value->symbol [value & [flip?]]
-  (let [img (case value CV-X "x" CV-O "o" "z")]
+  (let [img (condp = value CV-X "x" CV-O "o" "z")]
     (x/sprite* (str "#" img (if flip? ".i.png" ".png")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -81,12 +81,12 @@
   (let [{{:keys [scene]} :game :keys [start-scene]} @xcfg
         h (x/gcbyn scene "hud")
         g (x/gcbyn scene "arena")]
-    (js/emgr.pauseTarget g true)
-    (js/emgr.pauseTarget h true)
+    (js/cc.eventManager.pauseTarget g true)
+    (js/cc.eventManager.pauseTarget h true)
     (->> {:msg "Play Again?"
           :yes #(x/run-scene (start-scene))
-          :cleanup #(do (js/emgr.resumeTarget g true)
-                        (js/emgr.resumeTarget h true))}
+          :cleanup #(do (js/cc.eventManager.resumeTarget g true)
+                        (js/cc.eventManager.resumeTarget h true))}
          (d/pop-dlg scene))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -115,10 +115,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- check-game-state []
   (let [{:keys [turn grid
-                pmap gspace gpos]} (:game @xcfg)
+                pmap goals gpos]} (:game @xcfg)
         combo (some (fn [c]
                       (if (every? #(= % turn)
-                                  (map #(nth grid %) c)) c)) gspace)]
+                                  (map #(nth grid %) c)) c)) goals)]
     (cond (some? combo)
           (won-game turn)
           (not-any? #(= CV-Z %) grid)
@@ -145,7 +145,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- process-cell [cell]
   (let [{:keys [grid pmap turn ]} (:game @xcfg)]
-    (x/debug* "cell=>>>>>> " cell)
+    ;(x/debug* "cell=>>>>>> " cell)
     (when (and (c/nneg? cell)
                (= CV-Z (nth grid cell)))
       (update-arena cell)

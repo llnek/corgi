@@ -18,7 +18,7 @@
             [czlab.mcfud.afx.ebus :as u]
             [czlab.mcfud.cc.ccsx :as x
                                  :refer [P-BOT G-ONE G-TWO
-                                         CV-X CV-O CV-Z xcfg]]
+                                         P-MAN CV-X CV-O CV-Z xcfg]]
             [czlab.rygel.tictactoe.core :as t]
             [czlab.rygel.tictactoe.board :as b]
             [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
@@ -84,12 +84,12 @@
           (recur (+ 1 row) x1 y' out'))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn hlayer [R]
+(defn- hlayer [R]
   (do-with [layer (x/layer*)]
     (let [{:keys [scores gpos pmap] :as G} (:game @xcfg)
           gend (x/oget-y (c/min-by #(x/oget-y %) gpos))
-          [cx cy] (x/p-> R)
           {:keys [top right bottom left]} (x/r->b4 R)
+          [cx cy] (x/p-> (x/mid-rect R))
           pause (fn_* (x/push-scene (options-scene)))
           kx (get pmap CV-X)
           ky (get pmap CV-O)
@@ -114,7 +114,7 @@
                             :color "#ffffff"
                             :scale .6
                             :anchor x/ANCHOR-TOP-RIGHT})]
-      (x/debug* "hud called")
+      ;(x/debug* "hud called")
       (x/add-> layer s1 (name kx))
       (x/add-> layer s2 (name ky))
       (x/add-> layer
@@ -130,30 +130,22 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- init-game-scene []
-  (let [;cb (fn_* (.push evQ ____xs))
-        {:keys [gspace
-                gmode
-                scene
-                ebus
-                pmap
-                bot-time
-                grid-size
-                begin-with] :as G} (:game @xcfg)
+  (let [{{:keys [begin-with]} :game :keys [ebus]} @xcfg
         ;whose turn?
         turn (if (= begin-with CV-Z)
                (if (pos? (c/rand-sign)) CV-X CV-O) begin-with)]
-    (u/sub+ ebus "mouse.up" (fn_* (apply t/on-click  ____xs)))
-    (u/sub+ ebus "touch.one.end" (fn_* (apply t/on-touch ____xs)))
+    (u/sub+ ebus x/TOUCH-ONE-END t/on-touch)
+    (u/sub+ ebus x/MOUSE-UP t/on-click)
     ;select who starts
     (swap! xcfg #(assoc-in % [:game :turn] turn))
-    (let [{:keys [ptype pid]} (get G (get pmap turn))]
-      (when (= G-ONE gmode)
-        ;if single player, create the A.I.
+    (let [{:keys [goals gmode scene
+                  grid-size pmap bot-time] :as G} (:game @xcfg)
+          {:keys [ptype pid]} (get G (get pmap turn))]
+      (when (= G-ONE gmode) ;if single player, create the A.I.
         (swap! xcfg
                #(assoc-in %
-                          [:game :bot] (b/game-board grid-size gspace)))
-        ;if bot starts, run it
-        (if (= P-BOT ptype)
+                          [:game :bot] (b/ttt grid-size goals)))
+        (if (= P-BOT ptype) ;if bot starts first, run it
           (ocall! scene
                   "scheduleOnce"
                   (t/run-bot true) bot-time)))
@@ -162,39 +154,49 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn game-scene [mode & more]
   (do-with [scene (x/scene*)]
-    (let [{{:keys [grid-size]} :game} @xcfg
+    (let [{:keys [grid-size]} (:game @xcfg)
+          [bg gl] [(x/layer*) (x/layer*)]
           sz (* grid-size grid-size)
           R (x/vrect)
-          bg (x/layer*)
-          gl (x/layer*)
-          S {:gspace (map-goal-space grid-size)
+          S {:goals (map-goal-space grid-size)
              :gpos (map-grid-pos R grid-size 1)
              :grid (c/fill-array CV-Z sz)
-             :ebus (u/new-event-bus)
+             :player {:ptype P-MAN
+                      :pid (x/l10n "%p1")
+                      :pname (x/l10n "%player1")}
+             :pother (if (not= mode G-ONE)
+                       {:ptype P-MAN
+                        :pid (x/l10n "%p2") :pname (x/l10n "%player2")}
+                       {:ptype P-BOT
+                        :pid (x/l10n "%cpu") :pname (x/l10n "%computer")})
              :running? false
              :depth 10
              :scene scene
              :gmode mode
              :selected -1
              :evQ #js []
-             :turn nil
+             :cells []
+             :turn CV-Z
              :scores {CV-X 0 CV-O 0}}
           cs (mapv #(let [s (x/sprite* "#z.png")]
-                      [(x/center!! %1 gl s) CV-Z]) (:gpos S))]
+                      [(x/center!! %1 gl s) CV-Z]) (:gpos S))
+          fExit js/cc.Node.prototype.onExit
+          fEnter js/cc.Node.prototype.onEnter]
       (swap! xcfg
              (fn_1 (update-in ____1
-                              [:game]
-                              #(merge %
-                                      (assoc S :cells cs)))))
+                              [:game] #(assoc (c/deep-merge % S) :cells cs))))
       (x/center-image R
                       (x/add-> scene bg "bg" -1) (x/gimg :game-bg))
-      (x/add-> scene (hlayer R) "hud" 2)
       (x/add-> scene gl "arena" 1)
-      (x/attr* scene #js{:update #()})
+      (x/add-> scene (hlayer R) "hud" 2)
+      (x/attr* scene #js{:onExit #(do (x/disable-event-handlers)
+                                      (.call fExit scene))
+                         :onEnter #(do (.call fEnter scene)
+                                       (x/enable-event-handlers gl))
+                         :update #()})
       (init-game-scene)
-      (x/debug* "game cfg= " (c/jsonize (:game @xcfg)))
-      (swap! xcfg
-             #(assoc-in % [:game :running?] true)))))
+      (swap! xcfg #(assoc-in % [:game :running?] true)))))
+      ;(x/debug* "game cfg= " (c/jsonize (dissoc (:game @xcfg) :scene :cells))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn options-scene [& [options]]
@@ -221,9 +223,9 @@
           {:keys [quit?] :or {quit? true}} options
           {:keys [player begin-with]} (:game @xcfg)
           layer (x/add-> scene (x/layer*))
-          region (x/vrect)
-          {:keys [top]} (x/r->b4 region)
-          [cx cy] (x/p-> (x/mid-rect region))
+          R (x/vrect)
+          {:keys [top]} (x/r->b4 R)
+          [cx cy] (x/p-> (x/mid-rect R))
           t1 (x/mifont-text* "Sound" 18)
           i1 (x/mitoggle* (x/mifont-item* "On" 26)
                           (x/mifont-item* "Off" 26) fsound)
@@ -234,23 +236,23 @@
           i3 (x/mitoggle* (x/mifont-item* "X" 26)
                           (x/mifont-item* "O" 26)
                           (x/mifont-item* "?" 26) ffmove)
-          gmenu (x/add-> layer
-                         (if quit?
-                           (x/menu* t1 i1 t2 i2 t3 i3 [fback fquit])
-                           (x/menu* t1 i1 t2 i2 t3 i3 [fback])))
           quit (x/milabel* (x/ttf-text* "Quit" "Arial" 20) fquit)
-          back (x/milabel* (x/ttf-text* "Go back" "Arial" 20) fback)]
-      (x/center-image layer (x/gimg :game-bg) "bg" -1)
+          back (x/milabel* (x/ttf-text* "Go back" "Arial" 20) fback)
+          gmenu (x/add-> layer
+                         (if-not quit?
+                           (x/menu* t1 i1 t2 i2 t3 i3 back)
+                           (x/menu* t1 i1 t2 i2 t3 i3 back quit)))]
+      (x/center-image R layer (x/gimg :game-bg) "bg" -1)
       (x/add-> layer (x/bmf-label* (x/l10n "%options")
                                    (x/gfnt :title)
                                    {:color "#F6B17F"
-                                   :pos (js/cc.p cx (* .8 top))}))
+                                    :pos (js/cc.p cx (* .8 top))}))
       (x/toggle-select! i1 (if (x/sfx?) 0 1))
       (x/toggle-select! i3 (if (= begin-with CV-X) 0 1))
       (x/toggle-select! i2 (if (= (:pvalue player) CV-X) 0 1))
       (if quit?
-        (x/align-in-cols gmenu [2 2 2 1 1])
-        (x/align-in-cols gmenu [2 2 2 1])))))
+        (x/align-in-cols gmenu 2 2 2 1 1)
+        (x/align-in-cols gmenu 2 2 2 1)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- net-scene [& xs] nil)
@@ -274,7 +276,7 @@
           R (x/vrect)
           {:keys [top]} (x/r->b4 R)
           [cx cy] (x/p-> (x/mid-rect R))]
-      (x/center-image layer (x/gimg :game-bg) "bg" -1)
+      (x/center-image R layer (x/gimg :game-bg) "bg" -1)
       (x/add-> layer (x/bmf-label* (x/l10n "%mmenu")
                                    (x/gfnt :title)
                                    {:color "#F6B17F"
@@ -296,27 +298,27 @@
           layer (x/add-> scene (x/layer*))
           R (x/vrect)
           scale .75
-          [cx cy] (x/mid-rect R)
+          [cx cy] (x/p-> (x/mid-rect R))
           {:keys [top]} (x/r->b4 R)]
       ;add background image
-      (x/center-image layer (x/gimg :game-bg) "bg" -1)
+      (x/center-image R layer (x/gimg :game-bg) "bg" -1)
       ;add title
       (x/add-> layer
-               (x/sprite* "#title.png")
-               {:pos (js/cc.p cx (* .8 top))})
+               (x/set!! (x/sprite* "#title.png")
+                        {:pos (js/cc.p cx (* .8 top))}))
       ;add play button
       (x/add-> layer
-               (x/gmenu [{:cb onplay :nnn "#play.png"}]
+               (x/set!! (x/gmenu [{:cb onplay :nnn "#play.png"}])
                         {:pos (js/cc.p cx (* .1 top))}))
       ;;draw demo
       ;; we scale down the icons to make it look nicer
       (c/each*
         (fn [mp pos]
             (x/add-> layer
-                     (x/sprite* (case pos
-                                (1 5 6 7) "#x.png"
-                                (0 4) "#z.png" "#o.png"))
-                     {:pos (x/mid-rect mp) :scale scale}))
+                     (x/set!! (x/sprite* (case pos
+                                           (1 5 6 7) "#x.png"
+                                           (0 4) "#z.png" "#o.png"))
+                              {:pos (x/mid-rect mp) :scale scale})))
         (map-grid-pos R grid-size scale)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
