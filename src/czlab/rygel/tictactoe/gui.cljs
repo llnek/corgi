@@ -1,4 +1,4 @@
-;; Copyright ©  2013-2019, Kenneth Leung. All rights reserved.
+;; Copyright © 2013-2019, Kenneth Leung. All rights reserved.
 ;; The use and distribution terms for this software are covered by the
 ;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;; which can be found in the file epl-v10.html at the root of this distribution.
@@ -13,22 +13,22 @@
 
   (:require [czlab.mcfud.afx.core :as c
                                   :refer [_1 _2 cc+ cc+1
-                                          fn_1 fn_*
+                                          fn_0 fn_1 fn_*
                                           let->nil do-with fn-nil]]
+            [oops.core :as oc]
+            [czlab.rygel.tictactoe.core :as t]
+            [czlab.rygel.tictactoe.board :as b]
             [czlab.mcfud.afx.ebus :as u]
             [czlab.mcfud.cc.ccsx :as x
                                  :refer [P-BOT G-ONE G-TWO
-                                         P-MAN CV-X CV-O CV-Z xcfg]]
-            [czlab.rygel.tictactoe.core :as t]
-            [czlab.rygel.tictactoe.board :as b]
-            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
+                                         P-MAN CV-X CV-O CV-Z xcfg]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (declare options-scene splash-scene)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- map-goal-space
-  "Set of all possible winning combinations."
+  "Get all possible winning combinations."
   [size]
   (loop [row 0
          dx (c/tvec*)
@@ -36,8 +36,8 @@
          rows (c/tvec*)
          cols (c/tvec*)]
     (if (>= row size)
-      (cc+ [(c/pert! dx) (c/pert! dy)]
-           (c/pert! rows) (c/pert! cols))
+      (cc+ [(c/ps! dx) (c/ps! dy)]
+           (c/ps! rows) (c/ps! cols))
       (let [[h v]
             (loop [col 0
                    h (c/tvec*)
@@ -51,8 +51,8 @@
                (conj! dx (+ (* row size) row))
                (conj! dy (+ row (* size
                                    (- size row 1))))
-               (conj! rows (c/pert! h))
-               (conj! cols (c/pert! v)))))))
+               (conj! rows (c/ps! h))
+               (conj! cols (c/ps! v)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- map-grid-pos
@@ -61,7 +61,7 @@
   [R gsz scale]
   (let [[width height] (x/r-> (x/bsize "#z.png"))
         [W H] (c/mapfv * scale width height)
-        [cx cy] (x/p-> (x/mid-rect R))
+        [cx cy] (x/mid-rect* R)
         ro (* (/ 8 72) scale)
         cells (* gsz gsz)
         gsz' (- gsz 1)
@@ -71,7 +71,7 @@
         [x0 y0] [(- cx (/ zw 2)) (+ cy (/ zh 2))]] ;top-left
     (loop [row 0 x1 x0 y1 y0 out (c/tvec*)]
       (if (>= row gsz)
-        (c/pert! out)
+        (c/ps! out)
         (let [[y' out']
               (loop [col 0 x1' x1 y1' y1 out'' out]
                 (let [y2 (- y1' H) x2 (+ x1' W)]
@@ -88,15 +88,13 @@
   (do-with [layer (x/layer*)]
     (let [{:keys [scores gpos pmap] :as G} (:game @xcfg)
           gend (x/oget-y (c/min-by #(x/oget-y %) gpos))
-          {:keys [top right bottom left]} (x/r->b4 R)
-          [cx cy] (x/p-> (x/mid-rect R))
+          {:keys [top rhs low lhs]} (x/r->b4 R)
+          [cx cy] (x/mid-rect* R)
           pause (fn_* (x/push-scene (options-scene)))
-          kx (get pmap CV-X)
-          ky (get pmap CV-O)
-          px (get G kx)
-          py (get G ky)
-          title (x/bmf-label* (str (:pid px) " [X]/"
-                                   (:pid py) "[O] ")
+          [kx ky] [(get pmap CV-X) (get pmap CV-O)]
+          [px py] [(get G kx) (get G ky)]
+          title (x/bmf-label* (str (:pid px)
+                                   " [X]/[O] " (:pid py))
                               (x/gfnt :title)
                               {:pos (js/cc.p cx top)
                                :anchor x/ANCHOR-TOP
@@ -110,23 +108,22 @@
                             :anchor x/ANCHOR-TOP-LEFT})
           s2 (x/bmf-label* (str (get scores CV-O))
                            (x/gfnt :label)
-                           {:pos (js/cc.p right top)
+                           {:pos (js/cc.p rhs top)
                             :color "#ffffff"
                             :scale .6
                             :anchor x/ANCHOR-TOP-RIGHT})]
       ;(x/debug* "hud called")
       (x/add-> layer s1 (name kx))
       (x/add-> layer s2 (name ky))
-      (x/add-> layer
-               (x/bmf-label* ""
-                             (x/gfnt :text)
-                             {:pos (js/cc.p cx
-                                            (+ bottom (/ (- gend bottom) 2)))
-                              :color "#ffffff"
-                              :scale .3}) "status")
+      (x/add-> layer title)
+      (-> (x/add-> layer (x/bmf-label*
+                           "" (x/gfnt :text)) "status")
+          (x/set!! {:pos (js/cc.p cx (/ (+ low gend) 2))
+                    :color "#ffffff"
+                    :scale .3}))
       (x/add-> layer
                (x/gmenu [{:nnn "#icon_menu.png" :cb pause}]
-                        {:region R :anchor x/ANCHOR-TOP}) "pause"))))
+                        {:region R :anchor x/ANCHOR-BOTTOM-RIGHT}) "pause"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- init-game-scene []
@@ -146,10 +143,10 @@
                #(assoc-in %
                           [:game :bot] (b/ttt grid-size goals)))
         (if (= P-BOT ptype) ;if bot starts first, run it
-          (ocall! scene
-                  "scheduleOnce"
-                  (t/run-bot true) bot-time)))
-      (t/write-status (str pid " starts!")))))
+          (oc/ocall! scene
+                     "scheduleOnce"
+                     (t/run-bot true) bot-time)))
+      (t/write-status (x/l10n "%whoStarts" pid)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn game-scene [mode & more]
@@ -184,19 +181,20 @@
           fEnter js/cc.Node.prototype.onEnter]
       (swap! xcfg
              (fn_1 (update-in ____1
-                              [:game] #(assoc (c/deep-merge % S) :cells cs))))
+                              [:game]
+                              #(assoc (c/merge+ % S) :cells cs))))
       (x/center-image R
                       (x/add-> scene bg "bg" -1) (x/gimg :game-bg))
       (x/add-> scene gl "arena" 1)
       (x/add-> scene (hlayer R) "hud" 2)
-      (x/attr* scene #js{:onExit #(do (x/disable-event-handlers)
-                                      (.call fExit scene))
-                         :onEnter #(do (.call fEnter scene)
-                                       (x/enable-event-handlers gl))
-                         :update #()})
+      (x/attr* scene
+               #js{:onExit (fn_0 (x/disable-events)
+                                 (.call fExit scene))
+                   :onEnter (fn_0 (.call fEnter scene)
+                                  (x/enable-events gl))
+                   :update #()})
       (init-game-scene)
       (swap! xcfg #(assoc-in % [:game :running?] true)))))
-      ;(x/debug* "game cfg= " (c/jsonize (dissoc (:game @xcfg) :scene :cells))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn options-scene [& [options]]
@@ -225,19 +223,19 @@
           layer (x/add-> scene (x/layer*))
           R (x/vrect)
           {:keys [top]} (x/r->b4 R)
-          [cx cy] (x/p-> (x/mid-rect R))
-          t1 (x/mifont-text* "Sound" 18)
-          i1 (x/mitoggle* (x/mifont-item* "On" 26)
-                          (x/mifont-item* "Off" 26) fsound)
-          t2 (x/mifont-text* "Player 1" 18)
+          [cx cy] (x/mid-rect* R)
+          t1 (x/mifont-text* (x/l10n "%sound") 18)
+          i1 (x/mitoggle* (x/mifont-item* (x/l10n "%on") 26)
+                          (x/mifont-item* (x/l10n "%off") 26) fsound)
+          t2 (x/mifont-text* (x/l10n "%player1") 18)
           i2 (x/mitoggle* (x/mifont-item* "X" 26)
                           (x/mifont-item* "O" 26) fp1)
-          t3 (x/mifont-text* "First Move" 18)
+          t3 (x/mifont-text* (x/l10n "%1stMove") 18)
           i3 (x/mitoggle* (x/mifont-item* "X" 26)
                           (x/mifont-item* "O" 26)
                           (x/mifont-item* "?" 26) ffmove)
-          quit (x/milabel* (x/ttf-text* "Quit" "Arial" 20) fquit)
-          back (x/milabel* (x/ttf-text* "Go back" "Arial" 20) fback)
+          quit (x/milabel* (x/ttf-text* (x/l10n "%quit") "Arial" 20) fquit)
+          back (x/milabel* (x/ttf-text* (x/l10n "%back") "Arial" 20) fback)
           gmenu (x/add-> layer
                          (if-not quit?
                            (x/menu* t1 i1 t2 i2 t3 i3 back)
@@ -298,18 +296,18 @@
           layer (x/add-> scene (x/layer*))
           R (x/vrect)
           scale .75
-          [cx cy] (x/p-> (x/mid-rect R))
+          [cx cy] (x/mid-rect* R)
           {:keys [top]} (x/r->b4 R)]
       ;add background image
       (x/center-image R layer (x/gimg :game-bg) "bg" -1)
       ;add title
-      (x/add-> layer
-               (x/set!! (x/sprite* "#title.png")
-                        {:pos (js/cc.p cx (* .8 top))}))
+      (-> (x/add-> layer
+                   (x/sprite* "#title.png"))
+          (x/set!! {:pos (js/cc.p cx (* .8 top))}))
       ;add play button
-      (x/add-> layer
-               (x/set!! (x/gmenu [{:cb onplay :nnn "#play.png"}])
-                        {:pos (js/cc.p cx (* .1 top))}))
+      (-> (x/add-> layer
+                   (x/gmenu [{:cb onplay :nnn "#play.png"}]))
+          (x/set!! {:pos (js/cc.p cx (* .1 top))}))
       ;;draw demo
       ;; we scale down the icons to make it look nicer
       (c/each*

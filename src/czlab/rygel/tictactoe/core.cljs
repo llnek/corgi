@@ -11,7 +11,9 @@
 
   czlab.rygel.tictactoe.core
 
-  (:require [czlab.mcfud.afx.core :as c :refer [if-some+ fn_* fn_1 n# _1 _2]]
+  (:require [czlab.mcfud.afx.core
+             :as c
+             :refer [if-some+ fn_0 fn_* fn_1 n# _1 _2]]
             [czlab.mcfud.cc.ccsx
              :as x :refer [P-BOT CV-X CV-Z CV-O xcfg]]
             [czlab.rygel.tictactoe.board :as b]
@@ -83,15 +85,15 @@
         g (x/gcbyn scene "arena")]
     (js/cc.eventManager.pauseTarget g true)
     (js/cc.eventManager.pauseTarget h true)
-    (->> {:msg "Play Again?"
-          :yes #(x/run-scene (start-scene))
-          :cleanup #(do (js/cc.eventManager.resumeTarget g true)
-                        (js/cc.eventManager.resumeTarget h true))}
+    (->> {:yes #(x/run-scene (start-scene))
+          :msg (x/l10n "%playMore?")
+          :cleanup (fn_0 (js/cc.eventManager.resumeTarget g true)
+                         (js/cc.eventManager.resumeTarget h true))}
          (d/pop-dlg scene))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- tie-game []
-  (write-status "It's a draw!")
+  (write-status (x/l10n "%tieGame"))
   (x/sfx-effect :game-tie)
   (on-end)
   (swap! xcfg
@@ -104,7 +106,7 @@
         s (get scores value)]
     (x/sfx-effect :game-end)
     (write-score value (+ 1 s))
-    (write-status (str pid " wins!"))
+    (write-status (x/l10n "%winGame" pid))
     (on-end)
     (swap! xcfg
            (fn_1 (update-in ____1
@@ -169,7 +171,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
-
-
 

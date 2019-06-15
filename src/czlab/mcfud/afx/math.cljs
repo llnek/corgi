@@ -506,7 +506,7 @@ handed matrices. That is, +Z goes INTO the screen.")
         css (partition cols arr)]
     (loop [i 0 SZ cols tmp (c/tvec*)]
       (if (>= i SZ)
-        (mat-new* cols rows (clj->js (c/pert! tmp)))
+        (mat-new* cols rows (clj->js (c/ps! tmp)))
         (recur (+ 1 i)
                SZ
                (loop [[c & cs] css t tmp]
@@ -519,7 +519,7 @@ handed matrices. That is, +Z goes INTO the screen.")
   (let [{:keys [arr] [rows cols] :dim} m]
     (loop [i 0 SZ (* rows cols) tmp (c/tvec*)]
       (if (>= i SZ)
-        (mat-new* cols rows (clj->js (c/pert! tmp)))
+        (mat-new* cols rows (clj->js (c/ps! tmp)))
         (recur (+ 1 i)
                SZ
                (conj! tmp (aget arr
@@ -599,7 +599,7 @@ handed matrices. That is, +Z goes INTO the screen.")
       (if (>= i RZ)
         (mat-new* (- rows 1)
                   (- cols 1)
-                  (clj->js (c/pert! tmp)))
+                  (clj->js (c/ps! tmp)))
         (recur (+ 1 i)
                RZ
                (loop [j 0 CZ cols tmp' tmp]
@@ -622,7 +622,7 @@ handed matrices. That is, +Z goes INTO the screen.")
   (let [{:keys [arr] [rows cols] :dim} m]
     (loop [i 0 RZ rows tmp (c/tvec*)]
       (if (>= i RZ)
-        (mat-new* rows cols (clj->js (c/pert! tmp)))
+        (mat-new* rows cols (clj->js (c/ps! tmp)))
         (recur (+ 1 i)
                RZ
                (loop [j 0 CZ cols tmp' tmp]

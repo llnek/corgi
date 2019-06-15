@@ -321,7 +321,7 @@
         ;;find the smallest data tree via sort
         (loop [[eid & es] (keys c0) ret (c/tvec*)]
           (if (nil? eid)
-            (c/pert! ret)
+            (c/ps! ret)
             ;; look for intersection
             (recur es
                    (loop [[c & cs] ccs arr ret sum 0]

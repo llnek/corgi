@@ -11,9 +11,9 @@
 
   czlab.rygel.tictactoe.app
 
-  (:require [czlab.mcfud.cc.ccsx :as x :refer [CV-X CV-O CV-Z]]
-            [czlab.mcfud.afx.core :as c :refer [fn_0]]
-            [czlab.rygel.tictactoe.gui :as g]))
+  (:require [czlab.mcfud.afx.core :as c :refer [fn_0]]
+            [czlab.rygel.tictactoe.gui :as g]
+            [czlab.mcfud.cc.ccsx :as x :refer [CV-X CV-O CV-Z]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def cfg {:appkey "bd5f79bb-eb41-4ed5-bb44-2529dc27ed3c"
@@ -29,6 +29,9 @@
                  :grid-size 3
                  :bot-time 0.5
                  :player-time 7}
+          :l10n {:en {"%whoStarts" "{} starts!"
+                      "%1stMove" "First Move"
+                      }}
           :assets {:images {:lang-pics "tictactoe/l10n/images.png"
                             :game-pics "tictactoe/imgs/images.png"
                             :gui-edit-orange "core/orange_edit.png"

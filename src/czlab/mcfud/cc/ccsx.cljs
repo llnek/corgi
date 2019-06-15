@@ -67,7 +67,11 @@
   [r]
   (let [x (oget-x r) y (oget-y r)
         w (oget-width r) h (oget-height r)]
-    {:top (+ y h) :right (+ x w) :bottom y :left x}))
+    {:top (+ y h)
+     :right (+ x w)
+     :left x
+     :bottom y
+     :base y :lhs x :rhs (+ x w)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collide?
@@ -107,6 +111,12 @@
         [x y] (p-> (js/cc.view.getVisibleOrigin))
         [w h] (r-> (js/cc.view.getVisibleSize))]
     (js/cc.rect x y w (- h (* h htPerc)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mid-rect*
+  "Center point of a rect."
+  [r]
+  [(js/cc.rectGetMidX r) (js/cc.rectGetMidY r)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mid-rect
@@ -312,6 +322,7 @@
   #js {:onKeyPressed (ecb-p2 KEY-DOWN)
        :onKeyReleased (ecb-p2 KEY-UP)
        :event js/cc.EventListener.KEYBOARD})
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mouse-listener-obj []
   #js {:event js/cc.EventListener.MOUSE
@@ -527,7 +538,7 @@
           plen (n# pms)]
       (loop [i 0 out (c/tvec*)]
         (if (>= i SZ)
-          (cs/join "" (c/pert! out))
+          (cs/join "" (c/ps! out))
           (recur (+ 1 i)
                  (let [out' (conj! out
                                    (nth arr i))]
@@ -582,7 +593,8 @@
 (defn gres*
   "Get resource path."
   [path]
-  (if (not-native?) (str "res/" path) path))
+  (let [p (:url-prefix @xcfg)]
+    (if (not-native?) (str p path) path)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gres+
@@ -853,7 +865,7 @@
   (ocall! node "attr" attrsObj) node)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn enable-event-handlers
+(defn enable-events
   "Enable all possible event listeners."
   [node & [multi-touch?]]
   (do->nil
@@ -862,7 +874,7 @@
       (doto node (accept-keys) (accept-mouse)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn disable-event-handlers
+(defn disable-events
   "Disable all event listeners."
   []
   (do->nil
@@ -874,17 +886,12 @@
              (assoc root :listeners [])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn shutdown
-  "Complete shutdown of framework." []
-  (disable-event-handlers))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bootstrap
   "Bootstrap framework."
   [work]
   (let [lang (keyword js/cc.sys.language)
-        f #(c/deep-merge %
-                         (js/cc.game.____configurator))]
+        f #(c/merge+ %
+                     (js/cc.game.____configurator))]
     (debug* "bootstrap(), lang= " (name lang))
     (swap! xcfg #(assoc (f %) :lang lang))
     (work)
@@ -897,7 +904,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (reset! xcfg
         {:AD {:anchor ANCHOR-BOTTOM :on? true :htperc 0.09}
-         :url-prefix "/public/mcfud/"
+         :url-prefix "res/"
          :version ""
          :appid ""
          :assets {:images {} :sheets {}
@@ -931,19 +938,25 @@
                      "%p2" "P2"
                      "%p1" "P1"
                      "%2players" "2 Player"
-                     "%1player" "1 Player"
+                     "%1player" "Single Player"
                      "%online" "Online"
-                     "%gameover" "Game Over"
+                     "%gameOver" "Game Over"
+                     "%playMore?" "Play Again?"
                      "%quit!" "Quit"
-                     "%back" "Back"
+                     "%back" "Go Back"
+                     "%sound" "Sound"
+                     "%off" "Off"
+                     "%on" "On"
                      "%ok" "OK"
                      "%mmenu" "Main Menu"
                      "%options" "Options"
                      "%replay" "REPLAY"
                      "%play" "PLAY"
-                     "%waitothers" "Waiting...\nfor other players."
-                     "%waitother" "Waiting...\nfor another player."
-                     "%signinplay" "Please sign in to play."
+                     "%tieGame" "It's a draw!"
+                     "%winGame" "{} wins!"
+                     "%waitOthers" "Waiting...\nfor other players."
+                     "%waitOther" "Waiting...\nfor another player."
+                     "%signinPlay" "Please sign in to play."
                      "%quit?" "Continue and quit game?" }} })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

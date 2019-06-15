@@ -111,7 +111,7 @@
   [s]
   (loop [i 0 SZ (n# s) ret (c/tvec*)]
     (if (>= i SZ)
-      (cs/join "" (c/pert! ret))
+      (cs/join "" (c/ps! ret))
       (let [c (nth s i)]
         (recur (+ 1 i) SZ (conj! ret
                                  (condp = c
@@ -305,7 +305,7 @@
                         (b64/encodeString (str "" user ":" pwd) true))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn deep-merge
+(defn merge+
   "Merge (deep) of clojure data."
   [a b & more]
   (do-with-transient [tmp (c/tmap* a)]
@@ -317,7 +317,7 @@
                 vb
                 (cond (and (map? vb)
                            (map? va))
-                      (deep-merge va vb)
+                      (merge+ va vb)
                       (and (set? vb)
                            (set? va))
                       (cst/union va vb)

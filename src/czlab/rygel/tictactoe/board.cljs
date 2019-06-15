@@ -47,7 +47,7 @@
                          CZ (n# state)
                          out (c/tvec*)]
                     (if (>= i CZ)
-                      (c/pert! out)
+                      (c/ps! out)
                       (recur state
                              (+ 1 i)
                              CZ
