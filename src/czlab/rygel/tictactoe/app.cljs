@@ -1,4 +1,4 @@
-;; Copyright ©  2013-2019, Kenneth Leung. All rights reserved.
+;; Copyright © 2013-2019, Kenneth Leung. All rights reserved.
 ;; The use and distribution terms for this software are covered by the
 ;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;; which can be found in the file epl-v10.html at the root of this distribution.
@@ -30,8 +30,7 @@
                  :bot-time 0.5
                  :player-time 7}
           :l10n {:en {"%whoStarts" "{} starts!"
-                      "%1stMove" "First Move"
-                      }}
+                      "%1stMove" "First Move"}}
           :assets {:images {:lang-pics "tictactoe/l10n/images.png"
                             :game-pics "tictactoe/imgs/images.png"
                             :gui-edit-orange "core/orange_edit.png"

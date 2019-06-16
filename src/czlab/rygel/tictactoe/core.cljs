@@ -145,13 +145,28 @@
              (update-in root [:game :cells cell] (fn [_] [sp' turn]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- process-cell [cell]
+(defn- XXXprocess-cell [cell]
   (let [{:keys [grid pmap turn ]} (:game @xcfg)]
     ;(x/debug* "cell=>>>>>> " cell)
     (when (and (c/nneg? cell)
                (= CV-Z (nth grid cell)))
       (update-arena cell)
       (check-game-state))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- process-cell [cell]
+  (let [{:keys [evQ grid pmap turn]} (:game @xcfg)]
+    ;(x/debug* "cell=>>>>>> " cell)
+    (when (and (c/nneg? cell)
+               (= CV-Z (nth grid cell))) (.push evQ cell))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn run-game [dt]
+  (let [{:keys [running? evQ]} (:game @xcfg)]
+    (when running?
+      (when-some [cell (.shift evQ)]
+        (update-arena cell)
+        (check-game-state)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn on-click [topic msgTopic & msgs]

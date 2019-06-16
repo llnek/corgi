@@ -11,40 +11,22 @@
 
   czlab.mcfud.cc.dialog
 
-  (:require [czlab.mcfud.afx.core
-             :as c :refer [raise! fn_* n# _1 _2 do-with]]
-            [czlab.mcfud.cc.ccsx
-             :as x :refer [add-> r-> p-> not-native? native?]]
-            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- undo-dlg [] (x/pop-scene))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- on-NO
-  "Action to do when cancel or no is selected."
-  [finz no]
-  (fn_* (finz)
-        (if (fn? no) (no))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- on-OK
-  "Action to do when yes or ok is selected."
-  [finz yes]
-  (fn_* (finz)
-        (if (fn? yes) (yes))))
+  (:require [czlab.mcfud.cc.ccsx :as x]
+            [oops.core :as oc]
+            [czlab.mcfud.afx.core
+             :as c :refer [raise! fn_* n# _1 _2 do-with]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pop-dlg-bg
   "Show dialog box background."
-  []
-  (let [[width height] (r-> (x/vrect))
-        x (/ (* width .4) 2)
-        y (/ (* height .4) 2)]
-    (x/set!! (new js/cc.LayerColor
-                  (x/color* 123 123 123)
-                  (* .6 width) (* .6 height))
-             {:pos (js/cc.p x y)})))
+  [color]
+  (do-with [layer (x/clayer* color)]
+    (let [[width height] (x/vrect*)]
+      (oc/ocall! layer
+                 "setContentSize"
+                 (* .6 width) (* .6 height))
+      (x/pos! layer
+              (/ (* width .4) 2) (/ (* height .4) 2)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pop-dlg*
@@ -52,25 +34,24 @@
   [d0 options]
   (do-with [dlg (x/layer*)]
     (let [{:keys [msg yes no cleanup]} options
-          fnt (x/gres+ :assets :fonts :text)
-          finz #(do (x/remove! d0)
-                    (x/remove! dlg)
-                    (if (fn? cleanup) (cleanup)))]
-      (-> (add-> dlg
-                 (x/tmenu [{:text msg :font fnt :cb c/fn-nil}
-                           {:text "OK" :font fnt :cb (on-OK finz yes)}
-                           {:text "Cancel" :font fnt :cb (on-NO finz no)}]
-                          {:align? false :scale .3 :color (x/color* 0 0 0)}))
-          (ocall! "alignItemsInColumns" 1 2)))))
+          fnt (x/gfnt :text)
+          finz #(do (x/remove! d0 dlg)
+                    (if (fn? cleanup) (cleanup)))
+          ok (fn_* (finz) (if (fn? yes) (yes)))
+          no (fn_* (finz) (if (fn? no) (no)))
+          t (x/tmenu [{:text msg :font fnt :cb c/fn-nil}
+                      {:text (x/l10n "%ok") :font fnt :cb ok}
+                      {:text (x/l10n "%cancel") :font fnt :cb no}]
+                     {:align? false :scale .3 :color "#000000"})]
+      (x/align-in-cols (x/add-> dlg t) 1 2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pop-dlg
   "Show dialog box."
   [par options]
-  (let [d0 (pop-dlg-bg)
-        d1 (pop-dlg* d0 options)]
-    (add-> par d0 "dlg0" 999)
-    (add-> par d1 "dlg1" 1000)))
+  (let [d0 (pop-dlg-bg "#7b7b7b")]
+    (x/add-> par d0 "dlg0" 999)
+    (x/add-> par (pop-dlg* d0 options) "dlg1" 1000)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

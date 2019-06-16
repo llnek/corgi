@@ -19,20 +19,40 @@
                                   oget-id oget-piccy
                                   oget-x oget-y oget-height oget-width]])
 
-  (:require [czlab.mcfud.afx.core
-             :as c :refer [defenum do->true do->nil
-                           fn-nil is? fn_0 fn_* fn_1 fn_2 cc+ cc+1
-                           if-string n# _1 _2 do-with raise! num??]]
+  (:require [clojure.string :as cs]
+            [goog.object :as go]
+            [oops.core :as oc]
             [czlab.mcfud.afx.ebus :as e]
             [czlab.mcfud.afx.math :as m]
-            [clojure.string :as cs]
-            [goog.object :as go]
-            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
+            [czlab.mcfud.afx.core
+             :as c :refer [defenum do->true do->nil
+                           fn-nil is? fn_0 fn_* fn_1 fn_2 cc+ cc+1
+                           if-string n# _1 _2 do-with raise! num??]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; config object
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def xcfg (atom nil))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn browser-size []
+  (cond (and js/window
+             (c/js-prop? js/window "innerWidth")
+             (number? (oc/oget js/window "innerWidth")))
+        [(oc/oget js/window "innerWidth")
+         (oc/oget js/window "innerHeight")]
+        (and js/document
+             (c/js-prop? js/document "documentElement")
+             (c/js-prop? js/document.documentElement "clientWidth"))
+        [(oc/oget js/document.documentElement "clientWidth")
+         (oc/oget js/document.documentElement "clientHeight")]
+        (and js/document
+             (c/js-prop? js/document "body")
+             (c/js-prop? js/document.body "clientWidth"))
+        [(oc/oget js/document.body "clientWidth")
+         (oc/oget js/document.body "clientHeight")]
+        :else
+        (c/raise! "Failed to find browser size")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn r->
@@ -47,7 +67,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn get-bbox
   "Node.getBoundingBox."
-  [n] (ocall n "getBoundingBox"))
+  [n] (oc/ocall n "getBoundingBox"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn crect?
@@ -95,6 +115,13 @@
   (js/cc.view.setDesignResolutionSize width height policy))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vrect*
+  "Get the visible screen width & height."
+  []
+  (let [wz (js/cc.view.getVisibleSize)]
+    [(oget-width wz) (oget-height wz)]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vrect
   "Get the visible screen rectangle."
   []
@@ -125,12 +152,20 @@
   (js/cc.p (js/cc.rectGetMidX r) (js/cc.rectGetMidY r)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn frame-size*
+  "Actual window/frame width & height."
+  []
+  (comment (if (native?)
+             (js/cc.view.getFrameSize)
+             (js/cc.director.getWinSize)))
+  (let [z (js/cc.view.getFrameSize)]
+    [(oget-width z) (oget-height z)]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn frame-size
   "Actual window/frame size."
   []
-  (let [z (if (native?)
-            (js/cc.view.getFrameSize)
-            (js/cc.director.getWinSize))]
+  (let [z (js/cc.view.getFrameSize)]
     (js/cc.rect 0 0 (oget-width z)(oget-height z))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -144,7 +179,7 @@
   "Maybe release this timer."
   [p t]
   (if (and (native?)
-           (some? t)) (ocall! t "release")) t)
+           (some? t)) (oc/ocall! t "release")) t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn new-timer
@@ -152,12 +187,12 @@
   [p t]
   (do-with
     [rc (->> (new js/cc.DelayTime t)
-             (ocall! p "runAction"))] (if (native?) (ocall! rc "retain"))))
+             (oc/ocall! p "runAction"))] (if (native?) (oc/ocall! rc "retain"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn timer-done?
   "If timer is done."
-  [t] (and (some? t) (ocall t "isDone")))
+  [t] (and (some? t) (oc/ocall t "isDone")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- run-next-scene
@@ -175,7 +210,7 @@
 (defn csize
   "Content-size of this thing."
   [obj]
-  (if-some [z (ocall obj "getContentSize")]
+  (if-some [z (oc/ocall obj "getContentSize")]
     (js/cc.rect 0 0
                 (oget-width z)
                 (oget-height z)) (js/cc.rect)))
@@ -211,7 +246,7 @@
 (defn get-scaled-height
   "Get the scaled height."
   [sprite]
-  (* (ocall sprite "getScaleY") (get-height sprite)))
+  (* (oc/ocall sprite "getScaleY") (get-height sprite)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn get-width
@@ -222,7 +257,7 @@
 (defn get-scaled-width
   "Get the scaled width."
   [sprite]
-  (* (ocall sprite "getScaleX") (get-width sprite)))
+  (* (oc/ocall sprite "getScaleX") (get-width sprite)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn trace-enclosure
@@ -298,13 +333,13 @@
 (defn mifont-text*
   "Create a menu-item label."
   [name size & [font]]
-  (do-with [f (mifont-item* name size font)] (ocall! f "setEnabled" false)))
+  (do-with [f (mifont-item* name size font)] (oc/ocall! f "setEnabled" false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn toggle-select!
   "Select button in a toggle."
   [t v]
-  (ocall! t "setSelectedIndex" v) t)
+  (oc/ocall! t "setSelectedIndex" v) t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; event subscriptions
@@ -329,7 +364,7 @@
        :onMouseDown (ecb-p1 MOUSE-DOWN)
        :onMouseUp (ecb-p1 MOUSE-UP)
        :onMouseMove (fn [e]
-                      (if (= (ocall e "getButton")
+                      (if (= (oc/ocall e "getButton")
                              js/cc.EventMouse.BUTTON_LEFT)
                         (e/pub (:ebus @xcfg) MOUSE-MOVE e)))})
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -339,7 +374,7 @@
         :onTouchesEnded (ecb-p2 TOUCH-ALL-END)
         :event js/cc.EventListener.TOUCH_ALL_AT_ONCE
         :onTouchesMoved (fn [a b]
-                          (let [id (ocall (_1 a) "getID")]
+                          (let [id (oc/ocall (_1 a) "getID")]
                             (if (not= (_1 prev) id)
                               (aset prev 0 id)
                               (e/pub (:ebus @xcfg) TOUCH-ALL-MOVE a b))))}))
@@ -364,17 +399,17 @@
 (defn has-keys?
   "If key-pad is available?"
   [] (and (not-native?)
-       (some? (oget js/cc.sys.capabilities "?keyboard"))))
+       (some? (oc/oget js/cc.sys.capabilities "?keyboard"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn has-mouse?
   "If mouse is available?"
-  [] (some? (oget js/cc.sys.capabilities "?mouse")))
+  [] (some? (oc/oget js/cc.sys.capabilities "?mouse")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn has-touch?
   "If touch is available?"
-  [] (some? (oget js/cc.sys.capabilities "?touches")))
+  [] (some? (oc/oget js/cc.sys.capabilities "?touches")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- accept-keys [node]
@@ -419,12 +454,12 @@
   [node child & [tag zOrder]]
   (do-with [child]
     (if (and (is? js/cc.SpriteBatchNode node)
-             (x/sprite? child)) (ocall! child "setBatchNode" node))
-    (ocall! node
-            "addChild"
-            child
-            (if (number? zOrder) zOrder js/undefined)
-            (if (or (string? tag)(number? tag)) tag js/undefined))))
+             (x/sprite? child)) (oc/ocall! child "setBatchNode" node))
+    (oc/ocall! node
+               "addChild"
+               child
+               (if (number? zOrder) zOrder js/undefined)
+               (if (or (string? tag)(number? tag)) tag js/undefined))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set!!
@@ -551,7 +586,7 @@
   "Publish a message on this topic."
   [topic & args]
   (if-some [b (-> (get-in @xcfg [:game :scene])
-                  (oget "?ebus"))] (apply e/pub b (cc+1 topic args))))
+                  (oc/oget "?ebus"))] (apply e/pub b (cc+1 topic args))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn calc-xy
@@ -862,7 +897,7 @@
   "Set js-object properties."
   [node attrsObj]
   {:pre [(object? attrsObj)]}
-  (ocall! node "attr" attrsObj) node)
+  (oc/ocall! node "attr" attrsObj) node)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn enable-events
@@ -948,6 +983,7 @@
                      "%off" "Off"
                      "%on" "On"
                      "%ok" "OK"
+                     "%cancel" "Cancel"
                      "%mmenu" "Main Menu"
                      "%options" "Options"
                      "%replay" "REPLAY"

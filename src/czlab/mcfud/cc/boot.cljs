@@ -14,10 +14,10 @@
   (:require [czlab.mcfud.afx.core
              :as c :refer [n# _1 _2 fn_* fn_1 cc+ do-with]]
             [clojure.string :as cs]
+            [oops.core :as oc]
             [czlab.mcfud.cc.ccsx
              :as x :refer [gres+ gres* gicfg r-> p->
-                           debug* native? not-native? xcfg]]
-            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
+                           debug* native? not-native? xcfg]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handle-multi-devices []
@@ -89,13 +89,13 @@
                (run-once)
                (x/run-scene (start-scene)))]
     (debug* "fade out! run next scene!!!!!")
-    (ocall! scene "unscheduleUpdate")
+    (oc/ocall! scene "unscheduleUpdate")
     (x/remove! (x/gcbyn scene "pg"))
-    (ocall! logo
-            "runAction"
-            (js/cc.Sequence.create
-              (js/cc.FadeOut.create 1.2)
-              (js/cc.CallFunc.create f nil)))))
+    (oc/ocall! logo
+               "runAction"
+               (js/cc.Sequence.create
+                 (js/cc.FadeOut.create 1.2)
+                 (js/cc.CallFunc.create f nil)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private CHUNK 36)
@@ -127,9 +127,9 @@
                                           nil)))))
         cb (fn_* (let [len (n# assets)
                        [cnt _ _] state]
-                   (ocall! pg
-                           "setPercentage"
-                           (min (* (/ cnt len) 100) 100))
+                   (oc/ocall! pg
+                              "setPercentage"
+                              (min (* (/ cnt len) 100) 100))
                    (if (< cnt len)
                      (let [[_ _ head] state;get last tail
                            tail (+ head (min CHUNK (- len head)))]
@@ -141,11 +141,11 @@
         logo' (x/center-image R scene logo "lg")
         [mx my] (p-> (x/mid-rect R))
         [_ height] (r-> (x/bsize logo'))]
-    (ocall! pg "setType" js/cc.ProgressTimer.TYPE_BAR)
-    (ocall! pg "setScaleX" .8)
-    (ocall! pg "setScaleY" .3)
+    (oc/ocall! pg "setType" js/cc.ProgressTimer.TYPE_BAR)
+    (oc/ocall! pg "setScaleX" .8)
+    (oc/ocall! pg "setScaleY" .3)
     (x/pos! pg mx (- my (* .6 height)))
-    (ocall! scene "scheduleUpdate")))
+    (oc/ocall! scene "scheduleUpdate")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prelaunch-3 [scene]
@@ -167,7 +167,7 @@
              #js {;:init #(.call js/cc.Scene.prototype.init scene)
                   ;:onExit #(.call js/cc.Node.prototype.onExit scene)
                   :onEnter (fn_* (js/cc.Node.prototype.onEnter.call scene)
-                                 (ocall scene "scheduleOnce" f 0.3))})
+                                 (oc/ocall scene "scheduleOnce" f 0.3))})
     (x/run-scene scene)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -188,9 +188,11 @@
         [width height] (r-> size)]
     (if (native?)
       (handle-multi-devices)
-      (do (js/cc.view.resizeWithBrowserSize true)
-          (js/cc.view.adjustViewPort true)
-          (x/design-res! width height policy)))
+      (let [[w h] (x/frame-size*)]
+        (x/debug* "frame size, w= " w ", h= " h)
+        (x/design-res! width height policy)
+        (js/cc.view.adjustViewPort true)
+        (js/cc.view.resizeWithBrowserSize true)))
     ;if we have a framerate, set it by inverting
     (if (c/pos?? frame-rate)
       (-> (c/num-flip frame-rate)

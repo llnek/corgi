@@ -193,8 +193,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro clayer*
   "New Color-Layer."
-  [r b g & [a]]
-  `(new ~'js/cc.LayerColor (js/cc.color ~r ~b ~g ~a)))
+  [& args]
+  `(new ~'js/cc.LayerColor (js/cc.color ~@args)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro milabel*
@@ -273,8 +273,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro remove!
   "Node.removeFromParent."
-  [child]
-  `(oops.core/ocall! ~child "removeFromParent"))
+  [& nodes]
+  `(do ~@(map (fn [n]
+                `(oops.core/ocall! ~n "removeFromParent")) nodes)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro push-scene

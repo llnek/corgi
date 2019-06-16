@@ -188,12 +188,13 @@
       (x/add-> scene gl "arena" 1)
       (x/add-> scene (hlayer R) "hud" 2)
       (x/attr* scene
-               #js{:onExit (fn_0 (x/disable-events)
+               #js{:update (fn_1 (t/run-game ____1))
+                   :onExit (fn_0 (x/disable-events)
                                  (.call fExit scene))
                    :onEnter (fn_0 (.call fEnter scene)
-                                  (x/enable-events gl))
-                   :update #()})
+                                  (x/enable-events gl))})
       (init-game-scene)
+      (oc/ocall! scene "scheduleUpdate")
       (swap! xcfg #(assoc-in % [:game :running?] true)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -290,6 +291,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn splash-scene []
+  (let [[w h](x/browser-size)]
+    (x/debug* "browser size, w= " w ", h= " h))
   (do-with [scene (x/scene*)]
     (let [onplay (fn_* (x/run-scene (menu-scene)))
           {:keys [grid-size]} (:game @xcfg)
@@ -321,7 +324,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
-
-
 
