@@ -944,7 +944,7 @@
          :appid ""
          :assets {:images {} :sheets {}
                   :tiles {} :fonts {} :sounds {}
-                  :loader {:czlab "core/ZotohLab.png"
+                  :loader {:czlab "core/ZotohLab_x1024.png"
                            :preloader "core/preloader_bar.png"}}
          :audio {:volume 0.5 :open? true :track nil}
          :ebus (e/new-event-bus)
