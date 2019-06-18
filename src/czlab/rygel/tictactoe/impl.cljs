@@ -9,7 +9,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.rygel.tictactoe.board
+  czlab.rygel.tictactoe.impl
 
   (:require [czlab.mcfud.cc.ccsx :as x :refer [xcfg CV-Z CV-X CV-O]]
             [czlab.mcfud.afx.algos :as a]

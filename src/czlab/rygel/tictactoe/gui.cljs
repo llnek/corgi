@@ -17,7 +17,7 @@
                                           let->nil do-with fn-nil]]
             [oops.core :as oc]
             [czlab.rygel.tictactoe.core :as t]
-            [czlab.rygel.tictactoe.board :as b]
+            [czlab.rygel.tictactoe.impl :as b]
             [czlab.mcfud.afx.ebus :as u]
             [czlab.mcfud.cc.ccsx :as x
                                  :refer [P-BOT G-ONE G-TWO

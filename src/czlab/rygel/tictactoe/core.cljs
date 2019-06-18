@@ -16,7 +16,7 @@
              :refer [if-some+ fn_0 fn_* fn_1 n# _1 _2]]
             [czlab.mcfud.cc.ccsx
              :as x :refer [P-BOT CV-X CV-Z CV-O xcfg]]
-            [czlab.rygel.tictactoe.board :as b]
+            [czlab.rygel.tictactoe.impl :as b]
             [czlab.mcfud.cc.dialog :as d]
             [czlab.mcfud.afx.ebus :as u]
             [czlab.mcfud.afx.algos :as a]
