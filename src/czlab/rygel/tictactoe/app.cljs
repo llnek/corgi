@@ -7,7 +7,7 @@
 ;; You must not remove this notice, or any other, from this software.
 
 (ns ^{:doc ""
-      :author ""}
+      :author "Kenneth Leung"}
 
   czlab.rygel.tictactoe.app
 
@@ -16,8 +16,8 @@
             [czlab.mcfud.cc.ccsx :as x :refer [CV-X CV-O CV-Z]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def cfg {:appkey "bd5f79bb-eb41-4ed5-bb44-2529dc27ed3c"
-          :appid "tictactoe"
+(def cfg {:app-key "bd5f79bb-eb41-4ed5-bb44-2529dc27ed3c"
+          :app-id "tictactoe"
           :start-scene g/splash-scene
           :game {;:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
                  :pmap {CV-X :player CV-O :pother}
@@ -27,7 +27,7 @@
                  :landscape? false
                  :begin-with CV-X
                  :grid-size 3
-                 :bot-time 0.5
+                 :bot-time .5
                  :player-time 7}
           :l10n {:en {"%whoStarts" "{} starts!"
                       "%1stMove" "First Move"}}

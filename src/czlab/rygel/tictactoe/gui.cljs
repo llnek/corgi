@@ -80,7 +80,8 @@
                     (recur (+ 1 col)
                            (+ x2 gw)
                            y1'
-                           (conj! out'' (js/cc.rect x1' y2 W H))))))]
+                           (conj! out''
+                                  (x/ccr* x1' y2 W H))))))]
           (recur (+ 1 row) x1 y' out'))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -96,19 +97,19 @@
           title (x/bmf-label* (str (:pid px)
                                    " [X]/[O] " (:pid py))
                               (x/gfnt :title)
-                              {:pos (js/cc.p cx top)
-                               :anchor x/ANCHOR-TOP
+                              {:anchor x/ANCHOR-TOP
+                               :pos (x/ccp* cx top)
                                :color "#5e3178"
                                :scale .6})
           s1 (x/bmf-label* (str (get scores CV-X))
                            (x/gfnt :label)
-                           {:pos (js/cc.p 0 top)
+                           {:pos (x/ccp* 0 top)
                             :color "#ffffff"
                             :scale .6
                             :anchor x/ANCHOR-TOP-LEFT})
           s2 (x/bmf-label* (str (get scores CV-O))
                            (x/gfnt :label)
-                           {:pos (js/cc.p rhs top)
+                           {:pos (x/ccp* rhs top)
                             :color "#ffffff"
                             :scale .6
                             :anchor x/ANCHOR-TOP-RIGHT})]
@@ -118,11 +119,11 @@
       (x/add-> layer title)
       (-> (x/add-> layer (x/bmf-label*
                            "" (x/gfnt :text)) "status")
-          (x/set!! {:pos (js/cc.p cx (/ (+ low gend) 2))
-                    :color "#ffffff"
-                    :scale .3}))
+          (x/set!! {:color "#ffffff"
+                    :scale .3
+                    :pos (x/ccp* cx (/ (+ low gend) 2))}))
       (x/add-> layer
-               (x/gmenu [{:nnn "#icon_menu.png" :cb pause}]
+               (x/gmenu {:nnn "#icon_menu.png" :cb pause}
                         {:region R :anchor x/ANCHOR-BOTTOM-RIGHT}) "pause"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -143,9 +144,9 @@
                #(assoc-in %
                           [:game :bot] (b/ttt grid-size goals)))
         (if (= P-BOT ptype) ;if bot starts first, run it
-          (oc/ocall! scene
-                     "scheduleOnce"
-                     (t/run-bot true) bot-time)))
+          (c/call-js! scene
+                      "scheduleOnce"
+                      (t/run-bot true) bot-time)))
       (t/write-status (x/l10n "%whoStarts" pid)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -167,18 +168,18 @@
                        {:ptype P-BOT
                         :pid (x/l10n "%cpu") :pname (x/l10n "%computer")})
              :running? false
-             :depth 10
              :scene scene
              :gmode mode
              :selected -1
              :evQ #js []
              :cells []
+             :depth 10
              :turn CV-Z
              :scores {CV-X 0 CV-O 0}}
           cs (mapv #(let [s (x/sprite* "#z.png")]
                       [(x/center!! %1 gl s) CV-Z]) (:gpos S))
-          fExit js/cc.Node.prototype.onExit
-          fEnter js/cc.Node.prototype.onEnter]
+          fout js/cc.Node.prototype.onExit
+          fin js/cc.Node.prototype.onEnter]
       (swap! xcfg
              (fn_1 (update-in ____1
                               [:game]
@@ -190,11 +191,11 @@
       (x/attr* scene
                #js{:update (fn_1 (t/run-game ____1))
                    :onExit (fn_0 (x/disable-events)
-                                 (.call fExit scene))
-                   :onEnter (fn_0 (.call fEnter scene)
+                                 (.call fout scene))
+                   :onEnter (fn_0 (.call fin scene)
                                   (x/enable-events gl))})
       (init-game-scene)
-      (oc/ocall! scene "scheduleUpdate")
+      (c/call-js! scene "scheduleUpdate")
       (swap! xcfg #(assoc-in % [:game :running?] true)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -245,7 +246,7 @@
       (x/add-> layer (x/bmf-label* (x/l10n "%options")
                                    (x/gfnt :title)
                                    {:color "#F6B17F"
-                                    :pos (js/cc.p cx (* .8 top))}))
+                                    :pos (x/ccp* cx (* .8 top))}))
       (x/toggle-select! i1 (if (x/sfx?) 0 1))
       (x/toggle-select! i3 (if (= begin-with CV-X) 0 1))
       (x/toggle-select! i2 (if (= (:pvalue player) CV-X) 0 1))
@@ -274,12 +275,12 @@
           layer (x/add-> scene (x/layer*))
           R (x/vrect)
           {:keys [top]} (x/r->b4 R)
-          [cx cy] (x/p-> (x/mid-rect R))]
+          [cx cy] (x/mid-rect* R)]
       (x/center-image R layer (x/gimg :game-bg) "bg" -1)
       (x/add-> layer (x/bmf-label* (x/l10n "%mmenu")
                                    (x/gfnt :title)
                                    {:color "#F6B17F"
-                                    :pos (js/cc.p cx (* .8 top))}))
+                                    :pos (x/ccp* cx (* .8 top))}))
       ;const color= cc.color('#5E3178')
       (x/center!! R
                   layer
@@ -306,11 +307,11 @@
       ;add title
       (-> (x/add-> layer
                    (x/sprite* "#title.png"))
-          (x/set!! {:pos (js/cc.p cx (* .8 top))}))
+          (x/set!! {:pos (x/ccp* cx (* .8 top))}))
       ;add play button
-      (-> (x/add-> layer
-                   (x/gmenu [{:cb onplay :nnn "#play.png"}]))
-          (x/set!! {:pos (js/cc.p cx (* .1 top))}))
+      (x/pos! (x/add-> layer
+                       (x/gmenu {:cb onplay
+                                 :nnn "#play.png"})) cx (* .1 top))
       ;;draw demo
       ;; we scale down the icons to make it look nicer
       (c/each*

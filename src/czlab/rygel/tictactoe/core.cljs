@@ -14,28 +14,28 @@
   (:require [czlab.mcfud.afx.core
              :as c
              :refer [if-some+ fn_0 fn_* fn_1 n# _1 _2]]
-            [czlab.mcfud.cc.ccsx
-             :as x :refer [P-BOT CV-X CV-Z CV-O xcfg]]
+            [oops.core :as oc]
             [czlab.rygel.tictactoe.impl :as b]
             [czlab.mcfud.cc.dialog :as d]
             [czlab.mcfud.afx.ebus :as u]
             [czlab.mcfud.afx.algos :as a]
-            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
+            [czlab.mcfud.cc.ccsx
+             :as x :refer [P-BOT CV-X CV-Z CV-O xcfg]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn write-status [msg]
-  (-> (get-in @xcfg [:game :scene])
-      (x/gcbyn "hud")
-      (x/gcbyn "status")
-      (ocall! "setString" msg)))
+  (-> (get-in @xcfg
+              [:game :scene])
+      (x/gcbyn+ :hud :status)
+      (c/call-js! "setString" msg)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn write-score [value score]
-  (let [{:keys [scene pmap]}
-        (:game @xcfg)
-        s (name (get pmap value))]
-    (ocall! (-> (x/gcbyn scene "hud")
-                (x/gcbyn s)) "setString" (str score))))
+  (let [{:keys [scene pmap]} (:game @xcfg)]
+    (c/call-js! (x/gcbyn+ scene
+                          :hud
+                          (get pmap value))
+                "setString" (str score))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn value->symbol [value & [flip?]]
@@ -58,7 +58,7 @@
 (defn- click->cell [gpos pt]
   (if-some+
     [ret (some
-           #(if (js/cc.rectContainsPoint (nth gpos %) pt) [%])
+           #(if (x/contains-pt? (nth gpos %) pt) [%])
            (range (n# gpos)))]
     (_1 ret)
     -1))
@@ -74,15 +74,15 @@
     (swap! xcfg
            #(assoc-in % [:game :turn] next'))
     (if (= P-BOT ptype)
-      (ocall! scene
-              "scheduleOnce" (run-bot false) bot-time))
+      (c/call-js! scene
+                  "scheduleOnce"
+                  (run-bot false) bot-time))
     (write-status (str pid "'s turn"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- on-end []
   (let [{{:keys [scene]} :game :keys [start-scene]} @xcfg
-        h (x/gcbyn scene "hud")
-        g (x/gcbyn scene "arena")]
+        [h g] (x/gcbyn* scene :hud :arena)]
     (js/cc.eventManager.pauseTarget g true)
     (js/cc.eventManager.pauseTarget h true)
     (->> {:yes #(x/run-scene (start-scene))
@@ -134,11 +134,11 @@
                 pmap cells grid]} (:game @xcfg)
         [sp v] (nth cells cell)
         pk (get pmap turn)
-        pt (x/pos* sp)
+        pt (x/pos?? sp)
         sp' (x/set!! (value->symbol turn) {:pos pt})]
     (x/sfx-effect pk)
     (x/remove! sp)
-    (x/add-> (x/gcbyn scene "arena") sp')
+    (x/add-> (x/gcbyn scene :arena) sp')
     (swap! xcfg
            (fn [root]
              (aset grid cell turn)
@@ -165,8 +165,7 @@
   (let [{:keys [running? evQ]} (:game @xcfg)]
     (when running?
       (when-some [cell (.shift evQ)]
-        (update-arena cell)
-        (check-game-state)))))
+        (update-arena cell) (check-game-state)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn on-click [topic msgTopic & msgs]
@@ -174,12 +173,11 @@
                 turn running?] :as G} (:game @xcfg)]
     (when running?
       (let [{:keys [ptype]} (get G (get pmap turn))
-            cell (->> (ocall (_1 msgs)
-                             "getLocation")
-                      (click->cell gpos))]
+            cell (click->cell gpos
+                              (c/call-js! (_1 msgs)
+                                          "getLocation"))]
         (when (and (not= P-BOT ptype)
-                   (c/nneg? cell))
-          (process-cell cell))))))
+                   (c/nneg? cell)) (process-cell cell))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn on-touch [topic msgTopic & msgs])

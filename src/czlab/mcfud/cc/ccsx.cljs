@@ -65,9 +65,27 @@
   [p] [(oget-x p) (oget-y p)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn get-bbox
+(defn pos* [obj] (p-> (x/pos?? obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn bbox
   "Node.getBoundingBox."
   [n] (oc/ocall n "getBoundingBox"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn bbox*
+  "Node.getBoundingBox for all."
+  [& args] (map #(oc/ocall % "getBoundingBox") args))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn gcbyn+
+ "Get nested children under a node."
+ [node & args] (reduce #(gcbyn %1 %2) node args))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn gcbyn*
+ "Get children under a node."
+ [node & args] (map #(gcbyn node %1) args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn crect?
@@ -94,19 +112,68 @@
      :base y :lhs x :rhs (+ x w)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- bbox?? "" [obj]
+  (cond (snode? obj)
+        (bbox?? (oget-piccy obj))
+        (cnode? obj)
+        (bbox?? (bbox obj))
+        (crect? obj)
+        obj
+        :else
+        (raise! "bad call bbox??")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- pt?? "" [obj]
+  (cond (snode? obj)
+        (pt?? (oget-piccy obj))
+        (cnode? obj)
+        (pt?? (x/pos?? obj))
+        (and (object? obj)
+             (c/js-prop? obj "x")
+             (c/js-prop? obj "y"))
+        obj
+        :else
+        (raise! "bad call pt??")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn contains-pt?
+  ""
+  [obj pt]
+  (js/cc.rectContainsPoint (bbox?? obj) (pt?? pt)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn minX "" [obj]
+  (js/cc.rectGetMinX (bbox?? obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn minY "" [obj]
+  (js/cc.rectGetMinY (bbox?? obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn maxX "" [obj]
+  (js/cc.rectGetMaxX (bbox?? obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn maxY "" [obj]
+  (js/cc.rectGetMaxY (bbox?? obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collide?
   "Test collision of 2 entities."
   [a b]
-  (cond (and (snode? a) (snode? b))
-        (collide? (oget-piccy a)
-                  (oget-piccy b))
-        (and (cnode? a) (cnode? b))
-        (collide? (get-bbox a)
-                  (get-bbox b))
-        (and (crect? a)(crect? b))
-        (js/cc.rectIntersectsRect a b)
-        :else
-        (raise! "bad call collide?")))
+  (js/cc.rectIntersectsRect (bbox?? a) (bbox?? b)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn grabbed? "" [obj evt]
+  (contains-pt? (bbox obj)
+                (c/call-js! obj "getLocation")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn move-pos! "" [obj evt]
+  (do-with [obj]
+    (let [[ox oy] (pos* obj)
+          [dx dy] (c/call-js! evt "getDelta")]
+      (x/pos! obj (+ ox dx) (+ oy dy)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn design-res!
@@ -131,6 +198,9 @@
                 (oget-y vo) (oget-width wz) (oget-height wz))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vrect-b4 [] (r->b4 (vrect)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ebox
   "not-used"
   []
@@ -142,14 +212,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mid-rect*
   "Center point of a rect."
-  [r]
-  [(js/cc.rectGetMidX r) (js/cc.rectGetMidY r)])
+  [& [r]]
+  (let [r (or r (vrect))]
+    [(js/cc.rectGetMidX r) (js/cc.rectGetMidY r)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mid-rect
   "Center point of a rect."
-  [r]
-  (js/cc.p (js/cc.rectGetMidX r) (js/cc.rectGetMidY r)))
+  [& [r]]
+  (let [r (or r (vrect))]
+    (js/cc.p (js/cc.rectGetMidX r) (js/cc.rectGetMidY r))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn frame-size*
@@ -216,6 +288,9 @@
                 (oget-height z)) (js/cc.rect)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn csize* [obj] (r-> (csize obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bsize
   "Find size of object's bounding-box."
   [obj]
@@ -224,10 +299,13 @@
         (snode? obj)
         (bsize (oget-piccy obj))
         (cnode? obj)
-        (bsize (get-bbox obj))
+        (bsize (bbox obj))
         (crect? obj)
         obj
         :else (raise! "bad call bsize")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn bsize* [obj] (r-> (bsize obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn half-rect
@@ -342,6 +420,9 @@
   (oc/ocall! t "setSelectedIndex" v) t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pkeys [pmap] [(get pmap CV-X) (get pmap CV-O)])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; event subscriptions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defenum MOUSE UP 200 DOWN MOVE)
@@ -354,8 +435,10 @@
 (defn- ecb-p1 [t] (fn [a] (e/pub (:ebus @xcfg) t a)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- keys-listener-obj []
-  #js {:onKeyPressed (ecb-p2 KEY-DOWN)
-       :onKeyReleased (ecb-p2 KEY-UP)
+  #js {:onKeyPressed
+       (fn_2 (aset (get-in @xcfg [:game :keybd]) ____1 true))
+       :onKeyReleased
+       (fn_2 (aset (get-in @xcfg [:game :keybd]) ____1 false))
        :event js/cc.EventListener.KEYBOARD})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -476,6 +559,10 @@
       (if (some? anchor) (x/anchor! node anchor)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hide! "" [obj] (x/visible! obj false))
+(defn show! "" [obj] (x/visible! obj true))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- peg-menu??
   "Place a menu by anchoring to its parent."
   [R anchor menu tag total padding flat?]
@@ -507,9 +594,11 @@
 (defn tmenu
   "Create a text menu containing this set of items."
   [items & [options]]
-  (let [{:keys [scale region anchor
+  (let [items (if (map? items) [items] items)
+        tag 911
+        {:keys [scale region anchor
                 flat? align? color padding]
-         :or {align? true padding 10}} options tag 911]
+         :or {align? true padding 10}} options]
     (do-with [menu (x/menu*)]
       (c/each* #(let [{:keys [text font cb ctx]} %1]
                   (add-> menu
@@ -530,7 +619,8 @@
 (defn gmenu
   "Create a menu with graphic buttons."
   [items & [options]]
-  (let [tag 911
+  (let [items (if (map? items) [items] items)
+        tag 911
         {:keys [scale align? region
                 anchor padding flat?]
          :or {align? true padding 10}} options]
@@ -956,6 +1046,7 @@
                 :player {:ptype P-MAN :pid "" :pname ""}
                 :policy js/cc.ResolutionPolicy.SHOW_ALL
                 :size (js/cc.rect)
+                :keybd #js[]
                 :resdir ""
                 :scale 1
                 :sfx :mp3

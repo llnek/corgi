@@ -16,6 +16,12 @@ var cc = {
   rectContainsRect: function() {},
   rectGetMidX: function() {},
   rectGetMidY: function() {},
+  rectGetMinX: function() {},
+  rectGetMinY: function() {},
+  rectGetMaxX: function() {},
+  rectGetMaxY: function() {},
+
+  scaleBy: function() {},
 
   size :function(){},
   color:function(){},

@@ -21,6 +21,12 @@
 (defmacro debug* [& msgs] `(js/cc.log (str ~@msgs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro ccr* "Alias for cc.rect." [& args] `(js/cc.rect ~@args))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro ccp* "Alias for cc.p." [& args] `(js/cc.p ~@args))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro gebyid
   "Document.getElementById."
   [id]
@@ -75,7 +81,7 @@
                                      (oops.core/ocall! ~node "setScale" ~X))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro pos*
+(defmacro pos??
   "Node.getPosition."
   [node]
   `(oops.core/ocall ~node "getPosition"))
@@ -84,7 +90,7 @@
 (defmacro gcbyn
   "Node.getChildByName."
   [parent n]
-  `(oops.core/ocall ~parent "getChildByName" ~n))
+  `(oops.core/ocall ~parent "getChildByName" (name ~n)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro gcbyt
@@ -141,6 +147,10 @@
   (let [N (gensym)]
     `(czlab.mcfud.afx.core/if-number [~N ~x]
                                      (oops.core/ocall! ~node "setPositionX" ~N))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro posX
+  "Node.getPositionX."
+  [node] `(oops.core/ocall ~node "getPositionX"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro posY!
@@ -149,6 +159,11 @@
   (let [N (gensym)]
     `(czlab.mcfud.afx.core/if-number [~N ~y]
                                      (oops.core/ocall! ~node "setPositionY" ~N))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro posY
+  "Node.getPositionY."
+  [node] `(oops.core/ocall ~node "getPositionY"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro oget-x
