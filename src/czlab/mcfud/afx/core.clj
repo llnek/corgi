@@ -200,19 +200,20 @@
   `(vector ~@(map (fn [f] `(~op ~f ~v)) forms)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro call-js!
-  "Call a method on a js object."
-  [obj mtd & args] `(oops.core/ocall! ~obj ~mtd ~@args))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro set-js!
   "Set a js object property."
-  [obj prop value] `(oops.core/oset! ~obj (str "!" ~prop) ~value))
+  [obj prop value]
+  `(oops.core/oset!+ ~obj (str "!" ~prop) ~value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro get-js
   "Get a property from a js object."
-  [obj prop] `(oops.core/oget ~obj (str "?" ~prop)))
+  [obj prop] `(oops.core/oget+ ~obj (str "?" ~prop)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro call-js!
+  "Call a method on a js object."
+  [obj mtd & args] `(oops.core/ocall! ~obj ~mtd ~@args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro js-prop?

@@ -11,9 +11,9 @@
 
   czlab.rygel.pong.app
 
-  (:require [czlab.mcfud.pong.gui :as g]
-            [czlab.mcfud.cc.ccsx :as x :refer [xcfg]]
-            [czlab.mcfud.afx.core :as c :refer [fn_0]]))
+  (:require [czlab.rygel.pong.gui :as g]
+            [czlab.mcfud.afx.core :as c :refer [fn_0 fn_1]]
+            [czlab.mcfud.cc.ccsx :as x :refer [CV-X CV-O xcfg]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;per second (cal'ced by reference to original pong game)
@@ -29,23 +29,24 @@
         ratio (if (> width height)
                 (/ width COURT-LENGTH)
                 (/ height COURT-LENGTH))
-        bv (* ratio BALL-SPEED)
-        pv (* ratio PADDLE-SPEED)]
+        [bv pv] (c/mapfv *
+                         ratio
+                         BALL-SPEED PADDLE-SPEED)]
     (swap! xcfg
-           #(update-in %
-                       [:game]
-                       #(assoc %
-                               :b-vel (js/cc.p bv bv)
-                               :p-vel (js/cc.p pv pv)
-                               :fps (js/cc.director.getAnimationInterval))))))
+           (fn_1 (update-in ____1
+                            [:game]
+                            #(assoc %
+                                    :b-vel (x/ccp* bv bv)
+                                    :p-vel (x/ccp* pv pv)
+                                    :fps (js/cc.director.getAnimationInterval)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def cfg {:app-key "fa0860f9-76dc-4135-8bc7-bd5af3147d55",
+(def cfg {:app-key "fa0860f9-76dc-4135-8bc7-bd5af3147d55"
           :app-id "pong"
           :run-once once-only
           :start-scene g/splash-scene
           :game {;:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
-                 :size (js/cc.rect 0 0 2048 1536)
+                 :size (x/ccr* 0 0 2048 1536)
                  :landscape? true
                  ;:landscape? false
                  ;:size (js/cc.rect 0 0 1536 2048)
@@ -56,19 +57,18 @@
                         CV-O [js/cc.KEY.s js/cc.KEY.w]}
                  :kmapXXX {CV-X [js/cc.KEY.left js/cc.KEY.right]
                            CV-O [js/cc.KEY.a js/cc.KEY.d]}
-                 :player {:pvalue CV-X}
-                 :pother {:pvalue CV-O}
                  :sync-millis 3000
                  :num-points 5
-                 :b-vel (js/cc.p)
-                 :p-vel (js/cc.p)}
+                 :player {:pvalue CV-X}
+                 :pother {:pvalue CV-O}
+                 :scores {CV-X 0 CV-O 0}}
           :assets {:images {:lang-pics "pong/l10n/images.png"
                             :game-pics "pong/imgs/images.png"
                             :gui-edit-orange "core/orange_edit.png"
                             :game-bg "pong/imgs/bg.png" }
                    :sheets {:lang-pics "pong/l10n/images.plist"
                             :game-pics "pong/imgs/images.plist"}
-                   :sounds {:game-end "snds/MineExplosion"
+                   :sounds {:game-end "snds/MineExplosion.mp3"
                             :player "snds/ElevatorBeep.mp3"
                             :pother "snds/MineBeep.mp3"
                             :game-tie "snds/Death.mp3" }

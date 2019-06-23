@@ -11,22 +11,34 @@
 
   czlab.rygel.pong.core
 
-  (:require [czlab.mcfud.afx.core :as c :refer [fn_1 fn_2 let->nil]]
+  (:require [czlab.mcfud.afx.core :as c :refer [_1 _2 fn_1
+                                                fn_2 fn_*
+                                                do->nil let->nil]]
             [oops.core :as oc]
             [czlab.mcfud.cc.dialog :as g]
             [czlab.mcfud.afx.ebus :as u]
-            [czlab.mcfud.cc.ccsx :as x :refer [xcfg G-NET]]))
+            [czlab.mcfud.cc.ccsx :as x :refer [CV-X CV-O xcfg G-NET]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn clamp-ball! [ball]
+(defn- rot-flat
+  "" [obj] (c/call-js! obj "setRotation" 90) obj)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- write-status [msg])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- write-score [who score])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- clamp-ball! [ball]
   (let->nil
     [{:keys [walls]} (:game @xcfg)
      {:keys [n s e w]} walls
-     bbox (x/bbox ball)
-     hh (/ (_2 (x/r-> bbox)) 2)]
-    (if (x/collide? n bbox)
+     bx (x/bbox ball)
+     hh (/ (_2 (x/r-> bx)) 2)]
+    (if (x/collide? n bx)
       (x/posY! ball (- (x/minY n) hh)))
-    (if (x/collide? s bbox)
+    (if (x/collide? s bx)
       (x/posY! ball (+ (x/maxY s) hh)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -34,11 +46,11 @@
   (let->nil
     [{:keys [walls]} (:game @xcfg)
      {:keys [n s e w]} walls
-     f (fn_1 (let [pbox (x/bbox ____1)
-                   hh (/ (_2 (x/r-> pbox)) 2)]
-               (if (x/collide? pbox n)
+     f (fn_1 (let [px (x/bbox ____1)
+                   hh (/ (_2 (x/r-> px)) 2)]
+               (if (x/collide? px n)
                  (x/posY! ____1 (- (x/minY n) hh)))
-               (if (x/collide? pbox s)
+               (if (x/collide? px s)
                  (x/posY! ____1 (+ (x/maxY s) hh)))))]
     (f pad)
     (doseq [x more] (f x))))
@@ -47,8 +59,8 @@
 (defn- on-end []
   (let->nil
     [{{:keys [scene]} :game :keys [start-scene]} @xcfg
-     hud (gcbyn scene :hud)
-     gl (gcbyn scene :arena)]
+     hud (x/gcbyn scene :hud)
+     gl (x/gcbyn scene :arena)]
     (js/cc.eventManager.pauseTarget gl true)
     (js/cc.eventManager.pauseTarget hud true)
     (g/pop-dlg scene
@@ -61,13 +73,13 @@
 (defn- next-point []
   (let->nil
     [{:keys [scene b-vel]} (:game @xcfg)
-     ball (gcbyn+ scene :arena :ball)
-     velObj (x/get-js ball "____vel")
+     ball (x/gcbyn+ scene :arena :ball)
+     velObj (c/get-js ball "____vel")
      [bx by] (x/p-> b-vel)
      [vx vy] [(* bx (c/rand-sign))
               (* by (c/rand-sign))]]
-    (x/set-js! velObj "x" 0)
-    (x/set-js! velObj "y" 0)
+    (c/set-js! velObj "x" 0)
+    (c/set-js! velObj "y" 0)
     (x/pos! ball (x/mid-rect))
     (c/call-js!
       ball
@@ -75,29 +87,27 @@
       (new js/cc.Sequence
            (js/cc.scaleBy 2 3 3)
            (new js/cc.CallFunc
-                (fn_* (x/set-js! velObj "x" vx)
-                      (x/set-js! velObj "y" vy)))))))
+                (fn_* (c/set-js! velObj "x" vx)
+                      (c/set-js! velObj "y" vy)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- won-game [who]
   (let->nil
     [{:keys [pmap] :as G} (:game @xcfg)
-     pk (get pmap who)
-     {:keys [pid]} (get G pk)]
+     pk (pmap who)
+     {:keys [pid]} (G pk)]
     (x/sfx-effect :game-end)
     (write-status (x/l10n "%winGame" pid))
     (on-end)
     (swap! xcfg
-           (fn_1 (update-in ____1
-                            [:game]
-                            #(assoc % :running? false))))))
+           #(assoc-in % [:game :running?] false))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- check-game-state []
   (let->nil
     [{:keys [scene scores walls num-points]} (:game @xcfg)
      {:keys [n w e s]} walls
-     ball (gcbyn+ scene :arena :ball)
+     ball (x/gcbyn+ scene :arena :ball)
      bb (x/bbox ball)]
     (when-some [win (cond (x/collide? bb e) CV-X
                           (x/collide? bb w) CV-O)]
@@ -112,10 +122,10 @@
   (let->nil
     [{:keys [pmap scene]} (:game @xcfg)
      gl (x/gcbyn scene :arena)
-     [kx ko] (c/pkeys pmap)
+     [kx ko] (x/pkeys pmap)
      [px po] (x/gcbyn* gl kx ko)]
     (cond (= msgTopic x/MOUSE-DOWN)
-          (let [mp (c/call-js evt "getLocation")
+          (let [mp (c/call-js! evt "getLocation")
                 r1 (x/bbox px)
                 r2 (x/bbox po)
                 x? (x/contains-pt? r1 mp)
@@ -133,18 +143,18 @@
                                                :o-grabbed? false))))
           (= msgTopic x/MOUSE-MOVE)
           (let [{:keys [x-grabbed? o-grabbed?]} (:game @xcfg)
-                [_ dy] (x/p-> (c/call-js evt "getDelta"))]
+                [_ dy] (x/p-> (c/call-js! evt "getDelta"))]
             (if o-grabbed? (x/posY! po (+ (x/posY po) dy)))
             (if x-grabbed? (x/posY! px (+ (x/posY px) dy)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- onTouch "" [topic msgTopic & msgs])
+(defn- on-touch "" [topic msgTopic & msgs])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- repos-ball []
   (let->nil
     [{:keys [b-vel scene]} (:game @xcfg)
-     ball (gcbyn+ scene :arena :ball)
+     ball (x/gcbyn+ scene :arena :ball)
      [vx vy] (x/p-> b-vel)
      velObj (c/get-js ball "____vel")]
     (x/pos! ball (x/mid-rect))
@@ -155,40 +165,42 @@
 (defn- create-ball []
   (let->nil
     [{:keys [scene]} (:game @xcfg)
-     gl (gcbyn scene :arena)
+     gl (x/gcbyn scene :arena)
      ball (x/sprite* "#pongball.png")]
-    (x/set-js! ball "____vel" (js/cc.p))
+    (c/set-js! ball "____vel" (x/ccp* 0 0))
     (x/add-> gl ball "ball")
     (repos-ball)
     (swap! xcfg
-           (fn_1 (update-in ____1
-                            [:game]
-                            #(assoc % :ball (x/bbox ball)))))))
+           #(assoc-in % [:game :b-size] (x/bbox ball)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- repos-paddles []
   (let->nil
-    [{:keys [walls scene pmap paddle]} (:game @xcfg)
+    [{:keys [walls scene pmap p-size]} (:game @xcfg)
      {:keys [e w]} walls
-     gl (gcbyn scene :arena)
+     gl (x/gcbyn scene :arena)
      [kx ko] (x/pkeys pmap)
-     [pw _] (x/r-> paddle)
+     pw2 (/ (x/oget-width p-size) 2)
      [_ ey] (x/mid-rect* e)
      [_ wy] (x/mid-rect* w)]
-    (x/pos! (gcbyn gl kx) (+ (x/maxX e) (/ pw 2)) ey)
-    (x/pos! (gcbyn gl ko) (+ (x/maxX w) (/ pw 2)) wy)))
+    (x/pos! (x/gcbyn gl ko) (+ (x/maxX e) pw2) ey)
+    (x/pos! (x/gcbyn gl kx) (+ (x/maxX w) pw2) wy)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- create-paddles []
   (let->nil
     [{:keys [pmap imap scene]} (:game @xcfg)
-     gl (gcbyn scene :arena)
+     gl (x/gcbyn scene :arena)
      [kx ko] (x/pkeys pmap)
      ;which icon image?
-     ix (get imap CV-X)
-     io (get imap CV-O)]
-    (x/add-> gl (x/sprite* ix) (name kx))
-    (x/add-> gl (x/sprite* io) (name ko))))
+     ix (imap CV-X)
+     io (imap CV-O)
+     x (rot-flat (x/sprite* ix))
+     o (rot-flat (x/sprite* io))]
+    (x/add-> gl x (name kx))
+    (x/add-> gl o (name ko))
+    (swap! xcfg
+           #(assoc-in % [:game :p-size] (x/bbox x)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init []
@@ -211,14 +223,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handle-keys [dt]
   (let->nil
-    [{:keys [pmap p-vel kmap keybd]} (:game @xcfg)
+    [{:keys [scene pmap p-vel kmap keybd]} (:game @xcfg)
      [vx vy] (x/p-> p-vel)
      [dx dy] (c/mapfv * dt vx vy)
-     gl (gcbyn scene :arena)
+     gl (x/gcbyn scene :arena)
      [kx ko] (x/pkeys pmap)
-     [mx mo] [(get kmap CV-X) (get kmap CV-O)]]
-    (move-via-key keybd (gcbyn gl kx) (nth mx 0) (nth mx 1) dy)
-    (move-via-key keybd (gcbyn gl ko) (nth mo 0) (nth mo 1) dy)))
+     [mx mo] [(kmap CV-X) (kmap CV-O)]]
+    (move-via-key keybd (x/gcbyn gl kx) (nth mx 0) (nth mx 1) dy)
+    (move-via-key keybd (x/gcbyn gl ko) (nth mo 0) (nth mo 1) dy)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- motion-objs [dt]
@@ -260,8 +272,8 @@
         {:keys [n e s w]} walls
         [kx ko] (x/pkeys pmap)
         [pb px po]
-        (-> (gcbyn scene :arena)
-            (gcbyn* :ball kx ko))
+        (-> (x/gcbyn scene :arena)
+            (x/gcbyn* :ball kx ko))
         [bx bo bb] (x/bbox* px po pb)]
     (clamp-paddle! px po)
     (cond (x/collide? bb bx)
@@ -278,10 +290,7 @@
   (do->nil
     (repos-paddles)
     (next-point)
-    (swap! xcfg
-           (fn_1 (update-in ____1
-                            [:game]
-                            #(assoc % :inited? true))))))
+    (swap! xcfg #(assoc-in % [:game :inited?] true))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- do-step [dt]
