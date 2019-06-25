@@ -21,6 +21,8 @@ var cc = {
   rectGetMaxX: function() {},
   rectGetMaxY: function() {},
 
+  visibleRect: {},
+
   scaleBy: function() {},
 
   size :function(){},
@@ -41,6 +43,7 @@ var cc = {
   view: { enableRetina: function(){},
           enableAutoFullScreen:function(){},
           getVisibleSize:function(){},
+          getViewPortRect:function(){},
           getFrameSize:function(){},
           getVisibleOrigin:function(){},
           adjustViewPort:function(){},

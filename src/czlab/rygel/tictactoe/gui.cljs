@@ -188,14 +188,8 @@
                       (x/add-> scene bg "bg" -1) (x/gimg :game-bg))
       (x/add-> scene gl "arena" 1)
       (x/add-> scene (hlayer R) "hud" 2)
-      (x/attr* scene
-               #js{:update (fn_1 (t/run-game ____1))
-                   :onExit (fn_0 (x/disable-events)
-                                 (.call fout scene))
-                   :onEnter (fn_0 (.call fin scene)
-                                  (x/enable-events gl))})
       (init-game-scene)
-      (c/call-js! scene "scheduleUpdate")
+      (x/hook-update scene #(t/run-game %1))
       (swap! xcfg #(assoc-in % [:game :running?] true)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

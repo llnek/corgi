@@ -19,7 +19,7 @@
 (def cfg {:app-key "bd5f79bb-eb41-4ed5-bb44-2529dc27ed3c"
           :app-id "tictactoe"
           :start-scene g/splash-scene
-          :game {;:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
+          :game {:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
                  :pmap {CV-X :player CV-O :pother}
                  :player {:pvalue CV-X}
                  :pother {:pvalue CV-O}

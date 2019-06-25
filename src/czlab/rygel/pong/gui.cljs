@@ -28,18 +28,19 @@
     (let [{:keys [scores pmap] :as G} (:game @xcfg)
           {:keys [top low lhs rhs]} (x/r->b4 R)
           [cx cy] (x/mid-rect* R)
+          cx2 (/ cx 2)
           fcb (fn_* (x/push-scene (options-scene)))
           [kx ky] (x/pkeys pmap)
           [px py] [(G kx) (G ky)]
           s1 (x/bmf-label* (str (scores CV-X))
                            (x/gfnt :label)
-                           {:pos (x/ccp* 0 top)
+                           {:pos (x/ccp* cx2 top)
                             :color "#ffffff"
                             :scale .6
                             :anchor x/ANCHOR-TOP-LEFT})
           s2 (x/bmf-label* (str (scores CV-O))
                            (x/gfnt :label)
-                           {:pos (x/ccp* rhs top)
+                           {:pos (x/ccp* (- rhs cx2) top)
                             :color "#ffffff"
                             :scale .6
                             :anchor x/ANCHOR-TOP-RIGHT})]
@@ -47,7 +48,7 @@
       (x/add-> layer s2 (name ky))
       (-> (x/add-> layer (x/bmf-label*
                            "" (x/gfnt :text)) "status")
-          (x/set!! {:pos (x/ccp* cx cy)
+          (x/set!! {:pos (x/ccp* cx (/ cy 4))
                     :color "#ffffff" :scale .3}))
       (x/add-> layer
                (x/gmenu {:nnn "#icon_menu.png" :cb fcb}
@@ -63,16 +64,17 @@
           [width height] (x/r-> R)
           [cx cy] (x/mid-rect* R)
           rl (x/add-> gl (new js/cc.DrawNode) "border" -1)
-          hud (hlayer R)
           S {:walls {:w (x/ccr* lhs low 1 height)
                      :e (x/ccr* (- rhs 1) low 1 height)
                      :n (x/ccr* lhs (- top 1) width 1)
                      :s (x/ccr* lhs low width 1)}
              ;^ 4 invisible static walls
              :running? false
+             :inited? false
              :scene scene
              :gmode mode
              :evQ #js []
+             :scores {CV-X 0 CV-O 0}
              :player {:ptype P-MAN
                       :pid (x/l10n "%p1")
                       :pname (x/l10n "%player1")}
@@ -87,18 +89,18 @@
       (c/call-js! rl
                   "drawRect"
                   (x/ccp* lhs low)
-                  (x/ccp* rhs top) nil 64 white)
+                  (x/ccp* rhs top) nil 12 white)
+      ;(c/call-js! rl "drawCircle" (x/ccp* cx cy) 64 0 100 false 8 white)
       (c/call-js! rl
                   "drawSegment"
-                  (x/ccp* cx low)
-                  (x/ccp* cx top) 16 white)
+                  (x/ccp* cx low) (x/ccp* cx top) 4 white)
       (x/center-image R
                       bl
                       (x/gimg :game-bg) "bg" -2)
       (x/add-> scene gl "arena" 1)
-      (x/add-> scene hud "hud" 2)
+      (x/add-> scene (hlayer R) "hud" 2)
       (p/init)
-      (c/call-js! scene "scheduleUpdate")
+      (x/hook-update scene #(p/step %1))
       (swap! xcfg #(assoc-in % [:game :running?] true)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -109,10 +111,10 @@
           fback (fn_* (x/pop-scene))
           fp1 (fn_* (let [n (x/gsidx (_1 ____xs))
                           m (if (zero? n)
-                              {CV-X "#red_paddle.png"
-                               CV-O "#green_paddle.png"}
-                              {CV-O "#red_paddle.png"
-                               CV-X "#green_paddle.png"})]
+                              {CV-X "#red-paddle.png"
+                               CV-O "#blue-paddle.png"}
+                              {CV-O "#red-paddle.png"
+                               CV-X "#blue-paddle.png"})]
                       (swap! xcfg #(assoc-in % [:game :imap] m))))
           {:keys [quit?] :or {quit? true}} options
           {:keys [player]} (:game @xcfg)
@@ -125,7 +127,7 @@
                           (x/mifont-item* (x/l10n "%off") 26) fsound)
           t2 (x/mifont-text* (x/l10n "%player1") 18)
           i2 (x/mitoggle* (x/mifont-item* "Red" 26)
-                          (x/mifont-item* "Green" 26) fp1)
+                          (x/mifont-item* "Blue" 26) fp1)
           quit (x/milabel* (x/ttf-text* (x/l10n "%quit") "Arial" 20) fquit)
           back (x/milabel* (x/ttf-text* (x/l10n "%back") "Arial" 20) fback)
           gmenu (x/add-> layer

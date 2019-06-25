@@ -20,14 +20,27 @@
             [czlab.mcfud.cc.ccsx :as x :refer [CV-X CV-O xcfg G-NET]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(declare step)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- rot-flat
   "" [obj] (c/call-js! obj "setRotation" 90) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- write-status [msg])
+(defn- write-status [msg]
+  (-> (get-in @xcfg
+              [:game :scene])
+      (x/gcbyn+ :hud :status)
+      (c/call-js! "setString" msg)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- write-score [who score])
+(defn- write-score [who score]
+  (let [{:keys [scene pmap]} (:game @xcfg)]
+    (c/call-js! (x/gcbyn+ scene
+                          :hud
+                          (get pmap who))
+                "setString" (str score))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- clamp-ball! [ball]
@@ -85,7 +98,8 @@
       ball
       "runAction"
       (new js/cc.Sequence
-           (js/cc.scaleBy 2 3 3)
+           (js/cc.scaleTo 1 3 3)
+           (js/cc.scaleTo 1 1 1)
            (new js/cc.CallFunc
                 (fn_* (c/set-js! velObj "x" vx)
                       (c/set-js! velObj "y" vy)))))))
@@ -115,13 +129,16 @@
             s (+ 1 (get-in @xcfg wpath))]
         (swap! xcfg #(assoc-in % wpath s))
         (write-score win s)
-        (if (>= s num-points) (won-game win) (next-point))))))
+        (if (>= s num-points)
+          (do (x/hide! ball)
+              (won-game win)) (next-point))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- on-click [topic msgTopic evt]
+(defn- on-click [topic msgTopic & msgs]
   (let->nil
     [{:keys [pmap scene]} (:game @xcfg)
      gl (x/gcbyn scene :arena)
+     evt (_1 msgs)
      [kx ko] (x/pkeys pmap)
      [px po] (x/gcbyn* gl kx ko)]
     (cond (= msgTopic x/MOUSE-DOWN)
@@ -166,7 +183,7 @@
   (let->nil
     [{:keys [scene]} (:game @xcfg)
      gl (x/gcbyn scene :arena)
-     ball (x/sprite* "#pongball.png")]
+     ball (x/sprite* "#green-ball.png")]
     (c/set-js! ball "____vel" (x/ccp* 0 0))
     (x/add-> gl ball "ball")
     (repos-ball)
@@ -180,11 +197,12 @@
      {:keys [e w]} walls
      gl (x/gcbyn scene :arena)
      [kx ko] (x/pkeys pmap)
-     pw2 (/ (x/oget-width p-size) 2)
+     [width _] (x/r-> p-size)
+     pw (+ width (/ width 2))
      [_ ey] (x/mid-rect* e)
      [_ wy] (x/mid-rect* w)]
-    (x/pos! (x/gcbyn gl ko) (+ (x/maxX e) pw2) ey)
-    (x/pos! (x/gcbyn gl kx) (+ (x/maxX w) pw2) wy)))
+    (x/pos! (x/gcbyn gl ko) (- (x/minX e) pw) ey)
+    (x/pos! (x/gcbyn gl kx) (+ (x/maxX w) pw) wy)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- create-paddles []
@@ -195,8 +213,8 @@
      ;which icon image?
      ix (imap CV-X)
      io (imap CV-O)
-     x (rot-flat (x/sprite* ix))
-     o (rot-flat (x/sprite* io))]
+     x (x/sprite* ix)
+     o (x/sprite* io)]
     (x/add-> gl x (name kx))
     (x/add-> gl o (name ko))
     (swap! xcfg
@@ -204,9 +222,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init []
-  (let [{{:keys [gmode evQ]} :game :keys [ebus]} @xcfg]
+  (let [{{:keys [scene gmode evQ]} :game :keys [ebus]} @xcfg]
     (u/sub+ ebus x/TOUCH-ONE-MOVE on-touch)
     (u/sub+ ebus x/MOUSE-MOVE on-click)
+    (u/sub+ ebus x/MOUSE-UP on-click)
+    (u/sub+ ebus x/MOUSE-DOWN on-click)
     (create-ball)
     (create-paddles)
     ;always player 1 for mode 1, and create the bot
@@ -214,7 +234,7 @@
       (swap! xcfg #(assoc-in % [:game :bot] nil)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- move-via-key [keybd pad up down dy]
+(defn- move-via-key [keybd pad down up dy]
   (let [y' (+ (if (aget keybd down) (- dy) 0)
               (if (aget keybd up) dy 0))]
     (when-not (zero? y')
@@ -237,7 +257,7 @@
   (let->nil
     [{:keys [scene]} (:game @xcfg)
      ball (x/gcbyn+ scene :arena :ball)
-     [px py] (x/p-> (x/pos* ball))
+     [px py] (x/pos* ball)
      [vx vy] (x/p-> (c/get-js ball "____vel"))]
     (x/pos! ball (+ px (* dt vx)) (+ py (* dt vy)))))
 
@@ -247,7 +267,7 @@
     [velObj (c/get-js ball "____vel")
      hw (/ (_1 (x/r-> (x/bbox ball))) 2)
      [cx _] (x/mid-rect*)
-     [px _] (x/p-> (x/pos* pad))]
+     [px _] (x/pos* pad)]
     (c/set-js! velObj
                "x" (- (x/oget-x velObj)))
     (cond (< px cx)

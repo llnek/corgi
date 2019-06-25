@@ -182,20 +182,27 @@
   (js/cc.view.setDesignResolutionSize width height policy))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vrect*
-  "Get the visible screen width & height."
-  []
-  (let [wz (js/cc.view.getVisibleSize)]
-    [(oget-width wz) (oget-height wz)]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vrect
   "Get the visible screen rectangle."
   []
-  (let [vo (js/cc.view.getVisibleOrigin)
-        wz (js/cc.view.getVisibleSize)]
-    (js/cc.rect (oget-x vo)
-                (oget-y vo) (oget-width wz) (oget-height wz))))
+  ;no good in browser
+  ;(js/cc.view.getViewPortRect))
+  (comment
+  (let [r js/cc.visibleRect
+        bl (c/get-js r "bottomLeft")]
+    (js/cc.rect (oget-x bl)
+                (oget-y bl) (oget-width r) (oget-height r))))
+  (do
+    (let [vo (js/cc.view.getVisibleOrigin)
+          wz (js/cc.view.getVisibleSize)]
+      (js/cc.rect (oget-x vo)
+                  (oget-y vo) (oget-width wz) (oget-height wz)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vrect*
+  "Get the visible screen width & height."
+  []
+  (r-> (vrect)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vrect-b4 [] (r->b4 (vrect)))
@@ -1009,6 +1016,19 @@
                ;(debug* "removing listener= " v)
                (js/cc.eventManager.removeListener v))
              (assoc root :listeners [])))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hook-update [scene fstep]
+  (let [gl (gcbyn scene :arena)
+        fout js/cc.Node.prototype.onExit
+        fin js/cc.Node.prototype.onEnter]
+    (attr* scene
+           #js{:update fstep
+               :onExit (fn_0 (disable-events)
+                             (.call fout scene))
+               :onEnter (fn_0 (.call fin scene)
+                              (enable-events gl))})
+    (c/call-js! scene "scheduleUpdate")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bootstrap

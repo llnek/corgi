@@ -12,26 +12,24 @@
   czlab.rygel.pong.app
 
   (:require [czlab.rygel.pong.gui :as g]
-            [czlab.mcfud.afx.core :as c :refer [fn_0 fn_1]]
+            [czlab.mcfud.afx.core :as c :refer [_1 _2 fn_0 fn_1]]
             [czlab.mcfud.cc.ccsx :as x :refer [CV-X CV-O xcfg]]))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;per second (cal'ced by reference to original pong game)
-(def ^:private PADDLE-SPEED 120)
-(def ^:private BALL-SPEED 204)
-(def ^:private COURT-LENGTH 512)
-(def ^:private PADDLE-SIZE {:height 168 :width 36})
-(def ^:private BALL-SIZE {:width 36 :height 36 :radius 18})
+;;In the original game, the ball can traverse the screen in 2.5 secs
+;;the paddle moves at a constant rate of 4pixels/frame
+;;The original frame/sec = 1/30
+(def ^:private PADDLE-SIZE [2 28])
+(def ^:private COURT [512 256])
+(def ^:private BALL-SIZE [6 6])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- once-only []
   (let [[width height] (x/vrect*)
-        ratio (if (> width height)
-                (/ width COURT-LENGTH)
-                (/ height COURT-LENGTH))
-        [bv pv] (c/mapfv *
-                         ratio
-                         BALL-SPEED PADDLE-SPEED)]
+        pv (* 120 (/ height (_2 COURT)))
+        bv (* (/ width (_1 COURT)) (/ (_1 COURT) 2.5))]
     (swap! xcfg
            (fn_1 (update-in ____1
                             [:game]
@@ -45,23 +43,22 @@
           :app-id "pong"
           :run-once once-only
           :start-scene g/splash-scene
-          :game {;:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
+          :game {:policy js/cc.ResolutionPolicy.FIXED_WIDTH
                  :size (x/ccr* 0 0 2048 1536)
                  :landscape? true
                  ;:landscape? false
                  ;:size (js/cc.rect 0 0 1536 2048)
-                 :imap {CV-X "#red_paddle.png"
-                        CV-O "#green_paddle.png"}
+                 :imap {CV-X "#red-paddle.png"
+                        CV-O "#blue-paddle.png"}
                  :pmap {CV-X :player CV-O :pother}
                  :kmap {CV-X [js/cc.KEY.down js/cc.KEY.up]
                         CV-O [js/cc.KEY.s js/cc.KEY.w]}
                  :kmapXXX {CV-X [js/cc.KEY.left js/cc.KEY.right]
                            CV-O [js/cc.KEY.a js/cc.KEY.d]}
                  :sync-millis 3000
-                 :num-points 5
+                 :num-points 3
                  :player {:pvalue CV-X}
-                 :pother {:pvalue CV-O}
-                 :scores {CV-X 0 CV-O 0}}
+                 :pother {:pvalue CV-O}}
           :assets {:images {:lang-pics "pong/l10n/images.png"
                             :game-pics "pong/imgs/images.png"
                             :gui-edit-orange "core/orange_edit.png"

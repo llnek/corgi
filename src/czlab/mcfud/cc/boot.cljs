@@ -189,7 +189,7 @@
     (if (native?)
       (handle-multi-devices)
       (let [[w h] (x/frame-size*)]
-        (x/debug* "frame size, w= " w ", h= " h)
+        (x/debug* "browser size, w= " w ", h= " h)
         (x/design-res! width height policy)
         (js/cc.view.adjustViewPort true)
         (js/cc.view.resizeWithBrowserSize true)))
@@ -203,7 +203,9 @@
            #(assoc-in % [:game :vert?] (x/is-portrait?)))
     ;;hack to suppress the showing of cocos2d's logo
     ;;and instead, show our own!
-    (prelaunch-2 (x/scene*))))
+    (prelaunch-2 (x/scene*))
+    (debug* "vrect = " (c/jsonize (x/vrect)))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; hook the start
