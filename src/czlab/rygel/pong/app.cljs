@@ -62,6 +62,7 @@
           :assets {:images {:lang-pics "pong/l10n/images.png"
                             :game-pics "pong/imgs/images.png"
                             :gui-edit-orange "core/orange_edit.png"
+                            :arena-bg "pong/imgs/blackbg.png"
                             :game-bg "pong/imgs/bg.png" }
                    :sheets {:lang-pics "pong/l10n/images.plist"
                             :game-pics "pong/imgs/images.plist"}

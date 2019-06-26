@@ -28,19 +28,20 @@
   "" [obj] (c/call-js! obj "setRotation" 90) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- write-status [msg]
+(defn write-status [msg]
   (-> (get-in @xcfg
               [:game :scene])
       (x/gcbyn+ :hud :status)
       (c/call-js! "setString" msg)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- write-score [who score]
-  (let [{:keys [scene pmap]} (:game @xcfg)]
+(defn write-score [who score]
+  (let [{:keys [scene pmap] :as G} (:game @xcfg)
+        p (G (pmap who))]
     (c/call-js! (x/gcbyn+ scene
                           :hud
-                          (get pmap who))
-                "setString" (str score))))
+                          (pmap who))
+                "setString" (str (:pid p) ":" score))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- clamp-ball! [ball]

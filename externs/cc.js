@@ -167,12 +167,16 @@ cc.LabelTTF= function() {};
 cc.Layer=function(){};
 cc.Layer.prototype.extend=function() {};
 cc.Layer.prototype.addChild=function(){};
+cc.Layer.prototype.onEnter=function(){};
+cc.Layer.prototype.noExit=function(){};
 cc.Layer.prototype._super=function(){};
 cc.Layer.prototype.sprite=cc.Sprite;
 
 cc.Scene=function(){};
 cc.Scene.prototype.extend=function() {};
 cc.Scene.prototype.addChild=function(){};
+cc.Scene.prototype.onEnter=function(){};
+cc.Scene.prototype.noExit=function(){};
 cc.Scene.prototype._super=function(){};
 
 cc.SpriteBatchNode=function(){};
