@@ -17,7 +17,7 @@
             [oops.core :as oc]
             [czlab.mcfud.cc.dialog :as g]
             [czlab.mcfud.afx.ebus :as u]
-            [czlab.mcfud.cc.ccsx :as x :refer [CV-X CV-O xcfg G-NET]]))
+            [czlab.mcfud.cc.ccsx :as x :refer [CV-X CV-O xcfg P-BOT G-NET]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (declare step)
@@ -129,6 +129,7 @@
       (let [wpath [:game :scores win]
             s (+ 1 (get-in @xcfg wpath))]
         (swap! xcfg #(assoc-in % wpath s))
+        (x/sfx-effect :pt-lost)
         (write-score win s)
         (if (>= s num-points)
           (do (x/hide! ball)
@@ -235,35 +236,59 @@
       (swap! xcfg #(assoc-in % [:game :bot] nil)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- move-via-key [keybd pad down up dy]
-  (let [y' (+ (if (aget keybd down) (- dy) 0)
-              (if (aget keybd up) dy 0))]
+(defn- move-pad! [dt pad up down & [turbo]]
+  (let->nil
+    [{:keys [p-vel]} (:game @xcfg)
+     [_ vy] (x/p-> p-vel)
+     dy (* dt vy (or turbo 1))
+     y' (+ (if down (- dy) 0) (if up dy 0))]
     (when-not (zero? y')
       (x/posY! pad (+ y' (x/posY pad))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- move-via-key [dt keybd pad key-up key-down]
+  (move-pad! dt pad (aget keybd key-up) (aget keybd key-down)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handle-keys [dt]
   (let->nil
-    [{:keys [scene pmap p-vel kmap keybd]} (:game @xcfg)
-     [vx vy] (x/p-> p-vel)
-     [dx dy] (c/mapfv * dt vx vy)
+    [{:keys [scene pmap kmap keybd]} (:game @xcfg)
      gl (x/gcbyn scene :arena)
      [kx ko] (x/pkeys pmap)
      [mx mo] [(kmap CV-X) (kmap CV-O)]]
-    (move-via-key keybd (x/gcbyn gl kx) (nth mx 0) (nth mx 1) dy)
-    (move-via-key keybd (x/gcbyn gl ko) (nth mo 0) (nth mo 1) dy)))
+    (move-via-key dt keybd (x/gcbyn gl kx) (nth mx 1) (nth mx 0))
+    (move-via-key dt keybd (x/gcbyn gl ko) (nth mo 1) (nth mo 0) )))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- run-ai [k dt]
+  (let->nil
+    [{:keys [scene]} (:game @xcfg)
+     gl (x/gcbyn scene :arena)
+     [pad ball] (x/gcbyn* gl k :ball)
+     [_ py] (x/pos* pad)
+     [_ by] (x/pos* ball)
+     [vx vy] (x/p-> (c/get-js ball "____vel"))]
+    (when-not (and (zero? vx)
+                   (zero? vy))
+      (cond
+        (> by py) (move-pad! dt pad true false 1.5)
+        (< by py) (move-pad! dt pad false true 1.5)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- motion-objs [dt]
   (let->nil
-    [{:keys [scene]} (:game @xcfg)
+    [{:keys [scene pmap] :as G} (:game @xcfg)
+     [kx ko] (x/pkeys pmap)
+     [px po] [(G kx) (G ko)]
      ball (x/gcbyn+ scene :arena :ball)
      [px py] (x/pos* ball)
      [vx vy] (x/p-> (c/get-js ball "____vel"))]
+    (if (= P-BOT (:ptype px)) (run-ai kx dt))
+    (if (= P-BOT (:ptype po)) (run-ai ko dt))
     (x/pos! ball (+ px (* dt vx)) (+ py (* dt vy)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- resolve-hit [ball pad]
+(defn- resolve-hit [ball pad pkee]
   (let->nil
     [velObj (c/get-js ball "____vel")
      hw (/ (_1 (x/r-> (x/bbox ball))) 2)
@@ -271,6 +296,7 @@
      [px _] (x/pos* pad)]
     (c/set-js! velObj
                "x" (- (x/oget-x velObj)))
+    (x/sfx-effect pkee)
     (cond (< px cx)
           (x/posX! ball (+ (x/maxX pad) hw))
           (> px cx)
@@ -298,9 +324,9 @@
         [bx bo bb] (x/bbox* px po pb)]
     (clamp-paddle! px po)
     (cond (x/collide? bb bx)
-          (resolve-hit pb px)
+          (resolve-hit pb px kx)
           (x/collide? bb bo)
-          (resolve-hit pb po)
+          (resolve-hit pb po ko)
           (x/collide? bb n)
           (bounce-wall pb n :n)
           (x/collide? bb s)

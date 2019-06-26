@@ -1018,16 +1018,22 @@
              (assoc root :listeners [])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn on-scene-enter [scene gl]
+  (fn_0 (.call js/cc.Node.prototype.onEnter scene)
+        (enable-events gl)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn on-scene-exit [scene]
+  (fn_0 (disable-events)
+        (.call js/cc.Node.prototype.onExit scene)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hook-update [scene fstep]
-  (let [gl (gcbyn scene :arena)
-        fout js/cc.Node.prototype.onExit
-        fin js/cc.Node.prototype.onEnter]
+  (let [gl (gcbyn scene :arena)]
     (attr* scene
            #js{:update fstep
-               :onExit (fn_0 (disable-events)
-                             (.call fout scene))
-               :onEnter (fn_0 (.call fin scene)
-                              (enable-events gl))})
+               :onExit (on-scene-exit scene)
+               :onEnter (on-scene-enter scene gl)})
     (c/call-js! scene "scheduleUpdate")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

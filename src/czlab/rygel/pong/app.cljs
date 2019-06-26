@@ -69,7 +69,7 @@
                    :sounds {:game-end "snds/MineExplosion.mp3"
                             :player "snds/ElevatorBeep.mp3"
                             :pother "snds/MineBeep.mp3"
-                            :game-tie "snds/Death.mp3" }
+                            :pt-lost "snds/Death.mp3" }
                    :fonts {:label "fnts/SmallTypeWriting.fnt"
                            :title "fnts/AutoMission.fnt"
                            :c "fnts/Subito.fnt"

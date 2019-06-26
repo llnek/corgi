@@ -96,7 +96,7 @@
       (hlayer hud R)
       (p/init)
       (x/hook-update scene #(p/step %1))
-      (let [xxx (fn_* (.call js/cc.Scene.prototype.onEnter scene)
+      (let [xxx (fn_* ((x/on-scene-enter scene gl))
                       (x/remove-all! rl)
                       (c/call-js! rl
                                   "drawRect"
