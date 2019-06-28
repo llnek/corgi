@@ -19,12 +19,11 @@
 (def cfg {:app-key "bd5f79bb-eb41-4ed5-bb44-2529dc27ed3c"
           :app-id "tictactoe"
           :start-scene g/splash-scene
-          :game {:policy js/cc.ResolutionPolicy.FIXED_HEIGHT
+          :game {:policy js/cc.ResolutionPolicy.FIXED_WIDTH
                  :pmap {CV-X :player CV-O :pother}
                  :player {:pvalue CV-X}
                  :pother {:pvalue CV-O}
-                 :size (js/cc.rect 0 0 1536 2048)
-                 :landscape? false
+                 :size (js/cc.rect 0 0 2048 1536)
                  :begin-with CV-X
                  :grid-size 3
                  :bot-time .5

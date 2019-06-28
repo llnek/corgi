@@ -11,17 +11,69 @@
 
   czlab.rygel.tictactoe.core
 
-  (:require [czlab.mcfud.afx.core
-             :as c
-             :refer [if-some+ fn_0 fn_* fn_1 n# _1 _2]]
+  (:require [czlab.mcfud.cc.ccsx
+             :as x :refer [P-BOT CV-X CV-Z CV-O xcfg]]
             [oops.core :as oc]
-            [czlab.rygel.tictactoe.impl :as b]
             [czlab.mcfud.cc.dialog :as d]
             [czlab.mcfud.afx.ebus :as u]
             [czlab.mcfud.afx.algos :as a]
-            [czlab.mcfud.cc.ccsx
-             :as x :refer [P-BOT CV-X CV-Z CV-O xcfg]]))
+            [czlab.mcfud.afx.core
+             :as c
+             :refer [let->nil if-some+ fn_0 fn_* fn_1 fn_2 n# _1 _2 _E]]))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- no-win? [game] (not-any? #(= % CV-Z) game))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- is-win?? [who game goals]
+  (if-some [combo (some (fn [c]
+                          (if (every? #(= % who)
+                                      (map #(nth game %) c)) c)) goals)]
+    [who combo] [nil nil]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn ttt [size goals]
+  (let [grid (c/fill-array CV-Z (* size size))
+        grid-size (n# grid)
+        actor (atom 0)
+        gop #(condp = % CV-X CV-O CV-O CV-X nil)]
+    {:first-move (fn_0 (if (every? #(= CV-Z %) grid)
+                         (c/rand-range 0 (- grid-size 1)) -1))
+     :sync-state! (fn [seed cur]
+                    (reset! actor cur)
+                    (c/copy-array seed grid)
+                    (atom (a/Snapshot. @actor
+                                       (gop @actor)
+                                       (.slice grid 0) -1)))
+     :best-move! (fn [game move]
+                   (swap! game
+                          #(assoc % :last-best-move move)))
+     :next-moves #(loop [state (:state (deref %))
+                         i 0
+                         CZ (n# state)
+                         out (c/tvec*)]
+                    (if (>= i CZ)
+                      (c/ps! out)
+                      (recur state
+                             (+ 1 i)
+                             CZ
+                             (if (= CV-Z
+                                    (nth state i)) (conj! out i) out))))
+     :undo-move! #(aset (:state (deref %1)) %2 CV-Z)
+     :make-move! #(let [{:keys [state cur]} (deref %1)]
+                    (if (= CV-Z (nth state %2))
+                      (aset state %2 cur)
+                      (c/raise! "cell [" %2 "] is not free.")))
+     :switch-play! #(swap! %
+                           (fn [{:keys [cur other] :as S}]
+                             (assoc S :cur other :other cur)))
+     :eval-score #(let [{:keys [other state]} (deref %)]
+                    ;;if we lose, return a nega value
+                    (if (number? (_1 (is-win?? other state goals))) -100  0))
+     :is-over? #(let [{:keys [cur other state]} (deref %)]
+                  (or (number? (_1 (is-win?? cur state goals)))
+                      (number? (_1 (is-win?? other state goals)))
+                      (no-win? state)))}))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn write-status [msg]
   (-> (get-in @xcfg
@@ -181,6 +233,21 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn on-touch [topic msgTopic & msgs])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn draw-grid [node]
+  (let->nil
+    [{:keys [gpos grid-size]} (:game @xcfg)
+     color (x/color* "#ffffff")
+     line  12
+     gE (_E gpos)
+     g0 (_1 gpos)
+     {:keys [lhs top]} (x/r->b4 g0)
+     {:keys [rhs low]} (x/r->b4 gE)
+     cb (fn_2 (c/call-js! node
+                          "drawSegment" ____1 ____2 line color))]
+    (x/remove-all! node)
+    (x/draw-grid (x/ccr* lhs low (- rhs lhs) (- top low)) grid-size cb)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

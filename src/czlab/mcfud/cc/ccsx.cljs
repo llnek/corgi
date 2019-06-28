@@ -25,7 +25,7 @@
             [czlab.mcfud.afx.ebus :as e]
             [czlab.mcfud.afx.math :as m]
             [czlab.mcfud.afx.core
-             :as c :refer [defenum do->true do->nil
+             :as c :refer [defenum do->true do->nil let->nil
                            fn-nil is? fn_0 fn_* fn_1 fn_2 cc+ cc+1
                            if-string n# _1 _2 do-with raise! num??]]))
 
@@ -109,7 +109,7 @@
      :right (+ x w)
      :left x
      :bottom y
-     :base y :lhs x :rhs (+ x w)}))
+     :low y :lhs x :rhs (+ x w)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- bbox?? "" [obj]
@@ -1018,9 +1018,35 @@
              (assoc root :listeners [])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn on-scene-enter [scene gl]
-  (fn_0 (.call js/cc.Node.prototype.onEnter scene)
-        (enable-events gl)))
+(defn draw-grid [region size drawer & [border?]]
+  (let->nil
+    [{:keys [lhs rhs top low]} (r->b4 region)
+     cw (/ (- rhs lhs) size)
+     rh (/ (- top low) size)]
+    (x/debug* "cw = " cw ", rh= " rh)
+    (dotimes [n size]
+      (cond
+        (= n 0)
+        (when border?
+          (drawer (x/ccp* lhs top) (x/ccp* rhs top))
+          (drawer (x/ccp* lhs top) (x/ccp* lhs low)))
+        (= n size)
+        (when border?
+          (drawer (x/ccp* lhs low) (x/ccp* rhs low))
+          (drawer (x/ccp* rhs top) (x/ccp* rhs low)))
+        :else
+        (let [x (+ lhs (* n cw))
+              y (- top (* n rh))]
+          (drawer (x/ccp* lhs y) (x/ccp* rhs y))
+          (drawer (x/ccp* x top) (x/ccp* x low)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn on-scene [scene]
+  (.call js/cc.Node.prototype.onEnter scene)
+  (enable-events (gcbyn scene :arena)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn on-scene-enter [scene] (fn_0 (on-scene scene)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn on-scene-exit [scene]
@@ -1029,11 +1055,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hook-update [scene fstep]
-  (let [gl (gcbyn scene :arena)]
+  (let->nil []
     (attr* scene
            #js{:update fstep
                :onExit (on-scene-exit scene)
-               :onEnter (on-scene-enter scene gl)})
+               :onEnter (on-scene-enter scene)})
     (c/call-js! scene "scheduleUpdate")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

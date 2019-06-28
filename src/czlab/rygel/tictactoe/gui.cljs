@@ -17,7 +17,6 @@
                                           let->nil do-with fn-nil]]
             [oops.core :as oc]
             [czlab.rygel.tictactoe.core :as t]
-            [czlab.rygel.tictactoe.impl :as b]
             [czlab.mcfud.afx.ebus :as u]
             [czlab.mcfud.cc.ccsx :as x
                                  :refer [P-BOT G-ONE G-TWO
@@ -28,6 +27,26 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- map-goal-space
+  "Get all possible winning combinations."
+  [size]
+  (let [values (range (* size size))
+        end (- (count values) 1)
+        rows (map #(vec %) (partition size values))
+        cols (map #(vec %)
+                  (partition size
+                             (apply interleave rows)))
+        dx (loop [v 0 out (c/tvec*)]
+             (if (> v end)
+               (c/ps! out)
+               (recur (+ v size 1) (conj! out v))))
+        dy (loop [v (- size 1) out (c/tvec*)]
+             (if (>= v end)
+               (c/ps! out)
+               (recur (+ v (- size 1)) (conj! out v))))]
+    (cc+ [dx dy] rows cols)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- XXmap-goal-space
   "Get all possible winning combinations."
   [size]
   (loop [row 0
@@ -65,7 +84,7 @@
         ro (* (/ 8 72) scale)
         cells (* gsz gsz)
         gsz' (- gsz 1)
-        [gw gh] (c/mapfv * ro W H) ;line-gap
+        [gw gh] [0 0];(c/mapfv * ro W H) ;line-gap
         zw (+ (* gsz W) (* gw gsz')) ;sum width of icons
         zh (+ (* gsz H) (* gh gsz')) ;sum height of icons
         [x0 y0] [(- cx (/ zw 2)) (+ cy (/ zh 2))]] ;top-left
@@ -142,7 +161,7 @@
       (when (= G-ONE gmode) ;if single player, create the A.I.
         (swap! xcfg
                #(assoc-in %
-                          [:game :bot] (b/ttt grid-size goals)))
+                          [:game :bot] (t/ttt grid-size goals)))
         (if (= P-BOT ptype) ;if bot starts first, run it
           (c/call-js! scene
                       "scheduleOnce"
@@ -176,20 +195,20 @@
              :depth 10
              :turn CV-Z
              :scores {CV-X 0 CV-O 0}}
+          dn (x/add-> gl (new js/cc.DrawNode) "grid" 9)
           cs (mapv #(let [s (x/sprite* "#z.png")]
-                      [(x/center!! %1 gl s) CV-Z]) (:gpos S))
-          fout js/cc.Node.prototype.onExit
-          fin js/cc.Node.prototype.onEnter]
+                      [(x/center!! %1 gl s) CV-Z]) (:gpos S))]
       (swap! xcfg
              (fn_1 (update-in ____1
                               [:game]
                               #(assoc (c/merge+ % S) :cells cs))))
-      (x/center-image R
-                      (x/add-> scene bg "bg" -1) (x/gimg :game-bg))
+      ;;(x/center-image R (x/add-> scene bg "bg" -1) (x/gimg :game-bg))
       (x/add-> scene gl "arena" 1)
       (x/add-> scene (hlayer R) "hud" 2)
       (init-game-scene)
       (x/hook-update scene #(t/run-game %1))
+      (x/attr* scene #js {:onEnter (fn_0 (x/on-scene scene)
+                                         (t/draw-grid dn))})
       (swap! xcfg #(assoc-in % [:game :running?] true)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
