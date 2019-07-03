@@ -11,12 +11,15 @@
 
   czlab.mcfud.afx.math
 
+  (:require-macros [czlab.mcfud.afx.math
+                    :as m :refer [V2 V3 vz2 vz3]])
+
   (:require [czlab.mcfud.afx.core
              :as c :refer [_1 _2 _3 do-with pos?? n# num??]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private EPSILON (or 0.0000000001 js/Number.EPSILON))
-(def ^:private NEG-DEG-2PI (- 360.0))
+(def EPSILON (or 0.0000000001 js/Number.EPSILON))
+(def NEG-DEG-2PI (- 360.0))
 (def TWO-PI (* 2 js/Math.PI))
 (def PI js/Math.PI)
 (def DEG-2PI 360.0)
@@ -38,13 +41,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; <= instead of < for NaN comparison safety
 (defn fuzzy-eq?
-  "If 2 floats are the same."
+  "If 2 floats are the same?"
   [a b]
   (<= (c/abs* (- a b)) EPSILON))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fuzzy-zero?
-  "If float is zero." [n] (fuzzy-eq? n 0.0))
+  "If float is zero?" [n] (fuzzy-eq? n 0.0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;javascript array
@@ -66,19 +69,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec2
-  "Create a 2 row vector."
-  [& [x y]]
-  #js [(num?? x 0)(num?? y 0)])
+  "A 2 row vector."
+  [& [x y]] #js [(num?? x 0)(num?? y 0)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec3
-  "Create a 3 row vector."
-  [& [x y z]]
-  #js [(num?? x 0)(num?? y 0)(num?? z 0)])
+  "A 3 row vector."
+  [& [x y z]] #js [(num?? x 0)(num?? y 0)(num?? z 0)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vec-zero
-  "Array filled with zero." [sz] (jsa* sz))
+(defn vec-zero "Array filled with n zeroes." [sz] (jsa* sz))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mod-deg
@@ -243,9 +243,7 @@
     (if (> z EPSILON) (vec-scale v (c/num-flip z)) (aclone v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmulti vec-rot
-  "Rotate a vector."
-  (fn [v angle & [center]] (n# v)))
+(defmulti vec-rot "Rotate a vector." (fn [v angle & [center]] (n# v)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmethod vec-rot

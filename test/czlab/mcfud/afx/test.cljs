@@ -21,10 +21,10 @@
             [czlab.mcfud.afx.odin :as odin]
             [czlab.mcfud.afx.ecs :as ecs]
             [czlab.mcfud.afx.ebus :as bus]
-[czlab.rygel.tictactoe.app :as aaa]
-[czlab.rygel.tictactoe.gui :as bbb]
-[czlab.rygel.tictactoe.board :as ccc]
-[czlab.rygel.tictactoe.core :as zzz]
+
+[czlab.mcfud.p2d.physics2d :as p2]
+[czlab.mcfud.p2d.impulse :as i2]
+[czlab.mcfud.p2d.verlet2d :as v2]
 
             [clojure.string :as cs]
             [czlab.mcfud.afx.math
@@ -88,15 +88,15 @@
   (ensure?? (= 2 (c/nexth [1 2] 0)) "nexth")
 
   (ensure?? (= {:a 5 :z 9 :b {:c 2 :d 2}}
-               (c/deep-merge {:a 1 :b {:c 2}}
+               (c/merge+ {:a 1 :b {:c 2}}
                               {:z 9 :a 5 :b {:d 2}})) "deepMerge,map")
 
   (ensure?? (= {:a 5 :z 9 :b #{ :c 2 :d 3 4}}
-               (c/deep-merge {:a 1 :b #{ :c 2 4}}
+               (c/merge+ {:a 1 :b #{ :c 2 4}}
                               {:z 9 :a 5 :b #{ :d 2 3}})) "deepMerge,set")
 
   (ensure?? (= {:a 5 :z 9 :b [1 3]}
-               (c/deep-merge {:a 1 :b [4]}
+               (c/merge+ {:a 1 :b [4]}
                               {:z 9 :a 5 :b [1 3]})) "deepMerge,*")
 
   (ensure?? (= 3 (c/do-with [a (+ 1 2)]

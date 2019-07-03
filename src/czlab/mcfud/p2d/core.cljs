@@ -1,4 +1,4 @@
-;; Copyright ©  2013-2019, Kenneth Leung. All rights reserved.
+;; Copyright © 2013-2019, Kenneth Leung. All rights reserved.
 ;; The use and distribution terms for this software are covered by the
 ;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;; which can be found in the file epl-v10.html at the root of this distribution.
@@ -14,203 +14,102 @@
   (:require [czlab.mcfud.afx.core
              :as c :refer [sqr* n# POS-INF NEG-INF
                            num?? _1 _2 _E cc+ cc+1 do-with]]
-            [czlab.mcfud.afx.gfx2d
-             :as g :refer [_cocos2dx?]]
+            [czlab.mcfud.afx.geo :as g]
             [czlab.mcfud.afx.math :as m :refer [PI vec2]]))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Rect
-  "Defines a rectangle, origin is left+bottom, and area."
-  [x y width height]
-  {:x x :y y :width width :height height})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rect-equals-rect?
-  "If rects are equal?"
-  [{x1 :x y1 :y w1 :width t1 :height :as R1}
-   {x2 :x y2 :y w2 :width t2 :height :as R2}]
-  (and (== x1 x2) (== y1 y2) (== w1 w2) (== t1 t2)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rect-contains-rect?
-  "If R contains r?"
-  [{x1 :x y1 :y w1 :width t1 :height :as R}
-   {x2 :x y2 :y w2 :width t2 :height :as r}]
-  (not (or (>= x1 x2)
-           (>= y1 y2)
-           (<= (+ x1 w1) (+ x2 w2))
-           (<= (+ y1 t1) (+ y2 t2)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rect-get-maxX
-  "Right side of rect."
-  [{:keys [x width]}] (+ x width))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rect-get-midX
-  "Mid point of rect on the x-axis."
-  [{:keys [x width]}] (+ x (* .5 width)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rect-get-minX "Get left side of rect." [r] (:x r))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rect-get-maxY
-  "Top of the rect."
-  [{:keys [y height]}] (+ y height))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rect-get-midY
-  "Mid point of rect on the y-axis."
-  [{:keys [y height]}] (+ y (* .5 height)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rect-get-minY "Bottom of rect." [r] (:y r))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn pt-in-rect?
-  "If point lies inside rect."
-  [[px py :as P] rect]
-  (and (>= px (rect-get-minX rect))
-       (<= px (rect-get-maxX rect))
-       (>= py (rect-get-minY rect))
-       (<= py (rect-get-maxY rect))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rect-intersects-rect?
-  "If two rects intersect?"
-  [{x1 :x y1 :y w1 :width t1 :height :as R1}
-   {x2 :x y2 :y w2 :width t2 :height :as R2}]
-  (not (or (< (+ x1 w1) x2)
-           (< (+ x2 w2) x1)
-           (< (+ y1 t1) y2)
-           (< (+ y2 t2) y1))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rect-unions-rect
-  "Find the union of two rects."
-  [{x1 :x y1 :y w1 :width t1 :height :as R1}
-   {x2 :x y2 :y w2 :width t2 :height :as R2}]
-  (let [x (min x1 x2)
-        y (min y1 y2)]
-    (Rect x y
-          (- (max (+ x1 w1) (+ x2 w2)) x)
-          (- (max (+ y1 t1) (+ y2 t2)) y))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rect-intersects-rect
-  "Find the intersection of two rects."
-  [{x1 :x y1 :y w1 :width t1 :height :as rect1}
-   {x2 :x y2 :y w2 :width t2 :height :as rect2}]
-  (let [x (max x1 x2)
-        y (max y1 y2)]
-    (Rect x y
-          (- (min (rect-get-maxX rect1) (rect-get-maxX rect2)) x)
-          (- (min (rect-get-maxY rect1) (rect-get-maxY rect2)) y))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn out-of-bound?
-  "If entity is outside of B?"
-  [r B] (not (rect-contains-rect? B r)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn rect?
-  "If object is a rect?"
-  [obj]
-  (and (map? obj)
-       (contains? obj :width)
-       (contains? obj :height)))
+;Defines 4 points of a rectange.
+(defrecord Box4 [left bottom right top])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rect->box4
   "Get the 4 sides of a rect."
   [{:keys [x y width height] :as R}]
-  {:top (+ y height) :right (+ x width) :bottom y :left x})
+  (new Box4 x y (+ x width) (+ y height)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collide?
   "Test collision of 2 entities."
   [a b]
-  (rect-intersects-rect? a b))
+  (g/rect-intersects-rect? a b))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private body-num (atom 0))
 (defn- next-body-num [] (swap! body-num inc))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def GWorld (atom {:context nil :canvas nil
+(def gWorld (atom {:context nil
+                   :canvas nil
                    :samples (c/new-memset)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- dref [s k] (get (cond (c/atom? s) @s
-                             (map? s) s :else nil) k))
+                             (map? s) s :else (c/raise! "Bad shape!")) k))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pos!
   "Set new position."
-  [s & more]
-  (apply (dref s :re-pos) (cc+1 s more)))
+  [b & more] (apply (dref b :repos) b more) b)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn angle!
   "Set new angle."
-  [s & more]
-  (apply (dref s :set-angle) (cc+1 s more)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn draw
-  "Draw object."
-  [s & more]
-  (apply (dref s :draw) (cc+1 s more)))
+  [b & more] (apply (dref b :set-angle) b more) b)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn move!
-  "Move object."
-  [s p] ((dref s :move) s p))
+  "Move body."
+  [b p] ((dref b :move) b p) b)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rotate!
-  "Rotate object."
-  [s v] ((dref s :rotate) s v))
+  "Rotate body."
+  [b v] ((dref b :rotate) b v) b)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn draw "" [b & more] (apply (dref b :draw) b more) b)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn config??
-  ""
+  "If the world has extra properties for this type, merge them into it."
   [s]
   (let [{:keys [type]} s
-        m (get GWorld type)] (merge s m)))
+        m (get gWorld type)] (merge s m)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn Body
+(defn body
   "A 2d physics body."
   [shape & [options]]
-  (do-with [B (atom (merge {:draw (:bodyDrawer GWorld)
+  (do-with [B (atom (merge {:draw (:body-drawer @gWorld)
                             :oid (next-body-num)
                             :valid? true
                             :type :body
-                            :accel (m/vec-zero 2)
-                            :vel (m/vec-zero 2)
-                            :bxRadius 0
-                            :ii 0 :im 0
-                            :i 0 :m 0
+                            :accel (m/vz2)
+                            :vel (m/vz2)
+                            :bx-radius 0
+                            :ii 0 ;;inverse inertia
+                            :i 0 ;;inertia
+                            :im 0 ;;inverse momentum
+                            :m 0 ;;momentum
                             :gvel 0
+                            :pos (m/vz2)
                             :torque 0
                             :angle 0
-                            :statF 0.5 ; 0.8
-                            :dynaF 0.3
-                            :bounce 0.2} (or options {})))]
+                            :statF .5 ; 0.8
+                            :dynaF .3
+                            :bounce .2} options))]
     (c/assoc!! B
                :shape (assoc shape :body B))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addBody
+(defn add-body
   "Add a new body to the world."
   [B & [at]]
-  (let [pt (or at (m/vec-zero 2))
-        {:keys [shape angle]} @B
-        {:keys [samples]} @GWorld]
-    (pos! B pt angle)
-    (c/add->set! samples B)))
+  (let [{:keys [shape angle]} @B
+        {:keys [samples]} @gWorld]
+    (c/add->set! samples B)
+    (pos! B (or at (m/vz2)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn calc-min-max
@@ -260,7 +159,8 @@
                    SZ
                    (conj out (nth vertices (nth hull i))))))
         (let [nextIndex
-              (loop [i 1 SZ (n# vertices) pos 0]
+              (loop [i 1
+                     SZ (n# vertices) pos 0]
                 (if (>= i SZ)
                   pos
                   (recur (+ 1 i)
@@ -282,7 +182,7 @@
 (defn- calc-circle-mass [C density]
   (let [{{:keys [radius]} :shape} @C
         density (num?? density 1)
-        r2 (c/sqr* radius)
+        r2 (sqr* radius)
         m (* PI r2 density)] [m  (* m r2)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -293,7 +193,8 @@
         density (num?? density 1)]
     ;;calculate centroid and moment of interia
     (loop [i 0 SZ (n# vertices)
-           c (m/vec-zero 2) area 0 I 0]
+           c (m/vz2)
+           area 0 I 0]
       (if (>= i SZ)
         ;[(vec-scale c (invert area)) (* density area) (* density I)]
         [(* density area) (* density I)]
@@ -343,17 +244,22 @@
     (if (number? bounce) (c/assoc!! B :bounce bounce))
     (if (number? friction) (c/assoc!! B :statF friction))
     (let [{:keys [m]} @B
-          {:keys [gravity]} @GWorld]
-      (c/assoc!! B :accel (if (zero? m) (m/vec-zero 2) gravity))) B))
+          {:keys [gravity]} @gWorld]
+      (c/assoc!! B :accel (if (zero? m) (m/vz2) gravity)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set-static!
   "Set this body as a static body."
   [B]
   (c/assoc!! B
-             :im 0 :m 0
-             :i 0 :ii 0
-             :vel (m/vec-zero 2) :accel (m/vec-zero 2) :gvel 0 :torque 0) B)
+             :im 0
+             :m 0
+             :i 0
+             :ii 0
+             :vel (m/vz2)
+             :accel (m/vz2)
+             :gvel 0
+             :torque 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn static? [obj]
@@ -374,7 +280,7 @@
   ;;Make sure we update the game the appropriate number of times.
   ;;Update only every Milliseconds per frame.
   ;;If lag larger then update frames, update until caught up.
-  (let [{:keys [algo-runner frame-millis]} @GWorld
+  (let [{:keys [algo-runner frame-millis]} @gWorld
         icnt (num?? algoIterCount 10)
         cpos (num?? posCorrection .8)]
     (while (and (>= lag-millis frame-millis)
@@ -389,22 +295,21 @@
   (step (- (system-time) prev-millis) algoIterCount posCorrection))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- init-physics
+(defn init
   "Configure the physics world."
   [gravity fps world & [options]]
-  (let [{:keys [width height]} world]
-    (if (:cc2dx? options)
-      (set! _cocos2dx? true))
-    (swap! GWorld
+  (let [{:keys [x y width height]} world]
+    (swap! gWorld
            #(merge %
-                   (dissoc options :cc2dx?)
-                   {:arena world
+                   options ;(dissoc options :cc2dx?)
+                   {:origin (vec2 x y)
+                    :arena world
                     :FPS fps
                     :width width
                     :height height
                     :gravity (vec2 0 gravity)
                     :frame-secs (c/num-flip fps)
-                    :frame-millis (* 1000 (c/num-flip fps))}))) GWorld)
+                    :frame-millis (* 1000 (c/num-flip fps))})) gWorld))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

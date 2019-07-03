@@ -110,13 +110,15 @@
 (defmacro dissoc!!
   "Mutable dissoc (atom)."
   [a & args]
-  `(swap! ~a #(dissoc % ~@args)))
+  (let [X (gensym)]
+    `(let [~X ~a] (swap! ~X #(dissoc % ~@args)) ~X)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro assoc!!
   "Mutable assoc (atom)."
   [a & args]
-  `(swap! ~a #(assoc % ~@args)))
+  (let [X (gensym)]
+    `(let [~X ~a] (swap! ~X #(assoc % ~@args)) ~X)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro var-set
@@ -203,7 +205,8 @@
 (defmacro set-js!
   "Set a js object property."
   [obj prop value]
-  `(oops.core/oset!+ ~obj (str "!" ~prop) ~value))
+  (let [X (gensym)]
+    `(let [~X ~obj] (oops.core/oset!+ ~X (str "!" ~prop) ~value) ~X)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro get-js
