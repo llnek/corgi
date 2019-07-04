@@ -45,9 +45,6 @@
           :start-scene g/splash-scene
           :game {:policy js/cc.ResolutionPolicy.FIXED_WIDTH
                  :size (x/ccr* 0 0 2048 1536)
-                 :landscape? true
-                 ;:landscape? false
-                 ;:size (js/cc.rect 0 0 1536 2048)
                  :imap {CV-X "#red-paddle.png"
                         CV-O "#blue-paddle.png"}
                  :pmap {CV-X :player CV-O :pother}
