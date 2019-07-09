@@ -1,4 +1,4 @@
-;; Copyright ©  2013-2018, Kenneth Leung. All rights reserved.
+;; Copyright © 2013-2019, Kenneth Leung. All rights reserved.
 ;; The use and distribution terms for this software are covered by the
 ;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;; which can be found in the file epl-v10.html at the root of this distribution.
@@ -16,20 +16,24 @@
             [czlab.mcfud.afx.geo :as g]
             [czlab.mcfud.afx.gfx2d :as gx]
             [czlab.mcfud.afx.core
-             :as c :refer [_1 _2 do->true
+             :as c :refer [_1 _2 do#true let#true
+                           if-func
                            POS-INF NEG-INF n# num??]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- collision-test??
-  "" [s1 s2 ci] ((:collision-test @s1) s1 s2 ci))
+(defn- collision? [s1 s2 ci]
+  (if-func [ct (:collision-test @s1)]
+    (ct s1 s2 ci)
+    (c/raise! "Missing collision test function.")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ci-info
   "Collision info."
-  [& [d n s e]]
-  (atom {:depth (c/num?? d 0)
-         :normal (or n (m/vz2))
-         :start (or s (m/vz2)) :end (or e (m/vz2))}))
+  ([] (ci-info 0 nil nil nil))
+  ([d n s e]
+   (atom {:depth (c/num?? d 0)
+          :normal (or n (m/vz2))
+          :start (or s (m/vz2)) :end (or e (m/vz2))})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- chgci!
@@ -48,19 +52,9 @@
                :start end :end start :normal (m/vec-neg normal))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- validate-body "" [B]
-  (let [{[x y] :pos} @B
-        {:keys [width height]
-         [left bottom] :origin} @gWorld]
-    (if (or (< x left)
-            (< y bottom)
-            (> x (+ left width))
-            (> y (+ bottom height))) (c/assoc!! B :valid? false)) B))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- update-body! "" [B dt]
-  (let [{:keys [width height samples validator]} @gWorld
-        {:keys [oid vel accel gvel torque]} @B
+(defn- update-body! [B dt]
+  (let [{:keys [oid vel accel gvel torque]} @B
+        {:keys [samples validator]} @gWorld
         gv' (+ gvel (* torque dt))
         v' (m/vec-add vel (m/vec-scale accel dt))]
     (when true
@@ -68,22 +62,23 @@
       ;;move object += v*dt
       ;;update angular vel
       ;rotate object
-      (c/assoc!! B :vel v' :gvel gv')
-      (pc/move! B (m/vec-scale v' dt))
-      (pc/rotate! B (* gv' dt)))
-    ;;;;;;
+      (doto B
+        (c/assoc!! :vel v' :gvel gv')
+        (pc/move! (m/vec-scale v' dt))
+        (pc/rotate! (* gv' dt))))
     (if (fn? validator) (validator B))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- overlap? "" [B1 B2]
+(defn- overlap? [B1 B2]
   (let [{p1 :pos r1 :bx-radius} @B1
         {p2 :pos r2 :bx-radius} @B2
-        v1to2 (m/vec-sub p2 p1)] (not (> (m/vec-len v1to2) (+ r1 r2)))))
+        v1to2 (m/vec-sub p2 p1)]
+    (not (> (m/vec-len v1to2) (+ r1 r2)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;rect-stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- spoint?? "" [r1Pt n R2]
+(defn- support-pt?? [r1Pt n R2]
   (let [{{:keys [vertices]} :shape} @R2]
     ;easier to deal with +ve values
     (loop [i 0 SZ (n# vertices)
@@ -94,10 +89,12 @@
               proj (m/vec-dot (m/vec-sub v' r1Pt) dir)
               t? (and (pos? proj) (> proj dist))]
           ;;find the longest +ve distance with edge
-          (recur (+ 1 i) SZ dir (if t? proj dist) (if t? v' sp)))))))
+          (recur (+ 1 i) SZ
+                 dir
+                 (if t? proj dist) (if t? v' sp)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- find-penetration??
+(defn- penetration??
   "Shortest axis that's overlapping."
   [R B2]
   (let [{{:keys [normals vertices]} :shape} @R]
@@ -105,7 +102,8 @@
     (loop [i 0 SZ (n# normals)
            depth POS-INF
            vert nil n' nil support? true]
-      (if-not (and support? (< i SZ))
+      (if-not (and support?
+                   (< i SZ))
         (if support?
           (chgci! (ci-info)
                   depth
@@ -114,19 +112,17 @@
         (let [v' (nth vertices i)
               dir (nth normals i)
               [ok? dist pt]
-              (spoint?? v' dir B2)
+              (support-pt?? v' dir B2)
               t? (and ok? (< dist depth))]
-          (recur (+ 1 i)
-                 SZ
-                 (if t? dist depth) (if t? pt vert) (if t? dir n') ok?))))))
+          (recur (+ 1 i) SZ
+                 (if t? dist depth)
+                 (if t? pt vert) (if t? dir n') ok?))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- test-rect-rect?
-  "Check for collision between 2 rectangles"
-  [R1 R2 ci]
+(defn- rect-rect? [R1 R2 ci]
   ;;find Axis of Separation for both rectangle
-  (let [ci_1 (find-penetration?? R1 R2)
-        ci_2 (if ci_1 (find-penetration?? R2 R1))]
+  (let [ci_1 (penetration?? R1 R2)
+        ci_2 (if ci_1 (penetration?? R2 R1))]
     ;;if both are overlapping, choose the shorter normal
     (when ci_2
       (let [{d1 :depth n1 :normal s1 :start} @ci_1
@@ -137,42 +133,43 @@
     (and ci_1 ci_2)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circle-inside-rect?
-  ""
-  [R C1 ci nEdge depth]
-  (let [{:keys [pos] {:keys [radius]} :shape} @C1
-        {{:keys [normals]} :shape} @R
-        n (nth normals nEdge)
-        rvec (m/vec-scale n radius)]
-    (chgci! ci (- radius depth) n (m/vec-sub pos rvec)) true))
+(defn- circle-inside-rect? [R C1 ci nEdge depth]
+  (let#true
+    [{:keys [pos]
+      {:keys [radius]} :shape} @C1
+     {{:keys [normals]} :shape} @R
+     n (nth normals nEdge)
+     rvec (m/vec-scale n radius)]
+    (chgci! ci (- radius depth) n (m/vec-sub pos rvec))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- nface->circle?? "" [R C1]
+(defn- nface->circle?? [R C1]
   (let [{center :pos} @C1
         {{:keys [normals vertices]} :shape} @R]
     (loop [i 0 SZ (n# normals)
            depth NEG-INF nEdge 0 inside? true]
-      (if (or (not inside?) (>= i SZ))
+      (if (or (>= i SZ)
+              (not inside?))
         [inside? depth nEdge]
         (let [proj (-> (->> (nth vertices i)
                             (m/vec-sub center))
                        (m/vec-dot (nth normals i)))
               t? (or (pos? proj) (> proj depth))]
-          (recur (+ 1 i)
-                 SZ
+          (recur (+ 1 i) SZ
                  (if t? proj depth)
                  (if t? i nEdge)
                  ;;center is outside of rectangle?
                  (if (pos? proj) false inside?)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circle-outside-rect? "" [R C1 ci nEdge depth]
-  (let [{center :pos {:keys [radius]} :shape} @C1
+(defn- circle-outside-rect? [R C1 ci nEdge depth]
+  (let [{center :pos
+         {:keys [radius]} :shape} @C1
         {{:keys [normals vertices]} :shape} @R
         vn (nth vertices nEdge)
         en (nth normals nEdge)
-        ;;V1 is from left vertex of face to center of circle
-        ;;V2 is from left vertex of face to right vertex of face
+        ;;V1 is left vertex of face to center of circle
+        ;;V2 is left vertex of face to right vertex of face
         len (n# normals)
         eX (m/wrap?? nEdge len)
         vX (nth vertices eX)
@@ -185,7 +182,11 @@
             n (m/vec-unit V1)
             rvec (m/vec-scale n (- radius))]
         (if-not (> dis radius)
-          (do->true (chgci! ci (- radius dis) n (m/vec-add center rvec)))))
+          (do#true
+            (chgci! ci
+                    (- radius dis)
+                    n
+                    (m/vec-add center rvec)))))
       ;;;else
       ;the center of circle is in corner region of vertex[nEdge+1]
       ;v1 is from right vertex of face to center of circle
@@ -199,38 +200,61 @@
                 n (m/vec-unit v1)
                 rvec (m/vec-scale n (- radius))]
             (if-not (> dis radius)
-              (do->true (chgci! ci (- radius dis) n (m/vec-add center rvec)))))
+              (do#true
+                (chgci! ci
+                        (- radius dis)
+                        n
+                        (m/vec-add center rvec)))))
           ;;the circle is in face region of face[nEdge]
           (< depth radius)
           (let [rvec (m/vec-scale en radius)]
-            (do->true (chgci! ci (- radius depth) en (m/vec-sub center rvec))))
+            (do#true
+              (chgci! ci
+                      (- radius depth)
+                      en
+                      (m/vec-sub center rvec))))
           :else false)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- collided-rect-circ "" [R C1 ci]
+(defn- collided-rect-circ [R C1 ci]
   (let [[inside? depth nEdge] (nface->circle?? R C1)]
     (if inside?
       (circle-inside-rect? R C1 ci nEdge depth)
       (circle-outside-rect? R C1 ci nEdge depth))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rect-collision-test "" [R B2 ci]
+(defn- rect-collision-test [R B2 ci]
   (if (= :circle (get-in @B2 [:shape :type]))
-    (collided-rect-circ R B2 ci) (test-rect-rect? R B2 ci)))
+    (collided-rect-circ R B2 ci) (rect-rect? R B2 ci)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;rectangle stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- create-face-normals
+(defn- XXcreate-face-normals
   "0--Top;1--Right;2--Bottom;3--Left"
   [vertices]
   (let [[v0 v1 v2 v3] vertices]
     [(m/vec-unit (m/vec-sub v1 v2)) (m/vec-unit (m/vec-sub v2 v3))
      (m/vec-unit (m/vec-sub v3 v0)) (m/vec-unit (m/vec-sub v0 v1))]))
 
+(defn- create-face-normals
+  [vertices]
+  (loop [i 0
+         SZ (n# vertices) out (c/tvec*)]
+    (if (>= i SZ)
+      (c/ps! out)
+      (let [v (nth vertices i)
+            v' (nth vertices (m/wrap?? i SZ))]
+        (recur (+ 1 i) SZ
+               (conj! out
+                      (m/vec-unit
+                        (m/vec-normal
+                          (m/vec-sub v' v)))))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rect-rotate "" [B angle']
-  (let [{{:keys [vertices] :as S} :shape :keys [angle pos]} @B
+(defn- rect-rotate [B angle']
+  (let [{:keys [angle pos]
+         {:keys [vertices] :as S} :shape} @B
         vs' (g/rot-vertices vertices pos angle')]
     (c/assoc!! B
                :angle (+ angle angle')
@@ -240,8 +264,9 @@
                       :normals (create-face-normals vs')))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rect-move "" [B offset]
-  (let [{:keys [pos] {:keys [vertices] :as S} :shape} @B
+(defn- rect-move [B offset]
+  (let [{:keys [pos]
+         {:keys [vertices] :as S} :shape} @B
         v (mapv #(m/vec-add % offset) vertices)]
     (c/assoc!! B
                :pos (m/vec-add pos offset)
@@ -250,8 +275,9 @@
                              :normals (create-face-normals v)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rect-repos "" [R pt]
-  (let [{{:keys [vertices] :as S} :shape :keys [pos]} @R
+(defn- rect-repos [R pt]
+  (let [{:keys [pos]
+         {:keys [vertices] :as S} :shape} @R
         [cx cy] pos
         [px py] pt
         delta (V2 (- px cx)(- py cy))
@@ -263,16 +289,16 @@
                              :normals (create-face-normals v)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- draw-poly "" [P ctx]
+(defn- draw-poly [P ctx]
   (let [{:keys [shape pos]} @P] (gx/draw-poly shape ctx)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- draw-rect "" [R ctx]
+(defn- draw-rect [R ctx]
   (let [{:keys [shape pos]} @R] (gx/draw-poly shape ctx)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rectangle
-  ""
+  "A rectangular body."
   ([sz options] (rectangle (:width sz) (:height sz) options))
   ([width height options]
    (pc/set-body-attrs!
@@ -287,7 +313,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;circle-stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circle-move "" [C offset]
+(defn- circle-move [C offset]
   (let [{:keys [pos]} @C]
     (c/assoc!! C :pos (m/vec-add pos offset))))
 
@@ -299,7 +325,7 @@
     (c/assoc!! C :angle (+ angle angle'))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- collided-circ-circ "" [C1 C2 ci]
+(defn- collided-circ-circ [C1 C2 ci]
   (let [{c1 :pos {r1 :radius} :shape} @C1
         {c2 :pos {r2 :radius} :shape} @C2
         v1to2 (m/vec-sub c2 c1)
@@ -309,7 +335,7 @@
       (> dist rSum) ;;no overlap
       false
       (zero? dist) ;;centers overlap
-      (do->true
+      (do#true
         (chgci! ci
                 rSum
                 (V2 0 -1)
@@ -317,38 +343,41 @@
                   (m/vec-add c1 (V2 0 r1))
                   (m/vec-add c2 (V2 0 r2)))))
       :else ;overlap
-      (do->true
-        (let [rC2 (-> (m/vec-neg v1to2)
-                      (m/vec-unit) (m/vec-scale r2))]
-          (chgci! ci
-                  (- rSum dist)
-                  (m/vec-unit v1to2) (m/vec-add c2 rC2)))))))
+      (let#true
+        [rC2 (-> (m/vec-neg v1to2)
+                 (m/vec-unit) (m/vec-scale r2))]
+        (chgci! ci
+                (- rSum dist)
+                (m/vec-unit v1to2) (m/vec-add c2 rC2))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circle-collision-test "" [C B2 ci]
+(defn- circle-collision-test [C B2 ci]
   (if (= (get-in @B2 [:shape :type]) :circle)
     (collided-circ-circ C B2 ci) (collided-rect-circ B2 C ci)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circle-repos "" [C pt] (c/assoc!! C :pos pt))
+(defn- circle-repos [C pt] (c/assoc!! C :pos pt))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- draw-circle "" [C ctx]
+(defn- draw-circle [C ctx]
   (let [{:keys [shape pos angle]} @C]
     (gx/draw-circle shape ctx pos angle true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn circle "" [radius & [options]]
-  (pc/set-body-attrs!
-    (pc/body (pc/config?? (g/circle radius))
-             {:rotate  circle-rotate
-              :repos circle-repos
-              :move circle-move
-              :bx-radius radius
-              :collision-test circle-collision-test}) options))
+(defn circle
+  "A circular body."
+  ([radius] (circle radius nil))
+  ([radius options]
+   (pc/set-body-attrs!
+     (pc/body (pc/config?? (g/circle radius))
+              {:rotate  circle-rotate
+               :repos circle-repos
+               :move circle-move
+               :bx-radius radius
+               :collision-test circle-collision-test}) options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- correct-pos! "" [posCorrection B1 B2 ci]
+(defn- correct-pos! [posCorrection B1 B2 ci]
   (let [{:keys [depth normal]} @ci
         {m1 :im} @B1
         {m2 :im} @B2
@@ -412,8 +441,9 @@
                    :vel (m/vec-add vel (m/vec-scale impulse m2)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- resolve-collision "" [posCorrection B1 B2 ci]
-  (when-not (and (pc/static? B1) (pc/static? B2))
+(defn- resolve-collision [posCorrection B1 B2 ci]
+  (when-not (and (pc/static? B1)
+                 (pc/static? B2))
     (correct-pos! posCorrection B1 B2 ci)
     ;;the direction of collisionInfo is always from s1 to s2
     ;;but the Mass is inversed, so start scale with s2 and end scale with s1
@@ -436,8 +466,8 @@
         (resolve-collision* B1 B2 r1 r2 ci rvel rvel_n)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- check-collision "" [posCorrection]
-  (let [{:keys [samples context]} @gWorld
+(defn- check-collision [posCorrection]
+  (let [{:keys [samples]} @gWorld
         len (c/count-set samples)]
     (dotimes [i len]
       (loop [j (+ 1 i)]
@@ -448,7 +478,7 @@
             (when (and (:valid? @si)
                        (:valid? @sj)
                        (overlap? si sj)
-                       (collision-test?? si sj ci))
+                       (collision? si sj ci))
               ;;make sure the normal (direction)
               ;;is always si -> sj
               (when (neg? (m/vec-dot (:normal @ci)
@@ -459,29 +489,33 @@
           (recur (+ 1 j)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn run-algo "" [algoIterCount posCorrection]
-  (dotimes [_ algoIterCount] (check-collision posCorrection))
+(defn run-algo [algoIterCount posCorrection]
+  (c/nloop algoIterCount
+           (check-collision posCorrection))
   (let [{:keys [samples frame-secs]} @gWorld]
-    (c/each-set samples (fn [b _] (update-body! b frame-secs)))))
+    (c/each-set samples
+                (fn [b _] (update-body! b frame-secs)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- draw-body "" [B & args]
-  (let [t (get-in @B [:shape :type])]
+(defn draw-body [B & args]
+  (let [ctx (_1 args)
+        t (get-in @B [:shape :type])]
     (condp = t
-      :rectangle (apply draw-rect B args)
-      :polygon (apply draw-poly B args)
-      :circle (apply draw-circle B args)
+      :rectangle (draw-rect B ctx)
+      :polygon (draw-poly B ctx)
+      :circle (draw-circle B ctx)
       (c/raise! "Unknown shape type: " t)) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init-physics
-  ""
-  [gravity fps world & [options]]
-  (pc/init gravity
-           fps
-           world
-           (merge {:body-drawer draw-body
-                   :algo-runner run-algo} options)))
+  "Initialize the physics world."
+  ([gravity fps world]
+   (init-physics gravity fps world nil))
+  ([gravity fps world options]
+   (pc/init gravity
+            fps
+            world
+            (merge {:algo-runner run-algo} options))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

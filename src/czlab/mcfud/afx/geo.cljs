@@ -11,7 +11,7 @@
 
   czlab.mcfud.afx.geo
 
-  (:require [czlab.mcfud.afx.math :as m :refer [vec2]]
+  (:require [czlab.mcfud.afx.math :as m :refer [V2]]
             [czlab.mcfud.afx.core :as c :refer [_1 _2 n#]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -24,11 +24,11 @@
 (defrecord Area [width height])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn area "" [width height] (new Area width height))
+(defn area "An rectangular area." [width height] (new Area width height))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rect
-  ""
+  "Create a rect object."
   ([x y width height] (new Rect x y width height))
   ([origin area]
    (new Rect (_1 origin) (_2 origin) (:width area) (:height area))))
@@ -40,7 +40,7 @@
   (loop [i 0
          SZ (n# vertices) area 0]
     (if (>= i SZ)
-      (* .5 (c/abs* area))
+      (/ (c/abs* area) 2)
       (let [i2 (m/wrap?? i SZ)
             [xi yi] (nth vertices i)
             [xn yn] (nth vertices i2)]
@@ -56,7 +56,7 @@
          i 0
          SZ (n# vertices) cx 0 cy 0]
     (if (>= i SZ)
-      (vec2 (/ cx A) (/ cy A))
+      (V2 (/ cx A) (/ cy A))
       (let [i2 (m/wrap?? i SZ)
             [xi yi] (nth vertices i)
             [xn yn] (nth vertices i2)]
@@ -67,7 +67,7 @@
                (+ cy (* (+ yi yn) (- (* xi yn) (* xn yi)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defrecord Polygon [vertices type])
+(defrecord Polygon [vertices])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defrecord Line [v1 v2])
@@ -76,22 +76,24 @@
 (defrecord Circle [radius])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn polygon "" [vertices] (new Polygon vertices :polygon))
+(defn polygon
+  "Create a polygon." [vertices]
+  (assoc (new Polygon vertices) :type :polygon))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn circle "" [radius] (assoc (new Circle radius) :type :circle))
+(defn circle
+  "Create a circle." [radius]
+  (assoc (new Circle radius) :type :circle))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn shift-vertices
   "Shift a set of points."
-  [vs delta]
-  (mapv #(m/vec-add % delta) vs))
+  [vs delta] (mapv #(m/vec-add % delta) vs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rot-vertices
   "Rotate a set of points."
-  [vs pivot angle]
-  (mapv #(m/vec-rot % angle pivot) vs))
+  [vs pivot angle] (mapv #(m/vec-rot % angle pivot) vs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn calc-rect-vertices
@@ -101,25 +103,19 @@
                        (_2 center)
                        (:width area) (:height area)))
   ([x y width height]
-   (let [hh (* .5 height)
-         hw (* .5 width)
-         base (- y hh)
-         top (+ y hh)
-         rhs (+ x hw)
-         lhs (- x hw)]
-     (vector (vec2 lhs top) (vec2 rhs top)
-             (vec2 rhs base) (vec2 lhs base)))))
+   (let [[hw hh] (c/mapfv / 2 width height)]
+     [(V2 (- x hw) (- y hh)) (V2 (+ x hw) (- y hh))
+      (V2 (+ x hw) (+ y hh)) (V2 (- x hw) (+ y hh))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rectangle
-  ""
+  "Create a rectangle."
   ([area] (rectangle (:width area) (:height area)))
   ([width height]
-   (let []
-     (-> (calc-rect-vertices 0 0 width height)
-         (polygon)
-         (assoc :type :rectangle
-                :width width :height height)))))
+   (-> (calc-rect-vertices 0 0 width height)
+       (polygon)
+       (assoc :type :rectangle
+              :width width :height height))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn line "" [ptA ptB] (new Line ptA ptB))

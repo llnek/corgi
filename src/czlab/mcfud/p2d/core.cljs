@@ -12,10 +12,10 @@
   czlab.mcfud.p2d.core
 
   (:require [czlab.mcfud.afx.core
-             :as c :refer [sqr* n# POS-INF NEG-INF
-                           num?? _1 _2 _E cc+ cc+1 do-with]]
+             :as c :refer [n# POS-INF NEG-INF
+                           _1 _2 _E cc+ cc+1 do-with]]
             [czlab.mcfud.afx.geo :as g]
-            [czlab.mcfud.afx.math :as m :refer [PI vec2]]))
+            [czlab.mcfud.afx.math :as m :refer [PI V2]]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -23,6 +23,7 @@
 (defrecord Box4 [left bottom right top])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;bottom left
 (defn rect->box4
   "Get the 4 sides of a rect."
   [{:keys [x y width height] :as R}]
@@ -44,8 +45,9 @@
                    :samples (c/new-memset)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- dref [s k] (get (cond (c/atom? s) @s
-                             (map? s) s :else (c/raise! "Bad shape!")) k))
+(defn- dref [s k]
+  (get (cond (c/atom? s) @s
+             (map? s) s :else (c/raise! "Bad shape!")) k))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pos!
@@ -59,83 +61,89 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn move!
-  "Move body."
-  [b p] ((dref b :move) b p) b)
+  "Move body." [b p] ((dref b :move) b p) b)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rotate!
-  "Rotate body."
-  [b v] ((dref b :rotate) b v) b)
+  "Rotate body." [b v] ((dref b :rotate) b v) b)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn draw "" [b & more] (apply (dref b :draw) b more) b)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn config??
-  "If the world has extra properties for this type, merge them into it."
+  "If the world has extra properties for this type,
+  merge them into it."
   [s]
   (let [{:keys [type]} s
-        m (get gWorld type)] (merge s m)))
+        m (@gWorld type)] (merge s m)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn body
   "A 2d physics body."
-  [shape & [options]]
-  (do-with [B (atom (merge {:draw (:body-drawer @gWorld)
-                            :oid (next-body-num)
-                            :valid? true
-                            :type :body
-                            :accel (m/vz2)
-                            :vel (m/vz2)
-                            :bx-radius 0
-                            :ii 0 ;;inverse inertia
-                            :i 0 ;;inertia
-                            :im 0 ;;inverse momentum
-                            :m 0 ;;momentum
-                            :gvel 0
-                            :pos (m/vz2)
-                            :torque 0
-                            :angle 0
-                            :statF .5 ; 0.8
-                            :dynaF .3
-                            :bounce .2} options))]
-    (c/assoc!! B
-               :shape (assoc shape :body B))))
+  ([shape] (body shape nil))
+  ([shape options]
+   (let [B (atom {:oid (next-body-num)
+                  :valid? true
+                  :type :body
+                  :accel (m/vz2)
+                  :vel (m/vz2)
+                  :bx-radius 0
+                  :ii 0 ;;inverse inertia
+                  :i 0 ;;inertia
+                  :im 0 ;;inverse momentum
+                  :m 0 ;;momentum
+                  :gvel 0
+                  :pos (m/vz2)
+                  :torque 0
+                  :angle 0
+                  :statF .5 ; 0.8
+                  :dynaF .3
+                  :bounce .2})]
+     (swap! B
+            #(assoc (merge % options)
+                    :shape (assoc shape :body B))) B)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn add-body
   "Add a new body to the world."
-  [B & [at]]
-  (let [{:keys [shape angle]} @B
-        {:keys [samples]} @gWorld]
-    (c/add->set! samples B)
-    (pos! B (or at (m/vz2)))))
+  ([B] (add-body B nil))
+  ([B pt]
+   (let [{:keys [shape angle]} @B
+         {:keys [samples]} @gWorld]
+     (c/add->set! samples B)
+     (pos! B (or pt (m/vz2))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn calc-min-max*
+  "Find limits (high, low) of vertices."
+  [vertices]
+  (loop [i 0 SZ (n# vertices)
+         xmin POS-INF ymin POS-INF
+         xmax NEG-INF ymax NEG-INF]
+    (if (>= i SZ)
+      [(V2 xmin ymin) (V2 xmax ymax)]
+      (let [[x y] (nth vertices i)]
+        (recur (+ 1 i)
+               SZ
+               (min xmin x) (min ymin y)
+               (max xmax x) (max ymax y))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn calc-min-max
   "Find limits (top,bottom) of shape."
-  [S]
-  (let [{:keys [vertices]} S]
-    (loop [i 0 SZ (n# vertices)
-           xmin POS-INF ymin POS-INF
-           xmax NEG-INF ymax NEG-INF]
-      (if (>= i SZ)
-        [(vec2 xmin ymin) (vec2 xmax ymax)]
-        (let [[x y] (nth vertices i)]
-          (recur (+ 1 i)
-                 SZ
-                 (min xmin x) (min ymin y)
-                 (max xmax x) (max ymax y)))))))
+  [S] (calc-min-max* (:vertices S)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- find-right-most??
-  "Loop through all vertices find the rightmost vertex."
+  "Loop through all vertices find the
+  rightmost vertex, bottom up."
   [vertices]
   (loop [i 1 SZ (n# vertices)
          right 0 cx (_1 (_1 vertices))]
     (if (>= i SZ)
       right
-      (let [x (_1 (nth vertices i))
+      (let [[x _] (nth vertices i)
             [r x'] (if (> x cx)
                      [i x]
                      (if (and (= x cx)
@@ -146,43 +154,40 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sort??
   "Sort out vertices, right-most, then counter-clockwise."
-  [v1 v2 v3 & more]
-  (let [vertices (cc+ [v1 v2 v3] more)
-        rightMost (find-right-most?? vertices)]
-    (loop [hull [rightMost]
-           curIndex rightMost brk? false]
-      (if brk?
-        (loop [i 0 SZ (n# hull) out []]
-          (if (>= i SZ)
-            out
-            (recur (+ 1 i)
-                   SZ
-                   (conj out (nth vertices (nth hull i))))))
-        (let [nextIndex
-              (loop [i 1
-                     SZ (n# vertices) pos 0]
-                (if (>= i SZ)
-                  pos
-                  (recur (+ 1 i)
-                         SZ
-                         (if (= pos curIndex)
-                           i
-                           (let [v' (nth vertices (_E hull))
-                                 e1 (m/vec-sub (nth vertices pos) v')
-                                 e2 (m/vec-sub (nth vertices i) v')
-                                 c (m/vec-xss e1 e2)]
-                             (if (or (neg? c)
-                                     (and (zero? c)
-                                          (> (m/vec-lensq e2)
-                                             (m/vec-lensq e1)))) i pos))))))
-              q? (= nextIndex rightMost)]
-          (recur (if q? hull (conj hull nextIndex)) nextIndex q?))))))
+  ([v1 v2 v3 & more] (sort?? (cc+ [v1 v2 v3] more)))
+  ([vs]
+   (let [rMost (find-right-most?? vs)]
+     (loop [hull [rMost]
+            cur rMost brk? false]
+       (if brk?
+         (loop [i 0 SZ (n# hull) out (c/tvec*)]
+           (if (>= i SZ)
+             (c/ps! out)
+             (recur (+ 1 i) SZ
+                    (conj! out (nth vs (nth hull i))))))
+         (let [nxt
+               (loop [i 1 SZ (n# vs) pos 0]
+                 (if (>= i SZ)
+                   pos
+                   (recur (+ 1 i) SZ
+                          (if (= pos cur)
+                            i
+                            (let [v' (nth vs (_E hull))
+                                  e1 (m/vec-sub (nth vs pos) v')
+                                  e2 (m/vec-sub (nth vs i) v')
+                                  c (m/vec-xss e1 e2)]
+                              (if (or (neg? c)
+                                      (and (zero? c)
+                                           (> (m/vec-lensq e2)
+                                              (m/vec-lensq e1)))) i pos))))))
+               q? (= nxt rMost)]
+           (recur (if q? hull (conj hull nxt)) nxt q?)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- calc-circle-mass [C density]
   (let [{{:keys [radius]} :shape} @C
-        density (num?? density 1)
-        r2 (sqr* radius)
+        density (c/num?? density 1)
+        r2 (c/sqr* radius)
         m (* PI r2 density)] [m  (* m r2)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -190,11 +195,10 @@
   (let [{{:keys [vertices fnv] :as S} :shape} @P
         gv (if (fn? fnv) fnv identity)
         inv3 (/ 1 3)
-        density (num?? density 1)]
+        density (c/num?? density 1)]
     ;;calculate centroid and moment of interia
     (loop [i 0 SZ (n# vertices)
-           c (m/vz2)
-           area 0 I 0]
+           c (m/vz2) area 0 I 0]
       (if (>= i SZ)
         ;[(vec-scale c (invert area)) (* density area) (* density I)]
         [(* density area) (* density I)]
@@ -202,9 +206,9 @@
               [x1 y1 :as p1] (gv (nth vertices i))
               D (m/vec-xss p1 p2)
               ;;triangle, 3rd vertex is origin
-              triArea (* .5 D)
-              x' (+ (sqr* x1) (* x2 x1) (sqr* x2))
-              y' (+ (sqr* y1) (* y2 y1) (sqr* y2))]
+              triArea (/ D 2)
+              x' (+ (c/sqr* x1) (* x2 x1) (c/sqr* x2))
+              y' (+ (c/sqr* y1) (* y2 y1) (c/sqr* y2))]
           ;;use area to weight the centroid average, not just vertex position
           (recur (+ 1 i)
                  SZ
@@ -221,7 +225,9 @@
         [M I] (if (= type :circle)
                 (calc-circle-mass B density)
                 (calc-polyon-mass B density))]
-    (c/assoc!! B :m M :im (c/num-flip M) :i I :ii (c/num-flip I)) B))
+    (c/assoc!! B
+               :m M :im (c/flip M)
+               :i I :ii (c/flip I))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set-mass! [B mass]
@@ -231,12 +237,13 @@
                 (calc-circle-mass B d)
                 (calc-polyon-mass B d))]
     (c/assoc!! B
-               :i I :ii (c/num-flip I)
-               :m mass :im (c/num-flip mass)) B))
+               :i I :ii (c/flip I)
+               :m mass :im (c/flip mass))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set-body-attrs! [B options]
-  (let [{:keys [mass density friction bounce]} options]
+  (let [{:keys [mass density
+                friction bounce]} options]
     (cond
       (number? mass) (set-mass! B mass)
       (number? density) (set-mass-density! B density)
@@ -245,7 +252,8 @@
     (if (number? friction) (c/assoc!! B :statF friction))
     (let [{:keys [m]} @B
           {:keys [gravity]} @gWorld]
-      (c/assoc!! B :accel (if (zero? m) (m/vz2) gravity)))))
+      (c/assoc!! B
+                 :accel (if (zero? m) (m/vz2) gravity)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set-static!
@@ -256,10 +264,10 @@
              :m 0
              :i 0
              :ii 0
-             :vel (m/vz2)
-             :accel (m/vz2)
              :gvel 0
-             :torque 0))
+             :torque 0
+             :vel (m/vz2)
+             :accel (m/vz2)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn static? [obj]
@@ -270,46 +278,54 @@
   (let [{:keys [m im]} @obj] (or (pos? m)(pos? im))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn validate-body [obj]
+  (let [{:keys [pos]} @obj
+        {a :world} @gWorld]
+    (if-not (g/contains-pt? a pos)
+      (c/assoc!! obj :valid? false) obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private prev-millis (system-time))
 (def ^:private lag-millis 0)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn step "" [dt & [algoIterCount posCorrection]]
-  (set! prev-millis (system-time))
-  (set! lag-millis (+ lag-millis dt))
-  ;;Make sure we update the game the appropriate number of times.
-  ;;Update only every Milliseconds per frame.
-  ;;If lag larger then update frames, update until caught up.
-  (let [{:keys [algo-runner frame-millis]} @gWorld
-        icnt (num?? algoIterCount 10)
-        cpos (num?? posCorrection .8)]
-    (while (and (>= lag-millis frame-millis)
-                (fn? algo-runner))
-      (set! lag-millis
-            (- lag-millis frame-millis)) (algo-runner icnt cpos))))
+(defn step
+  ([dt] (step dt nil nil))
+  ([dt algoIterCount posCorrection]
+   (set! prev-millis (system-time))
+   (set! lag-millis (+ lag-millis dt))
+   ;;Make sure we update the game the appropriate number of times.
+   ;;Update only every Milliseconds per frame.
+   ;;If lag larger then update frames, update until caught up.
+   (let [{:keys [algo-runner frame-millis]} @gWorld
+         icnt (c/num?? algoIterCount 10)
+         cpos (c/num?? posCorrection .8)]
+     (while (and (fn? algo-runner)
+                 (>= lag-millis frame-millis))
+       (set! lag-millis
+             (- lag-millis
+                frame-millis))
+       (algo-runner icnt cpos)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn step*
-  ""
-  [& [algoIterCount posCorrection]]
-  (step (- (system-time) prev-millis) algoIterCount posCorrection))
+  ([] (step* nil nil))
+  ([algoIterCnt posCorrection]
+   (step (- (system-time) prev-millis)
+         algoIterCnt posCorrection)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init
   "Configure the physics world."
-  [gravity fps world & [options]]
-  (let [{:keys [x y width height]} world]
-    (swap! gWorld
-           #(merge %
-                   options ;(dissoc options :cc2dx?)
-                   {:origin (vec2 x y)
-                    :arena world
-                    :FPS fps
-                    :width width
-                    :height height
-                    :gravity (vec2 0 gravity)
-                    :frame-secs (c/num-flip fps)
-                    :frame-millis (* 1000 (c/num-flip fps))})) gWorld))
+  ([gravity fps world] (init gravity fps world nil))
+  ([gravity fps world options]
+   (swap! gWorld
+          #(merge %
+                  {:world world
+                   :FPS fps
+                   :gravity (V2 0 gravity)
+                   :frame-secs (c/flip fps)
+                   :frame-millis (* 1000 (c/flip fps))} options)) gWorld))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

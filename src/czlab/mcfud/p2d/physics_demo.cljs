@@ -22,12 +22,12 @@
 (def gWorld nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- mouse-control "" [evt] )
+(defn- mouse-control [evt] )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- user-control "" [evt]
+(defn- user-control [evt]
   (let [key (or (c/get-js evt "keyCode")
-                (c/get-js evt "?which"))
+                (c/get-js evt "which"))
         {:keys [cur samples]} @gWorld
         len (c/count-set samples)
         s (c/nth-set samples cur)
@@ -80,20 +80,22 @@
       (= key 78) ;N
       (c/assoc!! s :bounce 0.01)
       (= key 70);f
-      (let [{:keys [pos]} @s
-            r1 (-> (py/rectangle (g/rect 0
-                                         0
-                                         (+ 10 (rand 30))
-                                         (+ 10 (rand 30)))
-                                 {:mass (rand 30) :friction (rand) :bounce (rand)})
-                   (pc/add-body pos))]
-        (c/assoc!! r1 :vel (V2 (- (rand 300) 150) (- (rand 300) 150))))
+      (c/assoc!!
+        (pc/add-body
+          (py/rectangle (+ 10 (rand 30))
+                        (+ 10 (rand 30))
+                        {:mass (rand 30)
+                         :friction (rand)
+                         :bounce (rand)}) (:pos @s))
+        :vel (V2 (- (rand 300) 150) (- (rand 300) 150)))
       (= key 71) ;;g
-      (let [{:keys [pos]} @s
-            c1 (-> (py/circle (+ 20 (rand 10))
-                              {:mass (rand 30) :friction (rand) :bounce (rand)})
-                   (pc/add-body pos))]
-        (c/assoc!! c1 :vel (V2 (- (rand 300) 150) (- (rand 300) 150))))
+      (c/assoc!!
+        (pc/add-body
+          (py/circle (+ 20 (rand 10))
+                     {:mass (rand 30)
+                      :friction (rand)
+                      :bounce (rand)}) (:pos @s))
+        :vel (V2 (- (rand 300) 150) (- (rand 300) 150)))
       (= key 72);H
       (c/each-set samples
                   (fn [s i]
@@ -103,16 +105,18 @@
                                           (- (rand 500) 250)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- update-ui-echo "" []
+(defn- update-ui-echo []
   (let [{:keys [uiEcho cur samples]} @gWorld
         obj (c/nth-set samples cur)
-        {:keys [statF bounce m gvel vel angle] [x y] :pos} @obj]
+        {[x y] :pos
+         [vx vy] :vel
+         :keys [statF bounce m gvel angle]} @obj]
     (->> (str "<p><b>Selected Object:</b>:</p>"
               "<ul style=\"margin:-10px\">"
               "<li>Id: " cur "</li>"
               "<li>Center: " x "," y "</li>"
               "<li>Angle: " angle "</li>"
-              "<li>Velocity: " (_1 vel) "," (_2 vel) "</li>"
+              "<li>Velocity: " vx "," vy "</li>"
               "<li>AngluarVelocity: " gvel "</li>"
               "<li>Mass: " m "</li>"
               "<li>Friction: " statF "</li>"
@@ -134,67 +138,71 @@
          (c/set-js! uiEcho "innerHTML" ))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- draw-game "" []
-  (let [{:keys [cur samples width height context]} @gWorld]
-    (c/call-js! context "clearRect" 0 0 width height)
+(defn- draw-game []
+  (let [{:keys [cur samples canvas]
+         {:keys [width height]} :world} @gWorld]
+    (c/call-js! canvas "clearRect" 0 0 width height)
     (c/each-set samples
                 (fn [b i]
                   (when (:valid? @b)
-                    (c/set-js! context
-                               "strokeStyle" (if (= i cur) "red" "blue"))
-                    (pc/draw b context))))))
+                    (c/set-js! canvas
+                               "strokeStyle"
+                               (if (= i cur) "red" "blue"))
+                    (py/draw-body b canvas))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- run-game-loop "" []
+(defn- run-game-loop []
   (js/requestAnimationFrame #(run-game-loop))
   (update-ui-echo)
   (draw-game)
   (pc/step*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- my-game "" []
-  (set! gWorld (py/init-physics 100 60 (g/rect 0 0 799 449)))
+(defn- my-game []
+  (set! gWorld (py/init-physics 100 60
+                                (g/rect 0 0 799 449) {:cur 0}))
   (let [html (js/document.getElementById "uiEchoString")
         canvas (js/document.getElementById "canvas")
-        context (c/call-js! canvas "getContext" "2d")
-        {:keys [width height]} @gWorld
-        _ (c/set-js!! canvas
-                      "width" width
-                      "height" height)
-        _ (swap! gWorld #(assoc %
-                                :uiEcho html
-                                :cur 0
-                                :canvas canvas :context context))
-        right (-> (py/rectangle (g/rect 0 0 400 20)
-                                {:mass 0 :friction 0.3 :bounce 0})
-                  (pc/add-body (V2 500 200)))
-        left (-> (py/rectangle (g/rect 0 0 200 20) {:mass 0})
-                 (pc/add-body (V2 100 200)))
-        ;r4 (Rectangle (Point2D 10 360) (Size2D 20 100) 0 0 1)]
-        bottom (-> (py/rectangle (g/rect 0 0 400 20)
-                                 {:mass 0 :friction 1 :bounce 0.5})
-                   (pc/add-body (V2 200 400)))
-        br (-> (py/rectangle (g/rect 0 0 20 100)
-                             {:mass 0 :friction 0 :bounce 1})
-               (pc/add-body (V2 400 360)))
-        bl (-> (py/rectangle (g/rect 0 0 20 100)
-                             {:mass 0 :friction 0 :bounce 1})
-               (pc/add-body (V2 10 360)))]
-    (pc/rotate! left -2.8)
-    (pc/rotate! right 2.8)
-    (dotimes [i 4]
-      (-> (py/rectangle (g/rect 0 0
-                                (+ 10 (rand 50))
-                                (+ 10 (rand 50)))
-                        {:mass (rand 30) :friction (rand) :bounce (rand)})
-          (pc/add-body (V2 (rand (/ width 2))
-                           (rand (/ height 2))))
+        ctx (c/call-js! canvas "getContext" "2d")
+        {{:keys [width height]} :world} @gWorld]
+    (c/set-js!! canvas "width" width "height" height)
+    (swap! gWorld #(assoc % :uiEcho html :canvas ctx))
+    (-> (py/rectangle 400 20
+                      {:mass 0 :friction 0.3 :bounce 0})
+        (pc/add-body (V2 500 200))
+        (pc/rotate! 2.8))
+    (-> (py/rectangle 200 20 {:mass 0})
+        (pc/add-body (V2 100 200))
+        (pc/rotate! -2.8))
+    (-> (py/rectangle 400 20
+                      {:mass 0 :friction 1 :bounce 0.5})
+        (pc/add-body (V2 200 400)))
+    (-> (py/rectangle 20 100
+                      {:mass 0 :friction 0 :bounce 1})
+        (pc/add-body (V2 400 360)))
+    (-> (py/rectangle 20 100
+                      {:mass 0 :friction 0 :bounce 1})
+        (pc/add-body (V2 10 360)))
+    (c/nloop
+      4
+      (-> (pc/add-body
+            (py/rectangle (+ 10 (rand 50))
+                          (+ 10 (rand 50))
+                          {:mass (rand 30)
+                           :friction (rand)
+                           :bounce (rand)})
+            (V2 (rand (/ width 2))
+                (rand (/ height 2))))
           (c/assoc!! :vel
-                     (V2 (- (rand 60) 30) (- (rand 60) 30))))
-      (-> (py/circle (+ 10 (rand 20))
-                     {:mass (rand 30) :friction (rand) :bounce (rand)})
-          (pc/add-body (V2 (rand (/ width 2))
-                           (rand (/ height 2))))
+                     (V2 (- (rand 60) 30)
+                         (- (rand 60) 30))))
+      (-> (pc/add-body
+            (py/circle (+ 10 (rand 20))
+                       {:mass (rand 30)
+                        :friction (rand)
+                        :bounce (rand)})
+            (V2 (rand (/ width 2))
+                (rand (/ height 2))))
           (c/assoc!! :vel (V2 (- (rand 60) 30)
                               (- (rand 60) 30)))))
     (run-game-loop)))

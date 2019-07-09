@@ -14,10 +14,7 @@
   (:require [czlab.mcfud.afx.ebus :as e]
             [czlab.mcfud.afx.core
              :as c :refer [do-with defenum trye!
-                           let->nil debug* warn* fn_1]]
-            [oops.core :refer [oget oset! ocall oapply
-                               ocall! oapply! oget+
-                               oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
+                           let#nil debug* warn* fn_1]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defenum net not-connected 0 connected)
@@ -76,7 +73,7 @@
   "Decode the input json string."
   [input]
   (merge {:etype -1 :ecode -1}
-         (trye! (c/str->clj input))))
+         (trye! (c/s->clj input))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- get-play-request
@@ -92,20 +89,21 @@
   (do-with [odin]
     (let [ws (new js/WebSocket url)
           {:keys [ebus game user password]} @odin]
-      (oset! ws
-             "onopen"
-             (fn_1 (ocall ws "send" (get-play-request game user password))))
-
-      (oset! ws
-             "onmessage"
-             (fn_1 (let [{:keys [etype ecode] :as evt}
-                         (json-decode (oget ____1 "data"))]
-                     (case etype
-                       (msg-network | msg-session)
-                       (e/pub ebus (str etype "." ecode) evt)
-                       (warn* "unhandled evt: " etype ", code= " ecode)))))
-      (oset! ws "onclose" (fn_1 (debug* "closing websocket.")))
-      (oset! ws "onerror" (fn_1 (debug* "websocket error: " ____1)))
+      (c/set-js! ws
+                 "onopen"
+                 (fn_1 (c/call-js! ws
+                                   "send"
+                                   (get-play-request game user password))))
+      (c/set-js! ws
+                 "onmessage"
+                 (fn_1 (let [{:keys [etype ecode] :as evt}
+                             (json-decode (c/get-js ____1 "data"))]
+                         (case etype
+                           (msg-network | msg-session)
+                           (e/pub ebus (str etype "." ecode) evt)
+                           (warn* "unhandled evt: " etype ", code= " ecode)))))
+      (c/set-js! ws "onclose" (fn_1 (debug* "closing websocket.")))
+      (c/set-js! ws "onerror" (fn_1 (debug* "websocket error: " ____1)))
       (swap! odin #(assoc % :wsock ws)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -120,23 +118,25 @@
 (defn- ready?
   "If socket ready?"
   [wsock]
-  (= 1 (oget wsock "readyState")))
+  (= 1 (c/get-js wsock "readyState")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn odin-send
   "Send this event through the socket."
   [odin evt]
-  (let->nil [{:keys [wsock]} @odin]
+  (let#nil
+    [{:keys [wsock]} @odin]
     (if (and (some? wsock)
-             (ready? wsock)) (ocall wsock "send" (c/jsonize evt)))))
+             (ready? wsock)) (c/call-js! wsock "send" (c/jsonize evt)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn odin-listen
   "Listen to this message-type and event."
   [odin msgType evtCode callback]
-  (let [{:keys [ebus subcs]} @odin
-        h (e/sub+ ebus
-                  (str msgType "." evtCode) callback)]
+  (let#nil
+    [{:keys [ebus subcs]} @odin
+     h (e/sub+ ebus
+               (str msgType "." evtCode) callback)]
     (swap! odin
            #(update-in %
                        [:subcs]
@@ -179,13 +179,12 @@
            (fn [{:keys [wsock] :as root}]
              (if (and (some? wsock)
                       (ready? wsock))
-               (trye! (ocall wsock "close")))
+               (trye! (c/call-js! wsock "close")))
              (assoc root :wsock nil)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn odin-disconnect!
-  "Close the socket."
-  [odin] (odin-close! odin))
+  "Close the socket." [odin] (odin-close! odin))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

@@ -11,22 +11,17 @@
 
   czlab.mcfud.afx.gfx2d
 
-  (:require [czlab.mcfud.afx.math
-             :as m :refer [TWO-PI vec2]]
-            [oops.core :as oc]
+  (:require [czlab.mcfud.afx.math :as m :refer [TWO-PI V2]]
             [czlab.mcfud.afx.core
-             :as c :refer [let->nil do->nil atom? cc+ _1 _2 n# num??]]))
+             :as c :refer [if-func let#nil do#nil atom? cc+ _1 _2 n# num??]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^:private _cocos2dx? true)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn canvas-batch!
+(defn- canvas-batch!
   "Apply a sequence of operations to the html5 canvas,
   with each op being [method arg1 arg2 ...]"
   [ctx & callArgs]
   (doseq [a callArgs
-          :let [[m & args] a]] (oc/oapply!+ ctx m args)))
+          :let [[m & args] a]] (c/apply-js! ctx m args)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;graphics
@@ -44,17 +39,17 @@
 (defn draw-shape
   "Draw the shape onto the html5 canvas."
   [s canvas & args]
-  (let->nil
-    [{:keys [draw]}
-     (cond (atom? s) @s
-           (map? s) s
-           :else (c/raise! "Bad shape."))] (apply draw s canvas args)))
+  (if-func [f (:draw (cond (atom? s) @s
+                           (map? s) s
+                           :else (c/raise! "Bad shape.")))]
+    (apply f s canvas args)
+    (c/raise! "Missing shape::draw function")) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn cfg-style!
   "Apply styles to the canvas."
   [canvas styleObj]
-  (let->nil
+  (let#nil
     [{:keys [line stroke]} styleObj
      {:keys [cap width]} line
      {:keys [style]} stroke]
@@ -68,8 +63,8 @@
 (defn draw-poly*
   "Draw and connect this set of points onto the canvas."
   [vertices canvas]
-  {:pre [(or (list? vertices)(vector? vertices))]}
-  (do->nil
+  {:pre [(sequential? vertices)]}
+  (do#nil
     (c/call-js! canvas "beginPath")
     (loop [i 0
            SZ (n# vertices)]
@@ -93,49 +88,57 @@
 (defn draw-circle*
   "Draw a circle onto the canvas.  If a starting point
   is provided, draw a line to the center."
-  [center radius angle canvas & [startPt?]]
-  (let->nil
-    [[cx cy] center
-     angle' (num?? angle 0)]
-    (c/jsto canvas
-            ["beginPath"]
-            ["arc" cx cy radius 0 TWO-PI true])
-    (when startPt?
-      (let [[x y] (-> (vec2 (+ cx radius) cy)
-                      (m/vec-rot angle' center))]
-        (c/jsto canvas
-                ["moveTo" cx cy] ["lineTo" x y])))
-    (c/jsto canvas
-            ["closePath"] ["stroke"])))
+  ([center radius angle canvas]
+   (draw-circle* center radius angle canvas false))
+  ([center radius angle canvas startPt?]
+   (let#nil
+     [[cx cy] center
+      angle' (num?? angle 0)]
+     (c/jsto canvas
+             ["beginPath"]
+             ["arc" cx cy radius 0 TWO-PI true])
+     (when startPt?
+       (let [[x y] (-> (V2 (+ cx radius) cy)
+                       (m/vec-rot angle' center))]
+         (c/jsto canvas
+                 ["moveTo" cx cy]
+                 ["lineTo" x y])))
+     (c/jsto canvas
+             ["closePath"] ["stroke"]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn draw-circle
   "Draw a circle."
-  [C canvas center & [angle startPt?]]
-  (let [{:keys [radius]} C]
-    (draw-circle* (or center (m/vz2))
-                  radius angle canvas startPt?)))
+  ([C canvas center]
+   (draw-circle C canvas center 0))
+  ([C canvas center angle]
+   (draw-circle C canvas center angle false))
+  ([C canvas center angle startPt?]
+   (let [{:keys [radius]} C]
+     (draw-circle* center radius angle canvas startPt?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn draw-rect
   "Draw a rectangle, not used."
-  [R canvas pos & [angle]]
-  (let->nil
-    [{:keys [width height]} R
-     [cx cy] (or pos (m/vz2))
-     left (- cx (/ width 2))
-     top (- cy (/ height 2))]
+  ([R canvas pos] (draw-rect R canvas pos 0))
+  ([R canvas pos angle]
+   (let#nil
+     [{:keys [width height]} R
+      [hw hh] (c/mapfv / 2 width height)
+      [cx cy] pos
+      left (- cx hw)
+      top (- cy hh)]
     (c/jsto canvas
             ["save"]
             ["translate" left top]
             ["rotate" (num?? angle 0)]
-            ["strokeRect" 0 0 width height] ["restore"])))
+            ["strokeRect" 0 0 width height] ["restore"]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn draw-line
   "Draw a line."
   [line canvas]
-  (let->nil
+  (let#nil
     [{:keys [v1 v2]} line
      [ax ay] v1
      [ex ey] v2]

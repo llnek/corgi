@@ -12,17 +12,15 @@
   czlab.mcfud.afx.core
 
   (:require-macros [czlab.mcfud.afx.core
-                    :as c :refer [n# _1 cc+ in?
-                                  if-func fn_1 fn_2 fn_* atom?
-                                  do-with-transient do-with defmonad]])
+                    :as c :refer [n# _1 cc+ in? atom?
+                                  fn_1 fn_2 fn_*
+                                  if-func do-with defmonad]])
 
   (:require [clojure.string :as cs]
             [clojure.set :as cst]
             [goog.string :as gs]
-            [goog.crypt.base64 :as b64]
-            [oops.core :refer [oget oset! ocall oapply
-                               ocall! oapply! oget+
-                               oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
+            [oops.core :as oc]
+            [goog.crypt.base64 :as b64]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def POS-INF js/Number.POSITIVE_INFINITY)
@@ -70,7 +68,7 @@
   [n] (and (number? n) (neg? n)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn num-flip
+(defn flip
   "Invert number if not zero."
   [x]
   (if (number? x) (if (zero? x) 0 (/ 1 x)) 0))
@@ -84,13 +82,10 @@
   [n other] (if (number? n) n other))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn num-sign
+(defn sign??
   "Sign of the number."
   [n]
   (cond (zero?? n) 0 (pos?? n) 1 :else -1))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn str->num "String to number." [s] (gs/toNumber s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn nestr?
@@ -137,10 +132,11 @@
   (* 100.0 (/ numerator denominator)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn num->fixed
+(defn n->fixed
   "Print number to n decimals."
-  [n & [digits]]
-  (ocall (js/Number. n) "toFixed" (num?? digits 2)))
+  ([n] (n->fixed n 2))
+  ([n digits]
+   (c/call-js! (js/Number. n) "toFixed" (num?? digits 2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn split-str
@@ -197,9 +193,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn get-websock-protocol
-  "Websocket protocol prefix."
-  []
-  (if (is-ssl?) "wss://" "ws://"))
+  "Websocket protocol prefix." [] (if (is-ssl?) "wss://" "ws://"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fmt-url
@@ -210,14 +204,13 @@
       (str scheme js/window.location.host uri) ""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn str->js
-  "String to js-object."
-  [s] (if (string? s) (js/JSON.parse s)))
+(defn s->js "String to js-object." [s] {:pre [(string? s)]} (js/JSON.parse s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn str->clj
-  "String to clj-object."
-  [s] (js->clj (str->js s)))
+(defn s->clj "String to clj-object." [s] (js->clj (s->js s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn s->n "String to number." [s] (gs/toNumber s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn jsonize
@@ -233,7 +226,7 @@
 (defn fill-array
   "JS-array with length (len) filled with value."
   [value len]
-  (do-with [out (array)] (dotimes [_ len] (.push out value))))
+  (do-with [out #js[]] (dotimes [_ len] (.push out value))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn copy-array
@@ -241,33 +234,32 @@
   [src des]
   {:pre [(= (n# src)(n# des))
          (and (array? src)(array? des))]}
-  (do-with [des]
-    (dotimes [n (n# src)] (aset des n (nth src n)))))
+  (dotimes [n (n# src)] (aset des n (nth src n))) des)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn is-mobile?
-  "If client is a mobile device."
+  "If client is a mobile device?"
   [navigator]
-  (if (some? navigator)
+  (if navigator
     (-> #"(?i)Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini"
-        (re-matches (oget navigator "?userAgent")))))
+        (re-matches (c/get-js navigator "userAgent")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn is-safari?
-  "If client is Safari browser."
+  "If client is Safari browser?"
   [navigator]
-  (if (some? navigator)
+  (if navigator
     (and (re-matches #"Safari"
-                     (oget navigator "?userAgent"))
+                     (c/get-js navigator "userAgent"))
          (re-matches #"Apple Computer"
-                     (oget navigator "?vendor")))))
+                     (c/get-js navigator "vendor")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pde
   "Prevent default propagation of this event."
   [e]
-  (if-func [f (oget e "?preventDefault")]
-    (ocall e "preventDefault") (oset! e "returnValue" false)))
+  (if-func [f (c/get-js e "preventDefault")]
+    (c/call-js! e "preventDefault") (c/set-js! e "returnValue" false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn clamp
@@ -308,20 +300,24 @@
 (defn merge+
   "Merge (deep) of clojure data."
   [a b & more]
-  (do-with-transient [tmp (c/tmap* a)]
-    (doseq [[k vb] b
-            :let [va (get a k)]]
-      (assoc! tmp
-              k
-              (if-not (in? a k)
-                vb
-                (cond (and (map? vb)
-                           (map? va))
-                      (merge+ va vb)
-                      (and (set? vb)
-                           (set? va))
-                      (cst/union va vb)
-                      :else vb))))))
+  (loop [[z & M] (seq b)
+         tmp (c/tmap* a)]
+    (if (nil? z)
+      (c/ps! tmp)
+      (let [[k vb] z
+            va (get a k)]
+        (recur M
+               (assoc! tmp
+                       k
+                       (if-not (in? a k)
+                         vb
+                         (cond (and (map? vb)
+                                    (map? va))
+                               (merge+ va vb)
+                               (and (set? vb)
+                                    (set? va))
+                               (cst/union va vb)
+                               :else vb))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;testing
@@ -351,25 +347,26 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn runtest
   "Run a test group, returning the summary."
-  [test & [title]]
-  {:pre [(fn? test)]}
-  (let [f #(cs/starts-with? % "P")
-        mark (system-time)
-        results (test)
-        sum (n# results)
-        ok (n# (filter f results))
-        diff (- (system-time) mark)
-        perc (int (* 100 (/ ok sum)))]
-    (cs/join "\n"
-             [(repeat-str 78 "+")
-              (or title "test")
-              (js/Date.)
-              (repeat-str 78 "+")
-              (cs/join "\n" results)
-              (repeat-str 78 "=")
-              (cs/join "" ["Passed: " ok "/" sum " [" perc  "%]"])
-              (str "Failed: " (- sum ok))
-              (cs/join "" ["cpu-time: " diff "ms"])])))
+  ([test] (runtest test nil))
+  ([test title]
+   {:pre [(fn? test)]}
+   (let [f #(cs/starts-with? % "P")
+         mark (system-time)
+         results (test)
+         sum (n# results)
+         ok (n# (filter f results))
+         diff (- (system-time) mark)
+         perc (int (* 100 (/ ok sum)))]
+     (cs/join "\n"
+              [(repeat-str 78 "+")
+               (or title "test")
+               (js/Date.)
+               (repeat-str 78 "+")
+               (cs/join "\n" results)
+               (repeat-str 78 "=")
+               (cs/join "" ["Passed: " ok "/" sum " [" perc  "%]"])
+               (str "Failed: " (- sum ok))
+               (cs/join "" ["cpu-time: " diff "ms"])]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;monads
@@ -434,31 +431,33 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn new-memset
   "New in-memory object store. Object must be an atom."
-  [& [batch]]
-  (atom {:batch (num?? batch 10) :size 0 :next 0 :slots #js[]}))
+  ([] (new-memset 10))
+  ([batch]
+   (atom {:batch (num?? batch 10) :size 0 :next 0 :slots #js[]})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn count-set "" [s] (:next @s))
+(defn count-set "Count items in the set." [s] (:next @s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn nth-set
-  "" [s n]
+  "The nth item in the set." [s n]
   (if (< n (:next @s)) (nth (:slots @s) n)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn each-set
-  "" [s cb]
+  "Run function on each item in the set."
+  [s cb]
   (let [{:keys [next slots]} @s]
     (dotimes [i next] (cb (nth slots i) i))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn add->set! "" [store obj]
+(defn add->set! "Add new item to the set." [store obj]
   {:pre [(atom? obj)]}
   (do-with [obj]
     (swap! store
            (fn [{:keys [next size
                         batch slots] :as root}]
-             (let [g #(do (c/n-times batch (.push slots nil))
+             (let [g #(do (c/nloop batch (.push slots nil))
                           (+ size batch))
                    next1 (+ 1 next)
                    size' (if (< next size) size (g))]

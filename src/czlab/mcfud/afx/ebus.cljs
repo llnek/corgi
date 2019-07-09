@@ -14,7 +14,7 @@
   (:require [clojure.string :as cs]
             [czlab.mcfud.afx.core
              :as c :refer [in? raise! debug*
-                           do-with cc+ if-some+ let->nil]]))
+                           do-with cc+ if-some+ let#nil]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private _SEED (atom 0))
@@ -33,9 +33,7 @@
   (filterv #(not-empty %) (cs/split topic re-dot)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- rv?
-  "If bus is a rv-bus?"
-  [bus] (= ::rv (:qos @bus)))
+(defn- rv? "If bus is a rv-bus?" [bus] (= ::rv (:qos @bus)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mksub
@@ -43,8 +41,8 @@
   [bus topic lnr r?]
   {:pre [(fn? lnr)]}
   (if (rv? bus)
-      (assert (re-matches re-subj topic)
-              (str "Error in topic: " topic)))
+    (assert (re-matches re-subj topic)
+            (str "Error in topic: " topic)))
   {:status (atom 1)
    :async? false
    :action lnr
@@ -106,7 +104,7 @@
   [branch path topic msgs tst]
   ;;(debug* (str "walking " (pr-str branch)))
   ;;(debug* (str "path " (pr-str path)))
-  (let->nil
+  (let#nil
     [{:keys [levels subcs]} branch
      {s1 "*" s2 ">"} levels
      [p & more] path
@@ -115,16 +113,16 @@
     ;(debug* (str "s2 " (pr-str s2)))
     ;(debug* (str "s1c " (pr-str s1c)))
     ;check for ".>" stuff
-    (when (some? s2)
-      (if (some? tst)
+    (when s2
+      (if tst
         (swap! tst inc)
         (run (:subcs s2) topic msgs)))
     ;check for ".*" stuff
-    (when (some? s1)
+    (when s1
       ;;(debug* "checking .* stuff")
       (cond (and (empty? more)
                  (empty? s1c))
-            (if (some? tst)
+            (if tst
               (swap! tst inc)
               (run (:subcs s1) topic msgs))
             (and (not-empty s1c)
@@ -134,7 +132,7 @@
     (when-some [cur (get levels p)]
       (if (not-empty more)
         (walk cur more topic msgs tst)
-        (if (some? tst)
+        (if tst
           (swap! tst inc)
           (run (:subcs cur) topic msgs))))))
 
@@ -143,7 +141,8 @@
   "Flag subscriber on"
   [bus hd]
   (if-some [sub (get-in @bus [:subcs hd])]
-    (let->nil [{:keys [status]} sub]
+    (let#nil
+      [{:keys [status]} sub]
       (if (zero? @status) (reset! status 1)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -151,7 +150,8 @@
   "Flag subscriber off"
   [bus hd]
   (if-some [sub (get-in @bus [:subcs hd])]
-    (let->nil [{:keys [status]} sub]
+    (let#nil
+      [{:keys [status]} sub]
       (if (pos? @status) (reset! status 0)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -226,10 +226,7 @@
     (in? (:topics @bus) topic)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dbg
-  "Internal: test only"
-  [bus]
-  (pr-str @bus))
+(defn dbg "Internal: test only" [bus] (pr-str @bus))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn unsub-all!
@@ -247,16 +244,17 @@
         a.> - matches \"a.b\", \"a.b.c.d\", \"a.z.e\".
   A subscription made to a topic can then be triggered by
   various instances of topics."
-  [& [options]]
-  (atom (merge (bus-node ::rv) options)))
+  ([] (new-tibrv-bus nil))
+  ([options]
+   (atom (merge (bus-node ::rv) options))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn new-event-bus
   "Event bus.  Simple pub-sub by matching on a topic string."
-  [& [options]]
-  (atom (merge (bus-node ::ev) options)))
+  ([] (new-event-bus nil))
+  ([options]
+   (atom (merge (bus-node ::ev) options))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
 

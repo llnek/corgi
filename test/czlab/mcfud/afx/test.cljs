@@ -14,10 +14,10 @@
   (:require [czlab.mcfud.afx.algos :as algos]
             [czlab.mcfud.afx.gfx2d :as gx]
             [czlab.mcfud.afx.crypt :as cas]
-            [czlab.mcfud.p2d.core]
-            [czlab.mcfud.cc.ccsx :as cx]
-            [czlab.mcfud.cc.boot :as bt]
-            [czlab.mcfud.cc.dialog :as dlg]
+            ;[czlab.mcfud.p2d.core]
+            ;[czlab.mcfud.cc.ccsx :as cx]
+            ;[czlab.mcfud.cc.boot :as bt]
+            ;[czlab.mcfud.cc.dialog :as dlg]
             [czlab.mcfud.afx.odin :as odin]
             [czlab.mcfud.afx.ecs :as ecs]
             [czlab.mcfud.afx.ebus :as bus]
@@ -28,14 +28,13 @@
 
             [clojure.string :as cs]
             [czlab.mcfud.afx.math
-             :as m :refer [vec-neq? vec-eq? vec2 vec3 PI
+             :as m :refer [vec-neq? vec-eq? V2 V3 PI
                            mat-neq? mat-eq? mat* mat2 mat3 mat4]]
             [czlab.mcfud.afx.core
              :as c :refer [deftest if-some+ when-some+
                            ensure-thrown _1 _2 _3
                            defenum var-get var-set
-                           with-js-vars runtest ensure?? raise!]]
-            [oops.core :refer [oget oset! ocall oapply ocall! oapply!]]))
+                           with-js-vars runtest ensure?? raise!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private TMPVAR (atom nil))
@@ -69,18 +68,18 @@
   (ensure?? (= 23
                (let [obj #js {"a" 5
                               "f" (fn [p] (this-as this
-                                                   (oset! this "a" (+ p (oget this "a")))))
+                                                   (c/set-js! this "a" (+ p (c/get-js this "a")))))
                               "g" (fn [x y] (this-as this
-                                                     (oset! this "a" (+ x y (oget this "a")))))}
+                                                     (c/set-js! this "a" (+ x y (c/get-js this "a")))))}
                      r (c/jsto obj ["f" 3] ["g" 7 8])]
-                 (oget r "a"))) "jsto")
+                 (c/get-js r "a"))) "jsto")
 
   (ensure?? (= 1 (_1 [1 2])) "1st")
   (ensure?? (= 2 (_2 [1 2])) "2nd")
   (ensure?? (= 3 (_3 [1 2 3])) "3rd")
 
-  (ensure?? (= (c/str->num "1.2") 1.2) "str->num:float")
-  (ensure?? (= (c/str->num "12") 12) "str->num:int")
+  (ensure?? (= (c/s->n "1.2") 1.2) "str->num:float")
+  (ensure?? (= (c/s->n "12") 12) "str->num:int")
 
   (ensure?? (= 2 (c/last-index [1 2 3])) "last-index")
   (ensure?? (= 2 (nth (c/cdr [1 2]) 0)) "cdr")
@@ -101,10 +100,10 @@
 
   (ensure?? (= 3 (c/do-with [a (+ 1 2)]
                              (/ a 3))) "do-with")
-  (ensure?? (= false (c/do->false (+ 1 2) (= 1 1))) "do->false")
-  (ensure?? (= true (c/do->true (+ 1 2) (= 1 2))) "do->true")
-  (ensure?? (= nil (c/do->nil (+ 1 2) 911)) "do->nil")
-  (ensure?? (= js/undefined (c/do->undef (+ 1 2) 911)) "do->undef")
+  (ensure?? (= false (c/do#false (+ 1 2) (= 1 1))) "do->false")
+  (ensure?? (= true (c/do#true (+ 1 2) (= 1 2))) "do->true")
+  (ensure?? (= nil (c/do#nil (+ 1 2) 911)) "do->nil")
+  (ensure?? (= js/undefined (c/do#undef (+ 1 2) 911)) "do->undef")
 
   (ensure?? (= "hello!"
                (if-some+ [s (identity "hello")] (str s "!"))) "if-some+")
@@ -136,7 +135,7 @@
                    (= [4 5] y))) "splitSeq")
 
   (ensure?? (= 50 (c/percent 20 40)) "percent")
-  (ensure?? (= "3.333" (c/num->fixed (/ 10 3) 3)) "numToFixed")
+  (ensure?? (= "3.333" (c/n->fixed (/ 10 3) 3)) "numToFixed")
 
   (ensure?? (= ["123" "456" "78"]
                (c/split-str 3 "12345678")) "splitStr")
@@ -254,6 +253,7 @@
                   y (ecs/pool-take! pool1)
                   z (ecs/pool-take! pool1)]
               (= 3 (ecs/pool-count pool1))) "pool,used")
+
 
   (ensure?? (let [x (ecs/pool-take! pool1)
                   y (ecs/pool-take! pool1)
@@ -454,76 +454,76 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftest test-math
 
-  (ensure?? (let [[x y] (vec2 1 2)]
+  (ensure?? (let [[x y] (V2 1 2)]
               (and (= 1 x)(= 2 y))) "vec2 ctor")
 
-  (ensure?? (let [[x y z] (vec3 1 2 3)]
+  (ensure?? (let [[x y z] (V3 1 2 3)]
               (and (= 1 x)(= 2 y)(= 3 z))) "vec3 ctor")
 
-  (ensure?? (vec-neq? (vec3 2 3 0)(vec3 1 2 3)) "v3,v3 neq?")
-  (ensure?? (vec-neq? (vec3 1 2 3)(vec2 2 3)) "v3 neq?")
-  (ensure?? (vec-neq? (vec2 2 3)(vec3 1 2 3)) "v2 neq?")
+  (ensure?? (vec-neq? (V3 2 3 0)(V3 1 2 3)) "v3,v3 neq?")
+  (ensure?? (vec-neq? (V3 1 2 3)(V2 2 3)) "v3 neq?")
+  (ensure?? (vec-neq? (V2 2 3)(V3 1 2 3)) "v2 neq?")
 
-  (ensure?? (vec-eq? (vec2 2 3)(vec2 2 3)) "v2 eq?")
-  (ensure?? (vec-eq? (vec3 1 2 3)(vec3 1 2 3)) "v3 eq?")
+  (ensure?? (vec-eq? (V2 2 3)(V2 2 3)) "v2 eq?")
+  (ensure?? (vec-eq? (V3 1 2 3)(V3 1 2 3)) "v3 eq?")
 
-  (ensure?? (vec-eq? (vec3 5 7 9)
-                        (m/vec-add (vec3 1 2 3)(vec3 4 5 6))) "vec-add")
+  (ensure?? (vec-eq? (V3 5 7 9)
+                     (m/vec-add (V3 1 2 3)(V3 4 5 6))) "vec-add")
 
-  (ensure?? (vec-eq? (vec2 1 3)
-                        (m/vec-sub (vec2 2 3)(vec2 1 0))) "vec-sub")
+  (ensure?? (vec-eq? (V2 1 3)
+                     (m/vec-sub (V2 2 3)(V2 1 0))) "vec-sub")
 
-  (ensure?? (vec-eq? (vec2 4 15)
-                        (m/vec-mult (vec2 2 3)(vec2 2 5))) "vec-mult")
+  (ensure?? (vec-eq? (V2 4 15)
+                     (m/vec-mult (V2 2 3)(V2 2 5))) "vec-mult")
 
-  (ensure?? (vec-eq? (vec2 3 4)
-                        (m/vec-div (vec2 9 8)(vec2 3 2))) "vec-div")
+  (ensure?? (vec-eq? (V2 3 4)
+                     (m/vec-div (V2 9 8)(V2 3 2))) "vec-div")
 
-  (ensure?? (vec-eq? (vec2 27 24)
-                        (m/vec-scale (vec2 9 8) 3 )) "vec-scale")
-  (ensure?? (vec-eq? (vec3 27 24 -21)
-                        (m/vec-scale (vec3 9 8 -7) 3 )) "vec-scale")
+  (ensure?? (vec-eq? (V2 27 24)
+                     (m/vec-scale (V2 9 8) 3 )) "vec-scale")
+  (ensure?? (vec-eq? (V3 27 24 -21)
+                     (m/vec-scale (V3 9 8 -7) 3 )) "vec-scale")
 
-  (ensure?? (vec-eq? (vec2 6 5)
-                        (m/vec-minus (vec2 9 8) 3 )) "vec-minus")
-  (ensure?? (vec-eq? (vec2 12 11)
-                        (m/vec-plus (vec2 9 8) 3 )) "vec-plus")
+  (ensure?? (vec-eq? (V2 6 5)
+                     (m/vec-minus (V2 9 8) 3 )) "vec-minus")
+  (ensure?? (vec-eq? (V2 12 11)
+                     (m/vec-plus (V2 9 8) 3 )) "vec-plus")
 
-  (ensure?? (= -42 (m/vec-dot (vec2 -9 8)(vec2 2 -3))) "v2-dot")
-  (ensure?? (= 49 (m/vec-dot (vec3 9 8 -7)(vec3 -2 4 -5))) "v3-dot")
+  (ensure?? (= -42 (m/vec-dot (V2 -9 8)(V2 2 -3))) "v2-dot")
+  (ensure?? (= 49 (m/vec-dot (V3 9 8 -7)(V3 -2 4 -5))) "v3-dot")
 
-  (ensure?? (= 11 (m/vec-xss (vec2 -9 8)(vec2 2 -3))) "v2-xss")
-  (ensure?? (vec-eq? (vec3 -12 59 52)
-                        (m/vec-xss (vec3 9 8 -7)(vec3 -2 4 -5))) "v3-xss")
+  (ensure?? (= 11 (m/vec-xss (V2 -9 8)(V2 2 -3))) "v2-xss")
+  (ensure?? (vec-eq? (V3 -12 59 52)
+                     (m/vec-xss (V3 9 8 -7)(V3 -2 4 -5))) "v3-xss")
 
-  (ensure?? (= 14 (m/vec-lensq (vec3 1 2 -3))) "v3-lensq")
-  (ensure?? (= 13 (m/vec-lensq (vec2 2 3))) "v2-lensq")
-  (ensure?? (= 5 (m/vec-len (vec2 3 4))) "vec-len")
+  (ensure?? (= 14 (m/vec-lensq (V3 1 2 -3))) "v3-lensq")
+  (ensure?? (= 13 (m/vec-lensq (V2 2 3))) "v2-lensq")
+  (ensure?? (= 5 (m/vec-len (V2 3 4))) "vec-len")
 
-  (ensure?? (= 116 (m/vec-distsq (vec3 7 6 5)(vec3 1 2 -3))) "v3-distsq")
-  (ensure?? (= 202 (m/vec-distsq (vec2 2 3)(vec2 -9 -6))) "v2-distsq")
+  (ensure?? (= 116 (m/vec-distsq (V3 7 6 5)(V3 1 2 -3))) "v3-distsq")
+  (ensure?? (= 202 (m/vec-distsq (V2 2 3)(V2 -9 -6))) "v2-distsq")
 
-  (ensure?? (vec-eq? (vec2 0.6 0.8)
-                        (m/vec-unit (vec2 3 4))) "vec-unit")
+  (ensure?? (vec-eq? (V2 0.6 0.8)
+                     (m/vec-unit (V2 3 4))) "vec-unit")
 
-  (ensure?? (vec-eq? (vec2 -4 3)
-                        (m/vec-rot (vec2 3 4) (/ PI 2))) "v2-rot")
+  (ensure?? (vec-eq? (V2 -4 3)
+                     (m/vec-rot (V2 3 4) (/ PI 2))) "v2-rot")
 
   (ensure?? (= 90 (m/rad->deg
-                    (m/vec-angle (vec2 3 4)(vec2 -4 3)))) "vec-angle")
+                    (m/vec-angle (V2 3 4)(V2 -4 3)))) "vec-angle")
 
-  (ensure?? (vec-eq? (vec2 3 -4)
-                        (m/vec-neg (vec2 -3 4))) "v2-neg")
+  (ensure?? (vec-eq? (V2 3 -4)
+                     (m/vec-neg (V2 -3 4))) "v2-neg")
 
-  (ensure?? (vec-eq? (vec2 -4 3)
-                        (m/vec-normal (vec2 3 4) :left)) "vec-normal")
-  (ensure?? (vec-eq? (vec2 4 -3)
-                        (m/vec-normal (vec2 3 4))) "vec-normal")
+  (ensure?? (vec-eq? (V2 -4 3)
+                     (m/vec-normal (V2 3 4) :left)) "vec-normal")
+  (ensure?? (vec-eq? (V2 4 -3)
+                     (m/vec-normal (V2 3 4))) "vec-normal")
 
-  (ensure?? (vec-eq? (vec2 -1 4)
-                        (m/vec-min (vec2 5 4)(vec2 -1 7))) "vec-min")
-  (ensure?? (vec-eq? (vec3 9 3 4)
-                     (m/vec-max (vec3 8 -3 4)(vec3 9 3 0))) "vec-max")
+  (ensure?? (vec-eq? (V2 -1 4)
+                     (m/vec-min (V2 5 4)(V2 -1 7))) "vec-min")
+  (ensure?? (vec-eq? (V3 9 3 4)
+                     (m/vec-max (V3 8 -3 4)(V3 9 3 0))) "vec-max")
 
   (ensure?? (mat-eq? (mat3 1 0 0 0 1 0 0 0 1)
                      (m/mat-identity 3)) "mat-identity")
@@ -578,9 +578,9 @@
                      (m/mat-inverse (mat2 4 7 2 6))) "mat-inverse")
 
   (ensure?? (mat-eq? (mat4 1 0 0 0 0 1 0 0 0 0 1 0 4 7 2 1)
-                     (m/mat4-txlate (vec3 4 7 2))) "mat4-txlate")
+                     (m/mat4-txlate (V3 4 7 2))) "mat4-txlate")
 
-  (ensure?? (vec-eq? (vec3 4 7 2)
+  (ensure?? (vec-eq? (V3 4 7 2)
                      (m/get-translation
                        (mat4 1 0 0 0 0 1 0 0 0 0 1 0 4 7 2 1))) "getTranslation")
 
@@ -588,14 +588,14 @@
                      (m/mat-fromMX (mat3 4 7 2 5 6 7 9 0 3))) "mat-fromMX")
 
   (ensure?? (mat-eq? (mat4 4 0 0 0 0 7 0 0 0 0 2 0 0 0 0 1)
-                     (m/mat-fromVX (vec3 4 7 2))) "mat-fromVX")
+                     (m/mat-fromVX (V3 4 7 2))) "mat-fromVX")
 
-  (ensure?? (vec-eq? (vec3 4 7 2)
+  (ensure?? (vec-eq? (V3 4 7 2)
                      (m/get-scale-fromMX
                        (mat4 4 0 0 0 0 7 0 0 0 0 2 0 0 0 0 1))) "getScaleFromMX")
 
-  (ensure?? (vec-eq? (vec2 -23 42)
-                     (m/mat-vmult (mat2 3 -5 7 2) (vec2 4 7))) "mat-vmult")
+  (ensure?? (vec-eq? (V2 -23 42)
+                     (m/mat-vmult (mat2 3 -5 7 2) (V2 4 7))) "mat-vmult")
 
   (ensure?? (mat-eq? (mat2 0 -1 1 0)
                      (m/rotation2x2 (/ PI 2))) "rotation2x2"))

@@ -15,7 +15,8 @@
                     :as m :refer [V2 V3 vz2 vz3]])
 
   (:require [czlab.mcfud.afx.core
-             :as c :refer [_1 _2 _3 do-with pos?? n# num??]]))
+             :as c :refer [_1 _2 _3
+                           nloop do-with pos?? n# num??]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def EPSILON (or 0.0000000001 js/Number.EPSILON))
@@ -42,8 +43,7 @@
 ;; <= instead of < for NaN comparison safety
 (defn fuzzy-eq?
   "If 2 floats are the same?"
-  [a b]
-  (<= (c/abs* (- a b)) EPSILON))
+  [a b] (<= (c/abs* (- a b)) EPSILON))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fuzzy-zero?
@@ -52,11 +52,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;javascript array
 (defn- jsa*
-  "Create a javascript array of length z and filled with value v."
-  [z & [v]]
-  (do-with
-    [out (array)]
-    (let [v (num?? v 0)] (dotimes [i z] (.push out v)))))
+  "A js array of length z and filled with value v."
+  ([z] (jsa* z 0))
+  ([z v]
+   (do-with [out #js[]]
+     (let [v (num?? v 0)] (nloop z (.push out v))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;VECTORS
@@ -70,12 +70,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec2
   "A 2 row vector."
-  [& [x y]] #js [(num?? x 0)(num?? y 0)])
+  ([] (vec2 0 0))
+  ([x y]
+   #js [(num?? x 0)(num?? y 0)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec3
   "A 3 row vector."
-  [& [x y z]] #js [(num?? x 0)(num?? y 0)(num?? z 0)])
+  ([] (vec3 0 0 0))
+  ([x y z]
+   #js [(num?? x 0) (num?? y 0) (num?? z 0)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-zero "Array filled with n zeroes." [sz] (jsa* sz))
@@ -240,7 +244,7 @@
   "Finf unit-vector of this vector."
   [v]
   (let [z (vec-len v)]
-    (if (> z EPSILON) (vec-scale v (c/num-flip z)) (aclone v))))
+    (if (> z EPSILON) (vec-scale v (c/flip z)) (aclone v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti vec-rot "Rotate a vector." (fn [v angle & [center]] (n# v)))
@@ -255,8 +259,8 @@
         y' (- y cy)
         cos (COS angle)
         sin (SIN angle)]
-    (vec2 (+ cx (- (* x' cos) (* y' sin)))
-          (+ cy (+ (* x' sin) (* y' cos))))))
+    (V2 (+ cx (- (* x' cos) (* y' sin)))
+        (+ cy (+ (* x' sin) (* y' cos))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmethod vec-rot
@@ -268,7 +272,7 @@
   "Find normal to this 2d-vector."
   [a v]
   {:pre [(number? a)]}
-  (let [[x y] v] (vec2 (* (- a) y) (* a x))))
+  (let [[x y] v] (V2 (* (- a) y) (* a x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti vec-xss
@@ -293,9 +297,9 @@
   (assert (= 3 (n# v2)))
   (let [[x2 y2 z2] v2
         [x1 y1 z1] v1]
-    (vec3 (- (* y1 z2) (* z1 y2))
-          (- (* z1 x2) (* x1 z2))
-          (- (* x1 y2) (* y1 x2)))))
+    (V3 (- (* y1 z2) (* z1 y2))
+        (- (* z1 x2) (* x1 z2))
+        (- (* x1 y2) (* y1 x2)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-angle
@@ -309,21 +313,21 @@
 (defn vec-proj
   "Find projection."
   [length dir]
-  (if (= (n# length)(n# dir))
+  (if (= (n# length) (n# dir))
     (vec-scale dir (/ (vec-dot length dir)(vec-lensq dir)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-perp
   "Find the perpedicular vector."
   [length dir]
-  (if (= (n# length)(n# dir))
+  (if (= (n# length) (n# dir))
     (vec-sub length (vec-proj length dir))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vec-reflect
   "Reflect a normal."
   [src normal]
-  (if (= (n# src)(n# normal))
+  (if (= (n# src) (n# normal))
     (vec-sub src
              (vec-scale normal
                         (* 2 (vec-dot src normal))))))
@@ -341,8 +345,8 @@
 (defmethod vec-normal
   2
   [[x y] & [dir]]
-  (let [left-turn (vec2 (- y) x)
-        right-turn (vec2 y (- x))]
+  (let [left-turn (V2 (- y) x)
+        right-turn (V2 y (- x))]
     (if (= dir :left) left-turn right-turn)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -535,10 +539,10 @@ handed matrices. That is, +Z goes INTO the screen.")
   (let [{o_arr :arr :as out} (mat-xpose m)
         {:keys [arr] [rows cols] :dim} m
         [m1 m2 m3 m4] (partition cols arr)
-        right (vec3 (_1 m1)(_2 m1)(_3 m1))
-        up (vec3 (_1 m2)(_2 m2)(_3 m2))
-        forward (vec3 (_1 m3)(_2 m3)(_3 m3))
-        position (vec3 (_1 m4)(_2 m4)(_3 m4))]
+        right (V3 (_1 m1)(_2 m1)(_3 m1))
+        up (V3 (_1 m2)(_2 m2)(_3 m2))
+        forward (V3 (_1 m3)(_2 m3)(_3 m3))
+        position (V3 (_1 m4)(_2 m4)(_3 m4))]
     (aset o_arr (CELL 4 4 1 4) 0)
     (aset o_arr (CELL 4 4 2 4) 0)
     (aset o_arr (CELL 4 4 3 4) 0)
@@ -686,7 +690,7 @@ handed matrices. That is, +Z goes INTO the screen.")
          [rows cols] :dim} m
         det (- (* a d) (* b c))]
     (when-not (fuzzy-zero? det)
-      (let [det' (c/num-flip det)]
+      (let [det' (c/flip det)]
         (mat2 (* det' d) (* det' (- b)) (* det' (- c)) (* det' a))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -697,7 +701,7 @@ handed matrices. That is, +Z goes INTO the screen.")
         {[rows cols] :dim} m]
     (if (fuzzy-zero? d)
       (mat-identity rows)
-      (mat-scale (mat-adjugate m) (c/num-flip d)))))
+      (mat-scale (mat-adjugate m) (c/flip d)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mat-from-colmajor
@@ -743,9 +747,9 @@ handed matrices. That is, +Z goes INTO the screen.")
   [4 4]
   [m]
   (let [{:keys [arr]} m]
-    (vec3 (aget arr (CELL 4 4 4 1))
-          (aget arr (CELL 4 4 4 2))
-          (aget arr (CELL 4 4 4 3)))))
+    (V3 (aget arr (CELL 4 4 4 1))
+        (aget arr (CELL 4 4 4 2))
+        (aget arr (CELL 4 4 4 3)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti mat-fromVX
@@ -772,7 +776,7 @@ handed matrices. That is, +Z goes INTO the screen.")
   [m]
   (let [{:keys [arr] [_ cols] :dim} m
         [r1 r2 r3 _] (partition cols arr)]
-    (vec3 (nth r1 0) (nth r2 1) (nth r3 2))))
+    (V3 (nth r1 0) (nth r2 1) (nth r3 2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mat-vmult
@@ -885,8 +889,8 @@ handed matrices. That is, +Z goes INTO the screen.")
   (let [{:keys [arr] [rows cols] :dim} m
         [r1 r2 r3 r4]
         (partition cols arr)
-        xAxis (vec3 (nth r1 0) (nth r1 1) (nth r1 2))
-        yAxis (vec3 (nth r2 0) (nth r2 1) (nth r2 2))
+        xAxis (V3 (nth r1 0) (nth r1 1) (nth r1 2))
+        yAxis (V3 (nth r2 0) (nth r2 1) (nth r2 2))
         zAxis (vec-xss xAxis yAxis)
         [xx xy xz] (vec-xss yAxis zAxis)
         [yx yy yz] (vec-xss zAxis xAxis)
@@ -903,8 +907,8 @@ handed matrices. That is, +Z goes INTO the screen.")
   (let [{:keys [arr] [rows cols] :dim} m
         [r1 r2 r3]
         (partition cols arr)
-        xAxis (vec3 (nth r1 0) (nth r1 1) (nth r1 2))
-        yAxis (vec3 (nth r2 0) (nth r2 1) (nth r2 2))
+        xAxis (V3 (nth r1 0) (nth r1 1) (nth r1 2))
+        yAxis (V3 (nth r2 0) (nth r2 1) (nth r2 2))
         zAxis (vec-xss xAxis yAxis)
         [xx xy xz] (vec-xss yAxis zAxis)
         [yx yy yz] (vec-xss zAxis xAxis)
@@ -922,7 +926,7 @@ handed matrices. That is, +Z goes INTO the screen.")
         t (- 1 c)
         [x y z]
         (if-not (fuzzy-eq? (vec-lensq axis) 1)
-          (let [ilen (c/num-flip (vec-len axis))]
+          (let [ilen (c/flip (vec-len axis))]
             [(* x' ilen) (* y' ilen) (* z' ilen)])
           [x' y' z'])]
   (mat4 (+ c (* t x x)) (+ (* t x y) (* s z)) (- (* t x z) (* s y)) 0
@@ -941,7 +945,7 @@ handed matrices. That is, +Z goes INTO the screen.")
         t (- 1 c)
         [x y z]
         (if-not (fuzzy-eq? (vec-lensq axis) 1)
-          (let [ilen (c/num-flip (vec-len axis))]
+          (let [ilen (c/flip (vec-len axis))]
             [(* x' ilen)(* y' ilen)(* z' ilen)])
           [x' y' z'])]
     (mat3 (+ c (* t x x)) (+ (* t x y)(* s z)) (- (* t x z)(* s y))
@@ -956,18 +960,18 @@ handed matrices. That is, +Z goes INTO the screen.")
   (let [[x y z] v3
         [r1 r2 r3 r4]
         (partition 4 (:arr m4))]
-    (vec3 (+ (* x (nth r1 0))
-             (* y (nth r2 0))
-             (* z (nth r3 0))
-             (* 1 (nth r4 0)))
-          (+ (* x (nth r1 1))
-             (* y (nth r2 1))
-             (* z (nth r3 1))
-             (* 1 (nth r4 1)))
-          (+ (* x (nth r1 2))
-             (* y (nth r2 2))
-             (* z (nth r3 2))
-             (* 1 (nth r4 2))))))
+    (V3 (+ (* x (nth r1 0))
+           (* y (nth r2 0))
+           (* z (nth r3 0))
+           (* 1 (nth r4 0)))
+        (+ (* x (nth r1 1))
+           (* y (nth r2 1))
+           (* z (nth r3 1))
+           (* 1 (nth r4 1)))
+        (+ (* x (nth r1 2))
+           (* y (nth r2 2))
+           (* z (nth r3 2))
+           (* 1 (nth r4 2))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti mat3-multVX
@@ -981,18 +985,18 @@ handed matrices. That is, +Z goes INTO the screen.")
   (let [[x y z] v3
         [r1 r2 r3 r4]
         (partition 4 (:arr m4))]
-    (vec3 (+ (* x (nth r1 0))
-             (* y (nth r2 0))
-             (* z (nth r3 0))
-             (* 0 (nth r4 0)))
-          (+ (* x (nth r1 1))
-             (* y (nth r2 1))
-             (* z (nth r3 1))
-             (* 0 (nth r4 1)))
-          (+ (* x (nth r1 2))
-             (* y (nth r2 2))
-             (* z (nth r3 2))
-             (* 0 (nth r4 2))))))
+    (V3 (+ (* x (nth r1 0))
+           (* y (nth r2 0))
+           (* z (nth r3 0))
+           (* 0 (nth r4 0)))
+        (+ (* x (nth r1 1))
+           (* y (nth r2 1))
+           (* z (nth r3 1))
+           (* 0 (nth r4 1)))
+        (+ (* x (nth r1 2))
+           (* y (nth r2 2))
+           (* z (nth r3 2))
+           (* 0 (nth r4 2))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmethod mat3-multVX
@@ -1001,9 +1005,9 @@ handed matrices. That is, +Z goes INTO the screen.")
   (assert (and (array? v3)(= 3 (n# v3))))
   (let [[x y z] v3
         [r1 r2 r3] (partition 3 (:arr m3))]
-    (vec3 (vec-dot v3 (vec3 (nth r1 0)(nth r2 0)(nth r3 0)))
-          (vec-dot v3 (vec3 (nth r1 1)(nth r2 1)(nth r3 1)))
-          (vec-dot v3 (vec3 (nth r1 2)(nth r2 2)(nth r3 2))))))
+    (V3 (vec-dot v3 (V3 (nth r1 0)(nth r2 0)(nth r3 0)))
+        (vec-dot v3 (V3 (nth r1 1)(nth r2 1)(nth r3 1)))
+        (vec-dot v3 (V3 (nth r1 2)(nth r2 2)(nth r3 2))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmulti mat4-txform
@@ -1049,7 +1053,7 @@ handed matrices. That is, +Z goes INTO the screen.")
   "4D projection."
   [fov aspect zNear zFar]
   (let [tanHalfFov (TAN (* fov 0.5))
-        fovY (c/num-flip tanHalfFov) ;;cot(fov/2)
+        fovY (c/flip tanHalfFov) ;;cot(fov/2)
         fovX (/ fovY aspect) ;;cot(fov/2) / aspect
         r33 (/ zFar (- zFar zNear)) ;;far/range
         {:keys [arr] :as ret} (mat-identity 4)]
@@ -1101,7 +1105,7 @@ handed matrices. That is, +Z goes INTO the screen.")
            (ATAN2 (nth r2 0) (nth r1 0))]
           [(ATAN2 (- (nth r2 2))
                   (nth r2 1))
-           (ATAN2 (- (nth r3 0)) sy) 0])] (vec3 x y z)))
+           (ATAN2 (- (nth r3 0)) sy) 0])] (V3 x y z)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pythag-sq
@@ -1125,5 +1129,4 @@ handed matrices. That is, +Z goes INTO the screen.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
 

@@ -216,7 +216,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro call-js!
   "Call a method on a js object."
-  [obj mtd & args] `(oops.core/ocall! ~obj ~mtd ~@args))
+  [obj mtd & args] `(oops.core/ocall!+ ~obj ~mtd ~@args))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro apply-js!
+  "Apply a method on a js object."
+  [obj mtd args] `(oops.core/oapply!+ ~obj ~mtd ~args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro js-prop?
@@ -273,21 +278,6 @@
       `(let [~f ~(_2 bindings)] ~@xs (deref ~f)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro do-with-transient
-  "varbinding=> symbol init-expr
-  Evals the body in a context in which the symbol is always the
-  returned value with persistent! applied."
-  [bindings & xs]
-  (let [sz (count bindings)
-        _ (assert (or (= sz 1)
-                      (= sz 2))
-                  "too many in bindings")
-        f (first bindings)]
-    (if (= sz 1)
-      `(let [~f ~f] ~@xs (persistent! ~f))
-      `(let [~f ~(_2 bindings)] ~@xs (persistent! ~f)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do-with
   "varbinding=> symbol init-expr
   Evals the body in a context in which the symbol is always the
@@ -303,28 +293,16 @@
       `(let [~f ~(_2 bindings)] ~@xs ~f))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro do->false
-  "Evals forms, returns false."
-  [& forms] `(do ~@forms false))
+(defmacro do#undef "Do returns undef." [& forms] `(do ~@forms js/undefined))
+(defmacro do#false "Do returns false." [& forms] `(do ~@forms false))
+(defmacro do#true "Do returns true." [& forms] `(do ~@forms true))
+(defmacro do#nil "Do returns nil." [& forms] `(do ~@forms nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro do->true
-  "Evals forms, returns true."
-  [& forms] `(do ~@forms true))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro do->nil
-  "Evals forms, returns nil."
-  [& forms] `(do ~@forms nil))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro let->nil
-  "Like let, return nil." [& args] `(let ~@args nil))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro do->undef
-  "Evals forms, returns undefined."
-  [& forms] `(do ~@forms js/undefined))
+(defmacro let#undef "Let returns undef." [& forms] `(let ~@forms js/undefined))
+(defmacro let#false "Let returns false." [& forms] `(let ~@forms false))
+(defmacro let#true "Let returns true." [& forms] `(let ~@forms true))
+(defmacro let#nil "Let returns nil." [& forms] `(let ~@forms nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when-some+
@@ -387,7 +365,7 @@
            ~(_1 bindings) ~X] (if (fn? ~X) ~then ~else))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro n-times
+(defmacro nloop
   "A simpler dotimes. loop n times."
   [n & forms] `(dotimes [~'_ ~n] ~@forms))
 
@@ -455,7 +433,7 @@
 (defmacro deftest
   "A test group."
   [name & body]
-  `(def ~name (fn [] (filter #(not-nil? %) [~@body]))))
+  `(def ~name (fn [] (filter #(not (nil? %)) [~@body]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro ensure??
