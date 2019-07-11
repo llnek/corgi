@@ -1058,15 +1058,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hook-update
-  ([scene fstep] (hook-update scene fstep false))
+  ([scene fstep] (hook-update scene fstep true))
   ([scene fstep run?]
-   (let#nil []
-     (attr* scene
-            #js{:update fstep
-                :onExit (on-scene-exit scene)
-                :onEnter (on-scene-enter scene)})
-     (c/call-js! scene :scheduleUpdate)
-     (if run? (set-game-status! true)))))
+   (let#nil [m {:onExit (on-scene-exit scene)
+                :onEnter (on-scene-enter scene)}
+             m' (cond (map? fstep)
+                      (merge m fstep)
+                      (fn? fstep)
+                      (assoc m :update fstep))]
+     (if m' (attr* scene (clj->js m')))
+     (if run? (set-game-status! true))
+     (c/call-js! scene :scheduleUpdate))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bootstrap

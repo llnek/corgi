@@ -13,23 +13,23 @@
 
   (:require [czlab.mcfud.cc.ccsx
              :as x :refer [P-BOT CV-X CV-Z CV-O xcfg]]
-            [oops.core :as oc]
             [czlab.mcfud.cc.dialog :as d]
             [czlab.mcfud.afx.ebus :as u]
             [czlab.mcfud.afx.algos :as a]
             [czlab.mcfud.afx.core
              :as c
-             :refer [let->nil if-some+ fn_0 fn_* fn_1 fn_2 n# _1 _2 _E]]))
+             :refer [o- o+ let#nil if-some+
+                     fn_0 fn_* fn_1 fn_2 n# _1 _2 _E]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- no-win? [game] (not-any? #(= % CV-Z) game))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- is-win?? [who game goals]
-  (if-some [combo (some (fn [c]
-                          (if (every? #(= % who)
-                                      (map #(nth game %) c)) c)) goals)]
-    [who combo] [nil nil]))
+  (if-some
+    [r (some (fn [c]
+               (if (every? #(= % who)
+                           (map #(nth game %) c)) c)) goals)] [who r]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn ttt [size goals]
@@ -38,7 +38,7 @@
         actor (atom 0)
         gop #(condp = % CV-X CV-O CV-O CV-X nil)]
     {:first-move (fn_0 (if (every? #(= CV-Z %) grid)
-                         (c/rand-range 0 (- grid-size 1)) -1))
+                         (c/rand-range 0 (o- grid-size)) -1))
      :sync-state! (fn [seed cur]
                     (reset! actor cur)
                     (c/copy-array seed grid)
@@ -55,7 +55,7 @@
                     (if (>= i CZ)
                       (c/ps! out)
                       (recur state
-                             (+ 1 i)
+                             (o+ i)
                              CZ
                              (if (= CV-Z
                                     (nth state i)) (conj! out i) out))))
@@ -74,12 +74,13 @@
                   (or (number? (_1 (is-win?? cur state goals)))
                       (number? (_1 (is-win?? other state goals)))
                       (no-win? state)))}))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn write-status [msg]
   (-> (get-in @xcfg
               [:game :scene])
       (x/gcbyn+ :hud :status)
-      (c/call-js! "setString" msg)))
+      (c/call-js! :setString msg)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn write-score [value score]
@@ -87,7 +88,7 @@
     (c/call-js! (x/gcbyn+ scene
                           :hud
                           (get pmap value))
-                "setString" (str score))))
+                :setString (str score))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn value->symbol [value & [flip?]]
@@ -122,12 +123,12 @@
                 turn
                 bot-time] :as G} (:game @xcfg)
         next' (if (= turn CV-X) CV-O CV-X)
-        {:keys [ptype pid]} (get G (get pmap next'))]
+        {:keys [ptype pid]} (G (pmap next'))]
     (swap! xcfg
            #(assoc-in % [:game :turn] next'))
     (if (= P-BOT ptype)
       (c/call-js! scene
-                  "scheduleOnce"
+                  :scheduleOnce
                   (run-bot false) bot-time))
     (write-status (str pid "'s turn"))))
 
@@ -148,23 +149,22 @@
   (write-status (x/l10n "%tieGame"))
   (x/sfx-effect :game-tie)
   (on-end)
-  (swap! xcfg
-         #(assoc-in % [:game :running?] false)))
+  (x/set-game-status! false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- won-game [value]
   (let [{:keys [scores pmap] :as G} (:game @xcfg)
-        {:keys [pid]} (get G (get pmap value))
-        s (get scores value)]
+        {:keys [pid]} (G (pmap value))
+        s (scores value)]
     (x/sfx-effect :game-end)
-    (write-score value (+ 1 s))
+    (write-score value (o+ s))
     (write-status (x/l10n "%winGame" pid))
     (on-end)
+    (x/set-game-status! false)
     (swap! xcfg
            (fn_1 (update-in ____1
                             [:game]
-                            #(-> (assoc % :running? false)
-                                 (update-in [:scores value] inc)))))))
+                            #(update-in % [:scores value] inc))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- check-game-state []
@@ -185,7 +185,7 @@
   (let [{:keys [scene turn
                 pmap cells grid]} (:game @xcfg)
         [sp v] (nth cells cell)
-        pk (get pmap turn)
+        pk (pmap turn)
         pt (x/pos?? sp)
         sp' (x/set!! (value->symbol turn) {:pos pt})]
     (x/sfx-effect pk)
@@ -224,10 +224,10 @@
   (let [{:keys [gpos pmap
                 turn running?] :as G} (:game @xcfg)]
     (when running?
-      (let [{:keys [ptype]} (get G (get pmap turn))
+      (let [{:keys [ptype]} (G (pmap turn))
             cell (click->cell gpos
                               (c/call-js! (_1 msgs)
-                                          "getLocation"))]
+                                          :getLocation))]
         (when (and (not= P-BOT ptype)
                    (c/nneg? cell)) (process-cell cell))))))
 
@@ -236,7 +236,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn draw-grid [node]
-  (let->nil
+  (let#nil
     [{:keys [gpos grid-size]} (:game @xcfg)
      color (x/color* "#ffffff")
      line  12
@@ -245,7 +245,7 @@
      {:keys [lhs top]} (x/r->b4 g0)
      {:keys [rhs low]} (x/r->b4 gE)
      cb (fn_2 (c/call-js! node
-                          "drawSegment" ____1 ____2 line color))]
+                          :drawSegment ____1 ____2 line color))]
     (x/remove-all! node)
     (x/draw-grid (x/ccr* lhs low (- rhs lhs) (- top low)) grid-size cb)))
 

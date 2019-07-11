@@ -12,9 +12,9 @@
   czlab.rygel.tictactoe.gui
 
   (:require [czlab.mcfud.afx.core :as c
-                                  :refer [_1 _2 cc+ cc+1
+                                  :refer [o- o+ n# _1 _2 cc+ cc+1
                                           fn_0 fn_1 fn_*
-                                          let->nil do-with fn-nil]]
+                                          let#nil do-with fn-nil]]
             [oops.core :as oc]
             [czlab.rygel.tictactoe.core :as t]
             [czlab.mcfud.afx.ebus :as u]
@@ -30,60 +30,32 @@
   "Get all possible winning combinations."
   [size]
   (let [values (range (* size size))
-        end (- (count values) 1)
-        rows (map #(vec %) (partition size values))
+        end (o- (n# values))
+        rows (map #(vec %) (c/chop size values))
         cols (map #(vec %)
-                  (partition size
-                             (apply interleave rows)))
+                  (c/chop size
+                          (apply interleave rows)))
         dx (loop [v 0 out (c/tvec*)]
              (if (> v end)
                (c/ps! out)
                (recur (+ v size 1) (conj! out v))))
-        dy (loop [v (- size 1) out (c/tvec*)]
+        dy (loop [v (o- size) out (c/tvec*)]
              (if (>= v end)
                (c/ps! out)
-               (recur (+ v (- size 1)) (conj! out v))))]
+               (recur (+ v (o- size)) (conj! out v))))]
     (cc+ [dx dy] rows cols)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- XXmap-goal-space
-  "Get all possible winning combinations."
-  [size]
-  (loop [row 0
-         dx (c/tvec*)
-         dy (c/tvec*)
-         rows (c/tvec*)
-         cols (c/tvec*)]
-    (if (>= row size)
-      (cc+ [(c/ps! dx) (c/ps! dy)]
-           (c/ps! rows) (c/ps! cols))
-      (let [[h v]
-            (loop [col 0
-                   h (c/tvec*)
-                   v (c/tvec*)]
-              (if (>= col size)
-                [h v]
-                (recur (+ 1 col)
-                       (conj! h (+ (* row size) col))
-                       (conj! v (+ (* col size) row)))))]
-        (recur (+ 1 row)
-               (conj! dx (+ (* row size) row))
-               (conj! dy (+ row (* size
-                                   (- size row 1))))
-               (conj! rows (c/ps! h))
-               (conj! cols (c/ps! v)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- map-grid-pos
   "Memorize the co-ordinates of each cell on the board, so
   that we know which cell the user has clicked on."
   [R gsz scale]
-  (let [[width height] (x/r-> (x/bsize "#z.png"))
+  (let [[width height] (x/bsize* "#z.png")
         [W H] (c/mapfv * scale width height)
         [cx cy] (x/mid-rect* R)
         ro (* (/ 8 72) scale)
         cells (* gsz gsz)
-        gsz' (- gsz 1)
+        gsz' (o- gsz)
         [gw gh] [0 0];(c/mapfv * ro W H) ;line-gap
         zw (+ (* gsz W) (* gw gsz')) ;sum width of icons
         zh (+ (* gsz H) (* gh gsz')) ;sum height of icons
@@ -96,12 +68,12 @@
                 (let [y2 (- y1' H) x2 (+ x1' W)]
                   (if (>= col gsz)
                     [(- y2 gh) out'']
-                    (recur (+ 1 col)
+                    (recur (o+ col)
                            (+ x2 gw)
                            y1'
                            (conj! out''
                                   (x/ccr* x1' y2 W H))))))]
-          (recur (+ 1 row) x1 y' out'))))))
+          (recur (o+ row) x1 y' out'))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- hlayer [R]
@@ -111,8 +83,8 @@
           {:keys [top rhs low lhs]} (x/r->b4 R)
           [cx cy] (x/mid-rect* R)
           pause (fn_* (x/push-scene (options-scene)))
-          [kx ky] [(get pmap CV-X) (get pmap CV-O)]
-          [px py] [(get G kx) (get G ky)]
+          [kx ky] [(pmap CV-X) (pmap CV-O)]
+          [px py] [(G kx) (G ky)]
           title (x/bmf-label* (str (:pid px)
                                    " [X]/[O] " (:pid py))
                               (x/gfnt :title)
@@ -120,30 +92,30 @@
                                :pos (x/ccp* cx top)
                                :color "#5e3178"
                                :scale .6})
-          s1 (x/bmf-label* (str (get scores CV-X))
+          s1 (x/bmf-label* (str (scores CV-X))
                            (x/gfnt :label)
                            {:pos (x/ccp* 0 top)
                             :color "#ffffff"
                             :scale .6
                             :anchor x/ANCHOR-TOP-LEFT})
-          s2 (x/bmf-label* (str (get scores CV-O))
+          s2 (x/bmf-label* (str (scores CV-O))
                            (x/gfnt :label)
                            {:pos (x/ccp* rhs top)
                             :color "#ffffff"
                             :scale .6
                             :anchor x/ANCHOR-TOP-RIGHT})]
       ;(x/debug* "hud called")
-      (x/add-> layer s1 (name kx))
-      (x/add-> layer s2 (name ky))
+      (x/add-> layer s1 kx)
+      (x/add-> layer s2 ky)
       (x/add-> layer title)
       (-> (x/add-> layer (x/bmf-label*
-                           "" (x/gfnt :text)) "status")
+                           "" (x/gfnt :text)) :status)
           (x/set!! {:color "#ffffff"
                     :scale .3
                     :pos (x/ccp* cx (/ (+ low gend) 2))}))
       (x/add-> layer
                (x/gmenu {:nnn "#icon_menu.png" :cb pause}
-                        {:region R :anchor x/ANCHOR-BOTTOM-RIGHT}) "pause"))))
+                        {:region R :anchor x/ANCHOR-BOTTOM-RIGHT}) :pause))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- init-game-scene []
@@ -156,15 +128,16 @@
     ;select who starts
     (swap! xcfg #(assoc-in % [:game :turn] turn))
     (let [{:keys [goals gmode scene
-                  grid-size pmap bot-time] :as G} (:game @xcfg)
-          {:keys [ptype pid]} (get G (get pmap turn))]
+                  grid-size
+                  pmap bot-time] :as G} (:game @xcfg)
+          {:keys [ptype pid]} (G (pmap turn))]
       (when (= G-ONE gmode) ;if single player, create the A.I.
         (swap! xcfg
                #(assoc-in %
                           [:game :bot] (t/ttt grid-size goals)))
         (if (= P-BOT ptype) ;if bot starts first, run it
           (c/call-js! scene
-                      "scheduleOnce"
+                      :scheduleOnce
                       (t/run-bot true) bot-time)))
       (t/write-status (x/l10n "%whoStarts" pid)))))
 
@@ -172,7 +145,8 @@
 (defn game-scene [mode & more]
   (do-with [scene (x/scene*)]
     (let [{:keys [grid-size]} (:game @xcfg)
-          [bg gl] [(x/layer*) (x/layer*)]
+          gl (x/reg-game-scene scene 1)
+          bg (x/layer*)
           sz (* grid-size grid-size)
           R (x/vrect)
           S {:goals (map-goal-space grid-size)
@@ -187,7 +161,6 @@
                        {:ptype P-BOT
                         :pid (x/l10n "%cpu") :pname (x/l10n "%computer")})
              :running? false
-             :scene scene
              :gmode mode
              :selected -1
              :evQ #js []
@@ -195,7 +168,7 @@
              :depth 10
              :turn CV-Z
              :scores {CV-X 0 CV-O 0}}
-          dn (x/add-> gl (new js/cc.DrawNode) "grid" 9)
+          dn (x/add-> gl (new js/cc.DrawNode) :grid 9)
           cs (mapv #(let [s (x/sprite* "#z.png")]
                       [(x/center!! %1 gl s) CV-Z]) (:gpos S))]
       (swap! xcfg
@@ -203,21 +176,22 @@
                               [:game]
                               #(assoc (c/merge+ % S) :cells cs))))
       ;;(x/center-image R (x/add-> scene bg "bg" -1) (x/gimg :game-bg))
-      (x/add-> scene gl "arena" 1)
       (x/add-> scene (hlayer R) "hud" 2)
       (init-game-scene)
-      (x/hook-update scene #(t/run-game %1))
-      (x/attr* scene #js {:onEnter (fn_0 (x/on-scene scene)
-                                         (t/draw-grid dn))})
-      (swap! xcfg #(assoc-in % [:game :running?] true)))))
+      (x/hook-update scene
+                     {:update #(t/run-game %1)
+                      :onEnter (fn_0 (x/on-scene scene)
+                                     (t/draw-grid dn))} true))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn options-scene [& [options]]
-  (do-with [scene (x/scene*)]
-    (let [fquit (fn_* (x/pop->root) (x/run-scene (splash-scene)))
-          fsound (fn_* (x/sfx! (zero? (x/gsidx (_1 ____xs)))))
-          fback (fn_* (x/pop-scene))
-          ffmove (fn_* (let [n (x/gsidx (_1 ____xs))]
+(defn options-scene
+  ([] (options-scene nil))
+  ([options]
+   (do-with [scene (x/scene*)]
+     (let [fquit (fn_* (x/pop->root) (x/run-scene (splash-scene)))
+           fsound (fn_* (x/sfx! (zero? (x/gsidx (_1 ____xs)))))
+           fback (fn_* (x/pop-scene))
+           ffmove (fn_* (let [n (x/gsidx (_1 ____xs))]
                          (swap! xcfg
                                 #(assoc-in %
                                            [:game :begin-with]
@@ -255,7 +229,7 @@
                          (if-not quit?
                            (x/menu* t1 i1 t2 i2 t3 i3 back)
                            (x/menu* t1 i1 t2 i2 t3 i3 back quit)))]
-      (x/center-image R layer (x/gimg :game-bg) "bg" -1)
+      (x/center-image R layer (x/gimg :game-bg) :bg -1)
       (x/add-> layer (x/bmf-label* (x/l10n "%options")
                                    (x/gfnt :title)
                                    {:color "#F6B17F"
@@ -265,7 +239,7 @@
       (x/toggle-select! i2 (if (= (:pvalue player) CV-X) 0 1))
       (if quit?
         (x/align-in-cols gmenu 2 2 2 1 1)
-        (x/align-in-cols gmenu 2 2 2 1)))))
+        (x/align-in-cols gmenu 2 2 2 1))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- net-scene [& xs] nil)
@@ -289,7 +263,7 @@
           R (x/vrect)
           {:keys [top]} (x/r->b4 R)
           [cx cy] (x/mid-rect* R)]
-      (x/center-image R layer (x/gimg :game-bg) "bg" -1)
+      (x/center-image R layer (x/gimg :game-bg) :bg -1)
       (x/add-> layer (x/bmf-label* (x/l10n "%mmenu")
                                    (x/gfnt :title)
                                    {:color "#F6B17F"
@@ -305,8 +279,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn splash-scene []
-  (let [[w h](x/browser-size)]
-    (x/debug* "browser size, w= " w ", h= " h))
   (do-with [scene (x/scene*)]
     (let [onplay (fn_* (x/run-scene (menu-scene)))
           {:keys [grid-size]} (:game @xcfg)
@@ -316,7 +288,7 @@
           [cx cy] (x/mid-rect* R)
           {:keys [top]} (x/r->b4 R)]
       ;add background image
-      (x/center-image R layer (x/gimg :game-bg) "bg" -1)
+      (x/center-image R layer (x/gimg :game-bg) :bg -1)
       ;add title
       (-> (x/add-> layer
                    (x/sprite* "#title.png"))

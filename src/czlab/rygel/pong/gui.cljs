@@ -12,8 +12,7 @@
   czlab.rygel.pong.gui
 
   (:require [czlab.mcfud.afx.core
-             :as c :refer [_1 _2 fn_1 fn_* do-with]]
-            [oops.core :as oc]
+             :as c :refer [o+ o- _1 _2 fn_1 fn_* do-with]]
             [czlab.rygel.pong.core :as p]
             [czlab.mcfud.cc.ccsx :as x :refer [CV-X CV-O
                                                P-MAN P-BOT
@@ -43,31 +42,32 @@
                             :color "#ffffff"
                             :scale .6
                             :anchor x/ANCHOR-TOP-RIGHT})]
-      (x/add-> layer s1 (name kx))
-      (x/add-> layer s2 (name ky))
+      (x/add-> layer s1 kx)
+      (x/add-> layer s2 ky)
       (p/write-score CV-X (scores CV-X))
       (p/write-score CV-O (scores CV-O))
       (-> (x/add-> layer (x/bmf-label*
-                           "" (x/gfnt :text)) "status")
+                           "" (x/gfnt :text)) :status)
           (x/set!! {:pos (x/ccp* cx (/ cy 4))
                     :color "#ffffff" :scale .3}))
       (x/add-> layer
                (x/gmenu {:nnn "#icon_menu.png" :cb fcb}
-                        {:region R :anchor x/ANCHOR-TOP}) "pause"))))
+                        {:region R :anchor x/ANCHOR-TOP}) :pause))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn game-scene [mode & more]
   (do-with [scene (x/scene*)]
-    (let [[bl gl hud] [(x/layer*) (x/layer*) (x/layer*)]
+    (let [[bl hud] [(x/layer*) (x/layer*) (x/layer*)]
+          gl (x/reg-game-scene scene 1)
           white (x/color* 255 255 255)
           R (x/vrect)
           {:keys [top lhs rhs low]} (x/r->b4 R)
           [width height] (x/r-> R)
           [cx cy] (x/mid-rect* R)
-          rl (x/add-> gl (new js/cc.DrawNode) "border" -1)
+          rl (x/add-> gl (new js/cc.DrawNode) :border -1)
           S {:walls {:w (x/ccr* lhs low 1 height)
-                     :e (x/ccr* (- rhs 1) low 1 height)
-                     :n (x/ccr* lhs (- top 1) width 1)
+                     :e (x/ccr* (o- rhs) low 1 height)
+                     :n (x/ccr* lhs (o- top) width 1)
                      :s (x/ccr* lhs low width 1)}
              ;^ 4 invisible static walls
              :running? false
@@ -91,73 +91,75 @@
                       (x/add-> scene
                                bl "bg" -2)
                       (x/gimg :arena-bg))
-      (x/add-> scene gl "arena" 1)
-      (x/add-> scene hud "hud" 2)
+      (x/add-> scene hud :hud 2)
       (hlayer hud R)
       (p/init)
-      (x/hook-update scene #(p/step %1))
-      (let [xxx (fn_* (x/on-scene scene)
-                      (x/remove-all! rl)
-                      (c/call-js! rl
-                                  "drawRect"
-                                  (x/ccp* lhs low)
-                                  (x/ccp* rhs top) nil 12 white)
-                      ;(c/call-js! rl "drawCircle" (x/ccp* cx cy) 64 0 100 false 8 white)
-                      (c/call-js! rl
-                                  "drawSegment"
-                                  (x/ccp* cx low)
-                                  (x/ccp* cx top) 4 white))]
-        (x/attr* scene #js{:onEnter xxx}))
-      (swap! xcfg #(assoc-in % [:game :running?] true)))))
+      (x/hook-update
+        scene
+        {:update #(p/step %1)
+         :onEnter
+         (fn_* (x/on-scene scene)
+               (x/remove-all! rl)
+               (c/call-js! rl
+                           :drawRect
+                           (x/ccp* lhs low)
+                           (x/ccp* rhs top)
+                           nil 12 white)
+               (c/call-js! rl
+                           :drawSegment
+                           (x/ccp* cx low)
+                           (x/ccp* cx top) 4 white))} true))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn options-scene [& [options]]
-  (do-with [scene (x/scene*)]
-    (let [fquit (fn_* (x/pop->root) (x/run-scene (splash-scene)))
-          fsound (fn_* (x/sfx! (zero? (x/gsidx (_1 ____xs)))))
-          fback (fn_* (x/pop-scene))
-          fp1 (fn_*
-                (let [n (x/gsidx (_1 ____xs))]
-                  (swap! xcfg
-                         #(-> (if (zero? n)
-                                (-> (assoc-in % [:game :player :pvalue] CV-X)
-                                    (assoc-in [:game :pother :pvalue] CV-O))
-                                (-> (assoc-in % [:game :player :pvalue] CV-O)
-                                    (assoc-in [:game :pother :pvalue] CV-X)))
-                              (update-in [:game]
-                                         (fn_1 (assoc ____1
-                                                      :pmap
-                                                      (if (zero? n)
-                                                        {CV-X :player CV-O :pother}
-                                                        {CV-O :player CV-X :pother}))))))))
-          {:keys [quit?] :or {quit? true}} options
-          {:keys [player]} (:game @xcfg)
-          layer (x/add-> scene (x/layer*))
-          R (x/vrect)
-          {:keys [top]} (x/r->b4 R)
-          [cx cy] (x/mid-rect* R)
-          t1 (x/mifont-text* (x/l10n "%sound") 18)
-          i1 (x/mitoggle* (x/mifont-item* (x/l10n "%on") 26)
-                          (x/mifont-item* (x/l10n "%off") 26) fsound)
-          t2 (x/mifont-text* (x/l10n "%player1") 18)
-          i2 (x/mitoggle* (x/mifont-item* "Red" 26)
-                          (x/mifont-item* "Blue" 26) fp1)
-          quit (x/milabel* (x/ttf-text* (x/l10n "%quit") "Arial" 20) fquit)
-          back (x/milabel* (x/ttf-text* (x/l10n "%back") "Arial" 20) fback)
-          gmenu (x/add-> layer
-                         (if-not quit?
-                           (x/menu* t1 i1 t2 i2 back)
-                           (x/menu* t1 i1 t2 i2 back quit)))]
-      (x/center-image R layer (x/gimg :game-bg) "bg" -1)
-      (x/add-> layer (x/bmf-label* (x/l10n "%options")
-                                   (x/gfnt :title)
-                                   {:color "#F6B17F"
-                                    :pos (x/ccp* cx (* .8 top))}))
-      (x/toggle-select! i1 (if (x/sfx?) 0 1))
-      (x/toggle-select! i2 (if (= (:pvalue player) CV-X) 0 1))
-      (if quit?
-        (x/align-in-cols gmenu 2 2 1 1)
-        (x/align-in-cols gmenu 2 2 1)))))
+(defn options-scene
+  ([] (options-scene nil))
+  ([options]
+   (do-with [scene (x/scene*)]
+     (let [fquit (fn_* (x/pop->root) (x/run-scene (splash-scene)))
+           fsound (fn_* (x/sfx! (zero? (x/gsidx (_1 ____xs)))))
+           fback (fn_* (x/pop-scene))
+           fp1 (fn_*
+                 (let [n (x/gsidx (_1 ____xs))]
+                   (swap! xcfg
+                          #(-> (if (zero? n)
+                                 (-> (assoc-in % [:game :player :pvalue] CV-X)
+                                     (assoc-in [:game :pother :pvalue] CV-O))
+                                 (-> (assoc-in % [:game :player :pvalue] CV-O)
+                                     (assoc-in [:game :pother :pvalue] CV-X)))
+                               (update-in [:game]
+                                          (fn_1 (assoc ____1
+                                                       :pmap
+                                                       (if (zero? n)
+                                                         {CV-X :player CV-O :pother}
+                                                         {CV-O :player CV-X :pother}))))))))
+           {:keys [quit?] :or {quit? true}} options
+           {:keys [player]} (:game @xcfg)
+           layer (x/add-> scene (x/layer*))
+           R (x/vrect)
+           {:keys [top]} (x/r->b4 R)
+           [cx cy] (x/mid-rect* R)
+           t1 (x/mifont-text* (x/l10n "%sound") 18)
+           i1 (x/mitoggle* (x/mifont-item* (x/l10n "%on") 26)
+                           (x/mifont-item* (x/l10n "%off") 26) fsound)
+           t2 (x/mifont-text* (x/l10n "%player1") 18)
+           i2 (x/mitoggle* (x/mifont-item* "Red" 26)
+                           (x/mifont-item* "Blue" 26) fp1)
+           quit (x/milabel* (x/ttf-text* (x/l10n "%quit") "Arial" 20) fquit)
+           back (x/milabel* (x/ttf-text* (x/l10n "%back") "Arial" 20) fback)
+           gmenu (x/add-> layer
+                          (if-not quit?
+                            (x/menu* t1 i1 t2 i2 back)
+                            (x/menu* t1 i1 t2 i2 back quit)))]
+       (x/center-image R layer (x/gimg :game-bg) :bg -1)
+       (x/add-> layer (x/bmf-label* (x/l10n "%options")
+                                    (x/gfnt :title)
+                                    {:color "#F6B17F"
+                                     :pos (x/ccp* cx (* .8 top))}))
+       (x/toggle-select! i1 (if (x/sfx?) 0 1))
+       (x/toggle-select! i2 (if (= (:pvalue player) CV-X) 0 1))
+       (if quit?
+         (x/align-in-cols gmenu 2 2 1 1)
+         (x/align-in-cols gmenu 2 2 1))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- net-scene [& xs])
@@ -184,7 +186,7 @@
       ;const color= cc.color('#5E3178'),
       (x/center-image R
                       layer
-                      (x/gimg :game-bg) "bg" -1)
+                      (x/gimg :game-bg) :bg -1)
       (x/add-> layer
                (x/bmf-label* (x/l10n "%mmenu")
                              (x/gfnt :title)
@@ -209,7 +211,7 @@
           layer (x/add-> scene (x/layer*))]
       (x/center-image R
                       layer
-                      (x/gimg :game-bg) "bg" -1)
+                      (x/gimg :game-bg) :bg -1)
       (x/pos! (x/add-> layer
                        (x/sprite* "#title.png")) x (* .8 top))
       (x/pos! (->> (x/gmenu {:cb fplay
