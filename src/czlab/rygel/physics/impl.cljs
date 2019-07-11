@@ -21,78 +21,79 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private gWorld nil)
+(def ^:private FWK nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- circle-draw "" [B node i cur]
+(defn- circle-draw [B node i cur]
   (let [{:keys [angle] {:keys [radius]} :shape [x y] :pos} @B
         c (if (= i cur) js/cc.color.RED js/cc.color.GREEN)]
     ;; flip rotation for cocos2d
-    (c/call-js! node "drawCircle" #js {:x x :y y} radius (- angle) 100 true 2 c)))
+    (c/call-js! node
+                :drawCircle
+                #js {:x x :y y} radius angle 100 true 2 c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- poly-draw "" [B node i cur]
-  (let [{{:keys [vertices]} :shape :keys[pos angle]} @B
-        c (if (= i cur) js/cc.color.RED js/cc.color.WHITE)
-        angle' (- (* 2 angle))
-        vs (mapv #(let [[x y] (m/vec-rot % angle' pos)]
-                   #js {:x x :y y}) vertices)]
-    ;;flip rotation for cocos2d
-    (c/call-js! node "drawPoly" (clj->js vs) nil 2 c)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- XXpoly-draw "" [B node i cur]
-  (let [{{:keys [u vertices]} :shape :keys[pos angle]} @B
-        c (if (= i cur) js/cc.color.RED js/cc.color.WHITE)
-        vs (mapv #(let
-                    [[x y] (m/vec-add pos
-                                      (m/mat-vmult u %))]
+(defn- py-poly-draw [B node i cur]
+  (let [{{:keys [vertices]} :shape} @B
+        c (if (= i cur)
+            js/cc.color.RED
+            js/cc.color.WHITE)
+        vs (mapv #(let [[x y] %]
                     #js {:x x :y y}) vertices)]
     ;;flip rotation for cocos2d
-    (c/call-js! node "drawPoly" (clj->js vs) nil 2 c)))
+    (c/call-js! node :drawPoly (clj->js vs) nil 2 c)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- im-poly-draw [B node i cur]
+  (let [{{:keys [u vertices]} :shape :keys[pos angle]} @B
+        c (if (= i cur) js/cc.color.RED js/cc.color.WHITE)
+        vs (mapv #(let [[x y]
+                        (m/vec-add pos
+                                   (m/mat-vmult u %))]
+                    #js {:x x :y y}) vertices)]
+    ;;flip rotation for cocos2d
+    (c/call-js! node :drawPoly (clj->js vs) nil 2 c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- draw-body "" [B & args]
-  (let [{:keys [shape]} @B
-        {:keys [type]} shape]
-    (cond
-      (= type :circle)
-      (apply circle-draw B args)
-      :else
-      (apply poly-draw B args)) B))
+(defn- draw-body [B & args]
+  (let [{{:keys [type]} :shape} @B]
+    (if (not= type :circle)
+      (if (= FWK :impulse)
+        (apply im-poly-draw B args)
+        (apply py-poly-draw B args))
+      (apply circle-draw B args)) B))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn init "" []
+(defn- init-py []
+  (set! FWK :p2d)
   (let [sz (get-in @xcfg [:game :size])
-        r (g/rect (x/oget-x sz)
-                  (x/oget-y sz)
-                  (x/oget-width sz)(x/oget-height sz))]
-    (set! gWorld
-          (py/init-physics -98 60 r
-                           {:cur 0 :body-drawer draw-body})))
-  (let [{:keys [width height]} @gWorld
+        [width height] (x/r-> sz)
+        [x y] (x/p-> sz)
         [hw hh] (c/mapfv / 2 width height)
-        [p8 p2] (c/mapfv * width 0.8 0.2)
-        right (-> (py/rectangle (g/area 400 20)
-                                {:mass 0 :friction 0.3 :bounce 0})
-                  (pc/add-body (V2 (* .7 width) 500))
-                  (pc/set-static!))
-        left (-> (py/rectangle (g/area 200 20) {:mass 0})
-                 (pc/add-body (V2 (* .4 width) 600))
-                 (pc/set-static!))
-        bottom (-> (py/rectangle (g/area p8 20)
-                                 {:mass 0 :friction 1 :bounce 0.2})
-                   (pc/add-body (V2 hw 100))
-                   (pc/set-static!))
-        br (-> (py/rectangle (g/area 20 600)
-                             {:mass 0 :friction 0 :bounce 1})
-               (pc/add-body (V2 p2 100))
-               (pc/set-static!))
-        bl (-> (py/rectangle (g/area 20 600)
-                             {:mass 0 :friction 0 :bounce 1})
-               (pc/add-body (V2 p8 100))
-               (pc/set-static!))]
-    (pc/rotate! left 2.8)
-    (pc/rotate! right -2.8)
+        [p8 p2] (c/mapfv * width 0.8 0.2)]
+    (set! gWorld (py/init-physics -98 60
+                                  (g/rect x y width height) {:cur 0}))
+    (-> (py/rectangle (g/area 400 20)
+                      {:mass 0 :friction 0.3 :bounce 0})
+        (pc/add-body (V2 (* .7 width) 500))
+        (pc/set-static!)
+        (pc/rotate! 2.8))
+    (-> (py/rectangle (g/area 200 20) {:mass 0})
+        (pc/add-body (V2 (* .4 width) 600))
+        (pc/set-static!)
+        (pc/rotate! -2.8))
+    (-> (py/rectangle (g/area p8 20)
+                      {:mass 0 :friction 1 :bounce 0.2})
+        (pc/add-body (V2 hw 100))
+        (pc/set-static!))
+    (-> (py/rectangle (g/area 20 600)
+                      {:mass 0 :friction 0 :bounce 1})
+        (pc/add-body (V2 p2 100))
+        (pc/set-static!))
+    (-> (py/rectangle (g/area 20 600)
+                      {:mass 0 :friction 0 :bounce 1})
+        (pc/add-body (V2 p8 100))
+        (pc/set-static!))
     (dotimes [i 4]
       (-> (py/rectangle (g/area (+ 10 (rand 50))
                                 (+ 10 (rand 50)))
@@ -105,7 +106,7 @@
           (c/assoc!! :vel (V2 (- (rand 60) 30) (- (rand 60) 30)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- more-poly "" [at]
+(defn- more-poly [at]
   (let [e (c/rand-range 50 100)
         ne (- e)
         vs (transient [])
@@ -118,38 +119,36 @@
     (pc/add-body p at)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn XXinit "" []
+(defn- init-im []
+  (set! FWK :impulse)
   (let [sz (get-in @xcfg [:game :size])
-        r (g/rect (x/oget-x sz)
-                  (x/oget-y sz)
-                  (x/oget-width sz)(x/oget-height sz))]
-    (set! gWorld (im/init-physics
-                 -98 60 r
-                 {:cc2dx? true :cur 0 :body-drawer draw-body})))
-  (let [{:keys [width height]} @gWorld
+        [width height] (x/r-> sz)
+        [x y] (x/p-> sz)
         [hw hh] (c/mapfv / 2 width height)
-        [p8 p2] (c/mapfv * width 0.8 0.2)
-        right (-> (im/polygon-box (g/area 400 20)
-                                  {:mass 0 :friction 0.3 :bounce 0})
-                  (pc/add-body (V2 (* .7 width) 500))
-                  (pc/set-static!))
-        left (-> (im/polygon-box (g/area 200 20) {:mass 0})
-                 (pc/add-body (V2 (* .4 width) 600))
-                 (pc/set-static!))
-        bottom (-> (im/polygon-box (g/area p8 20)
-                                   {:mass 0 :friction 1 :bounce 0.5})
-                   (pc/add-body (V2 hw 100))
-                   (pc/set-static!))
-        br (-> (im/polygon-box (g/area 20 100)
-                               {:mass 0 :friction 0 :bounce 1})
-               (pc/add-body (V2 p2 100))
-               (pc/set-static!))
-        bl (-> (im/polygon-box (g/area 20 100)
-                               {:mass 0 :friction 0 :bounce 1})
-               (pc/add-body (V2 p8 100))
-               (pc/set-static!))]
-    (im/set-orient! left 2.8)
-    (im/set-orient! right -2.8)
+        [p8 p2] (c/mapfv * width 0.8 0.2)]
+    (set! gWorld (im/init-physics -98 60
+                                  (g/rect x y width height) {:cur 0}))
+    (-> (im/polygon-box (g/area 400 20)
+                        {:mass 0 :friction 0.3 :bounce 0})
+        (pc/add-body (V2 (* .7 width) 500))
+        (pc/set-static!)
+        (im/set-orient! -2.8))
+    (-> (im/polygon-box (g/area 200 20) {:mass 0})
+        (pc/add-body (V2 (* .4 width) 600))
+        (pc/set-static!)
+        (im/set-orient! 2.8))
+    (-> (im/polygon-box (g/area p8 20)
+                        {:mass 0 :friction 1 :bounce 0.5})
+        (pc/add-body (V2 hw 100))
+        (pc/set-static!))
+    (-> (im/polygon-box (g/area 20 100)
+                        {:mass 0 :friction 0 :bounce 1})
+        (pc/add-body (V2 p2 100))
+        (pc/set-static!))
+    (-> (im/polygon-box (g/area 20 100)
+                        {:mass 0 :friction 0 :bounce 1})
+        (pc/add-body (V2 p8 100))
+        (pc/set-static!))
     (dotimes [i 4]
       (more-poly (V2 (+ hw (* (rand) 600)) (rand hh)))
       (-> (im/circle (+ 10 (rand 20))
@@ -157,13 +156,18 @@
           (pc/add-body (V2 (+ hw (* (rand) 500)) (rand hh)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn run-game "" [dt]
+(defn init []
+  (set! g/*cocos2dx* true)
+  (if false (init-im) (init-py)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn run-game [dt]
   (let [{{:keys [scene]} :game} @xcfg
         {:keys [cur samples]} @gWorld
         ui (x/gcbyn scene :arena)]
     (if-some [n (x/gcbyn ui :dnode)] (x/remove! n))
-    (let [node (x/add-> ui (new js/cc.DrawNode) "dnode")]
-      (c/each-set samples (fn [s i] (pc/draw s node i cur))))
+    (let [node (x/add-> ui (new js/cc.DrawNode) :dnode)]
+      (c/each-set samples (fn [s i] (draw-body s node i cur))))
     (pc/step (* 1000 dt))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -14,7 +14,7 @@
   (:require [czlab.mcfud.cc.ccsx :as x]
             [oops.core :as oc]
             [czlab.mcfud.afx.core
-             :as c :refer [raise! fn_* n# _1 _2 do-with]]))
+             :as c :refer [fn_0 fn_* n# _1 _2 do-with]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pop-dlg-bg
@@ -22,9 +22,9 @@
   [color]
   (do-with [layer (x/clayer* color)]
     (let [[width height] (x/vrect*)]
-      (oc/ocall! layer
-                 "setContentSize"
-                 (* .6 width) (* .6 height))
+      (c/call-js! layer
+                  :setContentSize
+                  (* .6 width) (* .6 height))
       (x/pos! layer
               (/ (* width .4) 2) (/ (* height .4) 2)))))
 
@@ -35,8 +35,8 @@
   (do-with [dlg (x/layer*)]
     (let [{:keys [msg yes no cleanup]} options
           fnt (x/gfnt :text)
-          finz #(do (x/remove! d0 dlg)
-                    (if (fn? cleanup) (cleanup)))
+          finz (fn_0 (x/remove! d0 dlg)
+                     (if (fn? cleanup) (cleanup)))
           ok (fn_* (finz) (if (fn? yes) (yes)))
           no (fn_* (finz) (if (fn? no) (no)))
           t (x/tmenu [{:text msg :font fnt :cb c/fn-nil}
@@ -50,8 +50,8 @@
   "Show dialog box."
   [par options]
   (let [d0 (pop-dlg-bg "#7b7b7b")]
-    (x/add-> par d0 "dlg0" 999)
-    (x/add-> par (pop-dlg* d0 options) "dlg1" 1000)))
+    (x/add-> par d0 :dlg0 999)
+    (x/add-> par (pop-dlg* d0 options) :dlg1 1000)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

@@ -30,21 +30,21 @@
 (defmacro gebyid
   "Document.getElementById."
   [id]
-  `(if-not (czlab.mcfud.cc.ccsx/native?) (js/document.getElementById ~id)))
+  `(if-not (czlab.mcfud.cc.ccsx/native?) (js/document.getElementById (name ~id))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro sprite?
-  "If object is a Sprite."
+  "If object is a Sprite?"
   [obj] `(instance? ~'js/cc.Sprite ~obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro cnode?
-  "If object is a Node."
+  "If object is a Node?"
   [obj] `(instance? ~'js/cc.Node ~obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro cmenu?
-  "If object is a Menu."
+  "If object is a Menu?"
   [obj] `(instance? ~'js/cc.Menu ~obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -273,7 +273,7 @@
   `(new ~'js/cc.SpriteBatchNode (js/cc.textureCache.addImage ~img)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro get-cached-sprite
+(defmacro cached-sprite??
   "Get the sprite from the frame cache using
   its id (e.g. #ship)."
   [frameid]
@@ -289,8 +289,10 @@
 (defmacro remove!
   "Node.removeFromParent."
   [& nodes]
-  `(do ~@(map (fn [n]
-                `(oops.core/ocall! ~n "removeFromParent")) nodes)))
+  (if (= 1 (count nodes))
+    `(oops.core/ocall! ~(first nodes) "removeFromParent")
+    `(do ~@(map (fn [n]
+                  `(oops.core/ocall! ~n "removeFromParent")) nodes))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro push-scene

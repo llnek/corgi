@@ -206,28 +206,28 @@
   "Set a js object property."
   [obj prop value]
   (let [X (gensym)]
-    `(let [~X ~obj] (oops.core/oset!+ ~X (str "!" ~prop) ~value) ~X)))
+    `(let [~X ~obj] (oops.core/oset!+ ~X (str "!" (name ~prop)) ~value) ~X)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro get-js
   "Get a property from a js object."
-  [obj prop] `(oops.core/oget+ ~obj (str "?" ~prop)))
+  [obj prop] `(oops.core/oget+ ~obj (str "?" (name ~prop))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro call-js!
   "Call a method on a js object."
-  [obj mtd & args] `(oops.core/ocall!+ ~obj ~mtd ~@args))
+  [obj mtd & args] `(oops.core/ocall!+ ~obj (name ~mtd) ~@args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro apply-js!
   "Apply a method on a js object."
-  [obj mtd args] `(oops.core/oapply!+ ~obj ~mtd ~args))
+  [obj mtd args] `(oops.core/oapply!+ ~obj (name ~mtd) ~args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro js-prop?
   "If js-object has this property."
   [obj prop]
-  `(goog.object/containsKey ~obj ~prop))
+  `(goog.object/containsKey ~obj (name ~prop)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro trye!

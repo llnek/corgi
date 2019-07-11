@@ -12,17 +12,16 @@
   czlab.mcfud.cc.boot
 
   (:require [czlab.mcfud.afx.core
-             :as c :refer [n# _1 _2 fn_* fn_1 cc+ do-with]]
+             :as c :refer [n# _1 _2 fn_0 fn_* fn_1 cc+ do-with]]
             [clojure.string :as cs]
-            [oops.core :as oc]
             [czlab.mcfud.cc.ccsx
              :as x :refer [gres+ gres* gicfg r-> p->
-                           debug* native? not-native? xcfg]]))
+                           native? not-native? xcfg]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handle-multi-devices []
+(defn- handle-devices []
   (let [{:keys [policy size landscape?]} (:game @xcfg)
-        [w h] (r-> (x/frame-size))
+        [w h] (x/frame-size*)
         [dw dh] (r-> size)
         [X Y dir] (cond (or (>= w 2048)
                             (>= h 2048))
@@ -37,22 +36,22 @@
                             (>= h 960))
                         [960 640 :hds]
                         :else [480 320 :sd])
-        [X Y] (if landscape? [X Y] [Y X])]
+        [X Y] (if (> dw dh) [X Y] [Y X])]
     (swap! xcfg #(assoc-in % [:game :resdir] dir))
     (x/design-res! dw dh policy)
     ;;device window size or canvas size.
-    (debug* "view.frameSize = [" w ", " h "]")
-    (debug* "game.size = [" dw ", " dh "]")
+    (x/debug* "view.frameSize = [" w ", " h "]")
+    (x/debug* "game.size = [" dw ", " dh "]")
     ;;need to prefix "assets" for andriod
-    (do-with [searchs (js/jsb.fileUtils.getSearchPaths)]
-      (doseq [p (map #(str % dir)
-                     ["assets/res/" "res/"])] (.push searchs p))
-      (doseq [p (map #(str % dir)
-                     ["assets/src/" "src/"])] (.push searchs p)))))
+    (reduce #(do-with [acc %1]
+               (.push acc
+                      (str "assets/" %2)) (.push acc %2))
+            (js/jsb.fileUtils.getSearchPaths) ["res/" "src/"])))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- core-assets []
-  #js [(gres+ :assets :loader :czlab)
-       (gres+ :assets :loader :preloader)])
+  #js [(x/gres+ :assets :loader :czlab)
+       (x/gres+ :assets :loader :preloader)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- game-assets []
@@ -60,42 +59,40 @@
                  fonts sheets sounds]} :assets} @xcfg
         r #(cs/replace %1 %2 ".png")
         f (fn [acc c x]
-            (reduce (fn [b [_ v]] (x b v)) acc c))
-        out (-> (f (c/tvec*) tiles #(conj! %1 (gres* %2)))
-                (f images #(conj! %1 (gres* %2)))
-                (f sounds #(conj! %1 (gres* %2)))
-                (f fonts #(conj! %1
-                                 (gres* %2)
-                                 (gres* (r %2 #"\.fnt$"))))
-                (f sheets #(conj! %1
-                                  (gres* %2)
-                                  (gres* (r %2 #"\.plist$"))))
-                (persistent!))]
-    ;(debug* "game-assets = " (c/jsonize out))
-    (clj->js out)))
+            (reduce (fn [b [_ v]] (x b v)) acc c))]
+    (clj->js (c/ps!
+               (-> (f (c/tvec*) tiles #(conj! %1 (x/gres* %2)))
+                   (f images #(conj! %1 (x/gres* %2)))
+                   (f sounds #(conj! %1 (x/gres* %2)))
+                   (f fonts #(conj! %1
+                                    (x/gres* %2)
+                                    (x/gres* (r %2 #"\.fnt$"))))
+                   (f sheets #(conj! %1
+                                     (x/gres* %2)
+                                     (x/gres* (r %2 #"\.plist$")))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- precache-atlases []
   (doseq [[_ v]
           (get-in @xcfg [:assets :sheets])]
-    (js/cc.spriteFrameCache.addSpriteFrames (gres* v))))
+    (js/cc.spriteFrameCache.addSpriteFrames (x/gres* v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- nice-fade-out [scene]
   (let [{:keys [run-once start-scene]} @xcfg
-        logo (x/gcbyn scene "lg")
-        f #(do (precache-atlases)
-               (x/remove! logo)
-               (run-once)
-               (x/run-scene (start-scene)))]
-    (debug* "fade out! run next scene!!!!!")
-    (oc/ocall! scene "unscheduleUpdate")
-    (x/remove! (x/gcbyn scene "pg"))
-    (oc/ocall! logo
-               "runAction"
-               (js/cc.Sequence.create
-                 (js/cc.FadeOut.create 1.2)
-                 (js/cc.CallFunc.create f nil)))))
+        logo (x/gcbyn scene :lg)
+        f (fn_0 (precache-atlases)
+                (x/remove! logo)
+                (run-once)
+                (x/run-scene (start-scene)))]
+    ;(x/debug* "fade out! run next scene!!!!!")
+    (c/call-js! scene "unscheduleUpdate")
+    (x/remove! (x/gcbyn scene :pg))
+    (c/call-js! logo
+                "runAction"
+                (js/cc.Sequence.create
+                  (js/cc.FadeOut.create 1.2)
+                  (js/cc.CallFunc.create f nil)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:private CHUNK 36)
@@ -104,7 +101,7 @@
   "Load resources.
   We have to load chunk by chunk because
   the array of resources can't be too big, else jsb complains"
-  (debug* "inside prelaunch-4()")
+  (x/debug* "inside prelaunch-4()")
   (let [[logo pbar] (core-assets)
         assets (game-assets)
         ;;[count, head, tail] snapshot info used by
@@ -112,46 +109,45 @@
         state #js [0 0 0]
         R (x/vrect)
         pg (x/add-> scene
-                    (new js/cc.ProgressTimer (x/sprite* pbar)) "pg")
-        cf (fn_* (let [[_ s e] state
-                       arr (.slice assets s e)]
-                   ;(debug* "start s = " s ", e = " e)
-                   ;(debug* (js/JSON.stringify #js{:arr assets}))
-                   (if (pos? (n# arr))
-                     (js/cc.loader.load arr
-                                        (fn [res sum cnt]
-                                          ;(debug* "total = " sum ", cnt = " cnt)
-                                          (aset state 0 (+ 1 (_1 state))))
-                                        (fn []
-                                          ;(debug* "done = " (_1 state))
-                                          nil)))))
-        cb (fn_* (let [len (n# assets)
-                       [cnt _ _] state]
-                   (oc/ocall! pg
-                              "setPercentage"
-                              (min (* (/ cnt len) 100) 100))
-                   (if (< cnt len)
-                     (let [[_ _ head] state;get last tail
-                           tail (+ head (min CHUNK (- len head)))]
-                       (aset state 1 head)
-                       (aset state 2 tail)
-                       (cf))
-                     (nice-fade-out scene))))
-        _ (x/attr* scene #js{:update cb})
-        logo' (x/center-image R scene logo "lg")
-        [mx my] (p-> (x/mid-rect R))
-        [_ height] (r-> (x/bsize logo'))]
-    (oc/ocall! pg "setType" js/cc.ProgressTimer.TYPE_BAR)
-    (oc/ocall! pg "setScaleX" .8)
-    (oc/ocall! pg "setScaleY" .3)
-    (x/pos! pg mx (- my (* .6 height)))
-    (oc/ocall! scene "scheduleUpdate")))
+                    (->> (x/sprite* pbar)
+                         (new js/cc.ProgressTimer)) :pg)
+        cf #(let [[_ s e] state
+                  arr (.slice assets s e)]
+              ;(debug* "start s = " s ", e = " e)
+              ;(debug* (js/JSON.stringify #js{:arr assets}))
+              (if (pos? (n# arr))
+                (js/cc.loader.load arr
+                                   (fn [res sum cnt]
+                                     (aset state 0 (+ 1 (_1 state))))
+                                   (fn [] nil))))
+        cb #(let [len (n# assets)
+                  [cnt _ _] state]
+              (c/call-js! pg
+                          "setPercentage"
+                          (min (* (/ cnt len) 100) 100))
+              (if (< cnt len)
+                (let [[_ _ head] state;get last tail
+                      tail (+ head (min CHUNK (- len head)))]
+                  (aset state 1 head)
+                  (aset state 2 tail)
+                  (cf))
+                (nice-fade-out scene)))
+        logo' (x/center-image R scene logo :lg)
+        [mx my] (x/mid-rect* R)
+        [_ height] (x/bsize* logo')]
+    (doto pg
+      (c/call-js! "setType" js/cc.ProgressTimer.TYPE_BAR)
+      (c/call-js! "setScaleX" .8)
+      (c/call-js! "setScaleY" .3)
+      (x/pos! mx (- my (* .6 height))))
+    (x/attr* scene #js{:update cb})
+    (c/call-js! scene "scheduleUpdate")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prelaunch-3 [scene]
-  (debug* "inside prelaunch-3()")
+  (x/debug* "inside prelaunch-3()")
   (fn_* (x/pos! (x/add-> scene
-                         (x/clayer* 0 0 0) "bg" -1)) (prelaunch-4 scene)))
+                         (x/clayer* 0 0 0) :bg -1)) (prelaunch-4 scene)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prelaunch-2
@@ -160,19 +156,19 @@
   Then we run another loading scene which actually
   loads the game assets - updating the progress bar."
   [scene]
-  (debug* "inside prelaunch-2()")
+  (x/debug* "inside prelaunch-2()")
   (let [f (fn_* (js/cc.loader.load
                   (core-assets) c/fn-nil (prelaunch-3 scene)))]
     (x/attr* scene
              #js {;:init #(.call js/cc.Scene.prototype.init scene)
                   ;:onExit #(.call js/cc.Node.prototype.onExit scene)
-                  :onEnter (fn_* (js/cc.Node.prototype.onEnter.call scene)
-                                 (oc/ocall scene "scheduleOnce" f 0.3))})
+                  :onEnter (fn_0 (js/cc.Node.prototype.onEnter.call scene)
+                                 (c/call-js! scene "scheduleOnce" f 0.3))})
     (x/run-scene scene)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prelaunch []
-  (debug* "inside prelaunch()")
+  (x/debug* "inside prelaunch()")
   (if-some [e (x/gebyid "cocosLoading")] (js/document.body.removeChild e))
   (js/cc.director.setProjection js/cc.Director.PROJECTION_2D)
   ;;for IOS
@@ -187,7 +183,7 @@
                  frame-rate policy]} :game} @xcfg
         [width height] (r-> size)]
     (if (native?)
-      (handle-multi-devices)
+      (handle-devices)
       (let [[w h] (x/frame-size*)]
         (x/debug* "browser size, w= " w ", h= " h)
         (x/design-res! width height policy)
@@ -195,17 +191,14 @@
         (js/cc.view.resizeWithBrowserSize true)))
     ;if we have a framerate, set it by inverting
     (if (c/pos?? frame-rate)
-      (-> (c/num-flip frame-rate)
+      (-> (c/flip frame-rate)
           (js/cc.director.setAnimationInterval)))
     ;maybe set debug on?
     (if debug? (js/cc.director.setDisplayStats true))
-    (swap! xcfg
-           #(assoc-in % [:game :vert?] (x/is-portrait?)))
     ;;hack to suppress the showing of cocos2d's logo
     ;;and instead, show our own!
     (prelaunch-2 (x/scene*))
-    (debug* "vrect = " (c/jsonize (x/vrect)))))
-
+    (x/debug* "vrect = " (c/jsonize (x/vrect)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; hook the start

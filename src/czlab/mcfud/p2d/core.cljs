@@ -17,7 +17,6 @@
             [czlab.mcfud.afx.geo :as g]
             [czlab.mcfud.afx.math :as m :refer [PI V2]]))
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;Defines 4 points of a rectange.
 (defrecord Box4 [left bottom right top])

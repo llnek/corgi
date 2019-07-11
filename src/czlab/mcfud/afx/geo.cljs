@@ -16,6 +16,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def ^:dynamic *coordinate-system* :right-handed)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def ^:dynamic *cocos2dx* false)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defrecord Rect [x y width height])
@@ -93,7 +96,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rot-vertices
   "Rotate a set of points."
-  [vs pivot angle] (mapv #(m/vec-rot % angle pivot) vs))
+  [vs pivot angle]
+  (let [angle' (if *cocos2dx* (- angle) angle)]
+    (mapv #(m/vec-rot % angle' pivot) vs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn calc-rect-vertices
@@ -104,8 +109,10 @@
                        (:width area) (:height area)))
   ([x y width height]
    (let [[hw hh] (c/mapfv / 2 width height)]
-     [(V2 (- x hw) (- y hh)) (V2 (+ x hw) (- y hh))
-      (V2 (+ x hw) (+ y hh)) (V2 (- x hw) (+ y hh))])))
+     [(V2 (+ x hw) (- y hh))
+      (V2 (+ x hw) (+ y hh))
+      (V2 (- x hw) (+ y hh))
+      (V2 (- x hw) (- y hh))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rectangle

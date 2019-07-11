@@ -15,7 +15,6 @@
 
   (:require-macros [czlab.mcfud.cc.ccsx
                     :as x :refer [native? not-native? cnode?
-                                  debug* gsidx gcbyt gcbyn
                                   oget-id oget-piccy
                                   oget-x oget-y oget-height oget-width]])
 
@@ -25,7 +24,7 @@
             [czlab.mcfud.afx.ebus :as e]
             [czlab.mcfud.afx.math :as m]
             [czlab.mcfud.afx.core
-             :as c :refer [defenum do->true do->nil let->nil
+             :as c :refer [defenum do#true do#nil let#nil
                            fn-nil is? fn_0 fn_* fn_1 fn_2 cc+ cc+1
                            if-string n# _1 _2 do-with raise! num??]]))
 
@@ -37,20 +36,20 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn browser-size []
   (cond (and js/window
-             (c/js-prop? js/window "innerWidth")
-             (number? (oc/oget js/window "innerWidth")))
-        [(oc/oget js/window "innerWidth")
-         (oc/oget js/window "innerHeight")]
+             (c/js-prop? js/window :innerWidth)
+             (number? (c/get-js js/window :innerWidth)))
+        [(c/get-js js/window :innerWidth)
+         (c/get-js js/window :innerHeight)]
         (and js/document
-             (c/js-prop? js/document "documentElement")
-             (c/js-prop? js/document.documentElement "clientWidth"))
-        [(oc/oget js/document.documentElement "clientWidth")
-         (oc/oget js/document.documentElement "clientHeight")]
+             (c/js-prop? js/document :documentElement)
+             (c/js-prop? js/document.documentElement :clientWidth))
+        [(c/get-js js/document.documentElement :clientWidth)
+         (c/get-js js/document.documentElement :clientHeight)]
         (and js/document
-             (c/js-prop? js/document "body")
-             (c/js-prop? js/document.body "clientWidth"))
-        [(oc/oget js/document.body "clientWidth")
-         (oc/oget js/document.body "clientHeight")]
+             (c/js-prop? js/document :body)
+             (c/js-prop? js/document.body :clientWidth))
+        [(c/get-js js/document.body :clientWidth)
+         (c/get-js js/document.body :clientHeight)]
         :else
         (c/raise! "Failed to find browser size")))
 
@@ -70,34 +69,34 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bbox
   "Node.getBoundingBox."
-  [n] (oc/ocall n "getBoundingBox"))
+  [n] (c/call-js! n :getBoundingBox))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bbox*
   "Node.getBoundingBox for all."
-  [& args] (map #(oc/ocall % "getBoundingBox") args))
+  [& args] (mapv #(c/call-js! % :getBoundingBox) args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gcbyn+
  "Get nested children under a node."
- [node & args] (reduce #(gcbyn %1 %2) node args))
+ [node & args] (reduce #(x/gcbyn %1 %2) node args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gcbyn*
  "Get children under a node."
- [node & args] (map #(gcbyn node %1) args))
+ [node & args] (map #(x/gcbyn node %1) args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn crect?
   "If object is a cc-rect?"
   [obj]
   (and (object? obj)
-       (c/js-prop? obj "width") (c/js-prop? obj "height")))
+       (oget-width obj) (oget-height obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- snode?
   "If node has a sprite property?"
-  [obj] (and (object? obj) (c/js-prop? obj "piccy")))
+  [obj] (and (object? obj) (oget-piccy obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn r->b4
@@ -112,50 +111,37 @@
      :low y :lhs x :rhs (+ x w)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- bbox?? "" [obj]
-  (cond (snode? obj)
-        (bbox?? (oget-piccy obj))
-        (cnode? obj)
-        (bbox?? (bbox obj))
-        (crect? obj)
-        obj
-        :else
-        (raise! "bad call bbox??")))
+(defn- bbox?? [obj]
+  (cond (snode? obj) (bbox?? (oget-piccy obj))
+        (cnode? obj) (bbox?? (bbox obj))
+        (crect? obj) obj
+        :else (c/raise! "bad call bbox??")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- pt?? "" [obj]
-  (cond (snode? obj)
-        (pt?? (oget-piccy obj))
-        (cnode? obj)
-        (pt?? (x/pos?? obj))
+(defn- pt?? [obj]
+  (cond (snode? obj) (pt?? (oget-piccy obj))
+        (cnode? obj) (pt?? (x/pos?? obj))
         (and (object? obj)
-             (c/js-prop? obj "x")
-             (c/js-prop? obj "y"))
-        obj
-        :else
-        (raise! "bad call pt??")))
+             (c/js-prop? obj :x)
+             (c/js-prop? obj :y)) obj
+        :else (c/raise! "bad call pt??")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn contains-pt?
-  ""
   [obj pt]
   (js/cc.rectContainsPoint (bbox?? obj) (pt?? pt)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn minX "" [obj]
-  (js/cc.rectGetMinX (bbox?? obj)))
+(defn minX [obj] (js/cc.rectGetMinX (bbox?? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn minY "" [obj]
-  (js/cc.rectGetMinY (bbox?? obj)))
+(defn minY [obj] (js/cc.rectGetMinY (bbox?? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn maxX "" [obj]
-  (js/cc.rectGetMaxX (bbox?? obj)))
+(defn maxX [obj] (js/cc.rectGetMaxX (bbox?? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn maxY "" [obj]
-  (js/cc.rectGetMaxY (bbox?? obj)))
+(defn maxY [obj] (js/cc.rectGetMaxY (bbox?? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collide?
@@ -164,48 +150,45 @@
   (js/cc.rectIntersectsRect (bbox?? a) (bbox?? b)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn grabbed? "" [obj evt]
-  (contains-pt? (bbox obj)
-                (c/call-js! obj "getLocation")))
+(defn grabbed?
+  "If mouse or touch on object?" [obj evt]
+  (contains-pt? (bbox obj) (c/call-js! obj :getLocation)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn move-pos! "" [obj evt]
+(defn move-pos!
+  "Move an object." [obj evt]
   (do-with [obj]
     (let [[ox oy] (pos* obj)
-          [dx dy] (c/call-js! evt "getDelta")]
+          [dx dy] (c/call-js! evt :getDelta)]
       (x/pos! obj (+ ox dx) (+ oy dy)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn design-res!
-  "Set design resolution, policy and orientation."
+  "Set design resolution, display policy."
   [width height policy]
   (js/cc.view.setDesignResolutionSize width height policy))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vrect
-  "Get the visible screen rectangle."
+  "Get the visible view's rectangle."
   []
-  ;no good in browser
-  ;(js/cc.view.getViewPortRect))
+  ;no good in browser ;(js/cc.view.getViewPortRect)
   (comment
-  (let [r js/cc.visibleRect
-        bl (c/get-js r "bottomLeft")]
-    (js/cc.rect (oget-x bl)
-                (oget-y bl) (oget-width r) (oget-height r))))
-  (do
-    (let [vo (js/cc.view.getVisibleOrigin)
-          wz (js/cc.view.getVisibleSize)]
-      (js/cc.rect (oget-x vo)
-                  (oget-y vo) (oget-width wz) (oget-height wz)))))
+    (let [r js/cc.visibleRect
+          bl (c/get-js r :bottomLeft)]
+      (js/cc.rect (oget-x bl)
+                  (oget-y bl) (oget-width r) (oget-height r))))
+  (let [vo (js/cc.view.getVisibleOrigin)
+        wz (js/cc.view.getVisibleSize)]
+    (js/cc.rect (oget-x vo)
+                (oget-y vo) (oget-width wz) (oget-height wz))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vrect*
-  "Get the visible screen width & height."
-  []
-  (r-> (vrect)))
+  "Get the visible view's width & height." [] (r-> (vrect)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vrect-b4 [] (r->b4 (vrect)))
+(defn vrect-b4 "Get vrect as box4." [] (r->b4 (vrect)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- ebox
@@ -213,22 +196,22 @@
   []
   (let [{:keys [htPerc anchor]} (:AD @xcfg)
         [x y] (p-> (js/cc.view.getVisibleOrigin))
-        [w h] (r-> (js/cc.view.getVisibleSize))]
-    (js/cc.rect x y w (- h (* h htPerc)))))
+        [w h] (r-> (js/cc.view.getVisibleSize))] (js/cc.rect x y
+                                                             w (- h (* h htPerc)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mid-rect*
   "Center point of a rect."
-  [& [r]]
-  (let [r (or r (vrect))]
-    [(js/cc.rectGetMidX r) (js/cc.rectGetMidY r)]))
+  ([] (mid-rect* (vrect)))
+  ([r]
+   [(js/cc.rectGetMidX r) (js/cc.rectGetMidY r)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mid-rect
   "Center point of a rect."
-  [& [r]]
-  (let [r (or r (vrect))]
-    (js/cc.p (js/cc.rectGetMidX r) (js/cc.rectGetMidY r))))
+  ([] (mid-rect (vrect)))
+  ([r]
+   (js/cc.p (js/cc.rectGetMidX r) (js/cc.rectGetMidY r))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn frame-size*
@@ -248,17 +231,10 @@
     (js/cc.rect 0 0 (oget-width z)(oget-height z))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn is-portrait?
-  "If screen is oriented vertically."
-  []
-  (let [[w h] (r-> (vrect))] (> h w)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn undo-timer!
   "Maybe release this timer."
   [p t]
-  (if (and (native?)
-           (some? t)) (oc/ocall! t "release")) t)
+  (if (and (native?) t) (c/call-js! t :release)) t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn new-timer
@@ -266,30 +242,32 @@
   [p t]
   (do-with
     [rc (->> (new js/cc.DelayTime t)
-             (oc/ocall! p "runAction"))] (if (native?) (oc/ocall! rc "retain"))))
+             (c/call-js! p :runAction))]
+    (if (native?) (c/call-js! rc :retain))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn timer-done?
   "If timer is done."
-  [t] (and (some? t) (oc/ocall t "isDone")))
+  [t] (and t (c/call-js! t :isDone)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- run-next-scene
   "Run a scene."
-  [nx & [delaySecs]]
-  (x/run-scene (new js/cc.TransitionCrossFade (num?? delaySecs .6) nx)))
+  ([nx] (run-next-scene nx .6))
+  ([nx delaySecs]
+   (x/run-scene (new js/cc.TransitionCrossFade delaySecs nx))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn is-transitioning?
   "If transitioning between scenes?"
-  []
-  (instance? js/cc.TransitionScene (js/cc.director.getRunningScene)))
+  [] (instance? js/cc.TransitionScene
+                (js/cc.director.getRunningScene)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn csize
   "Content-size of this thing."
   [obj]
-  (if-some [z (oc/ocall obj "getContentSize")]
+  (if-some [z (c/call-js! obj :getContentSize)]
     (js/cc.rect 0 0
                 (oget-width z)
                 (oget-height z)) (js/cc.rect)))
@@ -301,15 +279,11 @@
 (defn bsize
   "Find size of object's bounding-box."
   [obj]
-  (cond (string? obj)
-        (bsize (x/sprite* obj))
-        (snode? obj)
-        (bsize (oget-piccy obj))
-        (cnode? obj)
-        (bsize (bbox obj))
-        (crect? obj)
-        obj
-        :else (raise! "bad call bsize")))
+  (cond (string? obj) (bsize (x/sprite* obj))
+        (snode? obj) (bsize (oget-piccy obj))
+        (cnode? obj) (bsize (bbox obj))
+        (crect? obj) obj
+        :else (c/raise! "bad call bsize")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bsize* [obj] (r-> (bsize obj)))
@@ -317,41 +291,41 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn half-rect
   "Calculate halves of width and height."
-  [r]
-  (js/cc.rect 0 0
-              (/ (oget-width r) 2)
-              (/ (oget-height r) 2)))
+  [r] (js/cc.rect 0 0
+                  (/ (oget-width r) 2)
+                  (/ (oget-height r) 2)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn half-rect* [rc] (r-> (half-rect rc)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn get-height
-  "Get the height of a sprite."
-  [sprite] (oget-height (bsize sprite)))
+  "Get the height of a sprite." [sprite] (_2 (bsize* sprite)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn get-scaled-height
   "Get the scaled height."
   [sprite]
-  (* (oc/ocall sprite "getScaleY") (get-height sprite)))
+  (* (c/call-js! sprite :getScaleY) (get-height sprite)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn get-width
-  "Get the width of a sprite."
-  [sprite] (oget-width (bsize sprite)))
+  "Get the width of a sprite." [sprite] (_1 (bsize* sprite)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn get-scaled-width
   "Get the scaled width."
   [sprite]
-  (* (oc/ocall sprite "getScaleX") (get-width sprite)))
+  (* (c/call-js! sprite :getScaleX) (get-width sprite)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn trace-enclosure
   "Test if this box is hitting boundaries.
   If hit, the new position and velocities are returned."
-  [R rect vel dt]
-  (let [{:keys [top bottom left right]} (r->b4 R)
-        [hw hh] (r-> (half-rect rect))
-        [cx cy] (p-> (mid-rect rect))
+  [W rect vel dt]
+  (let [{:keys [top low lhs rhs]} (r->b4 W)
+        [hw hh] (half-rect* rect)
+        [cx cy] (mid-rect* rect)
         [vx vy] (p-> vel)
         y (+ cy (* dt vy))
         x (+ cx (* dt vx))
@@ -359,15 +333,15 @@
         (cond
           (> (+ y hh) top) ;;hitting top wall
           [x (- top hh) vx (- vy) true]
-          (< (- y hh) bottom) ;;hitting bottom wall
-          [x (+ bottom hh) vx (- vy) true]
+          (< (- y hh) low) ;;hitting bottom wall
+          [x (+ low hh) vx (- vy) true]
           :else [x y vx vy false])
         [x2 y2 vx2 vy2 t2?]
         (cond
-          (> (+ x hw) right) ;;hitting right wall
-          [(- right hw) y1 (- vx1) vy1 true]
-          (< (- x hw) left) ;;hitting left wall
-          [(+ left hw) y1 (- vx1) vy1 true]
+          (> (+ x hw) rhs) ;;hitting right wall
+          [(- rhs hw) y1 (- vx1) vy1 true]
+          (< (- x hw) lhs) ;;hitting left wall
+          [(+ lhs hw) y1 (- vx1) vy1 true]
           :else
           [x1 y1 vx1 vy1 t?])]
     [(js/cc.p x2 y2) (js/cc.p vx2 vy2) t2?]))
@@ -404,27 +378,30 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set-font!
   "Set (ttf) font details."
-  [size & [name]]
-  (js/cc.MenuItemFont.setFontName (or name "Arial"))
-  (js/cc.MenuItemFont.setFontSize size))
+  ([size] (set-font! size nil))
+  ([size font]
+   (js/cc.MenuItemFont.setFontSize size)
+   (js/cc.MenuItemFont.setFontName (or font "Arial"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mifont-item*
   "Create a menu-item."
-  [name size & [font]]
-  (set-font! size font) (x/mifont* name))
+  ([item size] (mifont-item* item size nil))
+  ([item size font]
+   (set-font! size font) (x/mifont* item)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mifont-text*
   "Create a menu-item label."
-  [name size & [font]]
-  (do-with [f (mifont-item* name size font)] (oc/ocall! f "setEnabled" false)))
+  ([item size] (mifont-text* item size nil))
+  ([item size font]
+   (do-with [f (mifont-item* item size font)]
+            (c/call-js! f :setEnabled false))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn toggle-select!
   "Select button in a toggle."
-  [t v]
-  (oc/ocall! t "setSelectedIndex" v) t)
+  [t v] (c/call-js! t :setSelectedIndex v) t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pkeys [pmap] [(get pmap CV-X) (get pmap CV-O)])
@@ -454,7 +431,7 @@
        :onMouseDown (ecb-p1 MOUSE-DOWN)
        :onMouseUp (ecb-p1 MOUSE-UP)
        :onMouseMove (fn [e]
-                      (if (= (oc/ocall e "getButton")
+                      (if (= (c/call-js! e "getButton")
                              js/cc.EventMouse.BUTTON_LEFT)
                         (e/pub (:ebus @xcfg) MOUSE-MOVE e)))})
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -464,7 +441,7 @@
         :onTouchesEnded (ecb-p2 TOUCH-ALL-END)
         :event js/cc.EventListener.TOUCH_ALL_AT_ONCE
         :onTouchesMoved (fn [a b]
-                          (let [id (oc/ocall (_1 a) "getID")]
+                          (let [id (c/call-js! (_1 a) :getID)]
                             (if (not= (_1 prev) id)
                               (aset prev 0 id)
                               (e/pub (:ebus @xcfg) TOUCH-ALL-MOVE a b))))}))
@@ -489,37 +466,37 @@
 (defn has-keys?
   "If key-pad is available?"
   [] (and (not-native?)
-       (some? (oc/oget js/cc.sys.capabilities "?keyboard"))))
+       (some? (c/get-js js/cc.sys.capabilities :keyboard))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn has-mouse?
   "If mouse is available?"
-  [] (some? (oc/oget js/cc.sys.capabilities "?mouse")))
+  [] (some? (c/get-js js/cc.sys.capabilities :mouse)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn has-touch?
   "If touch is available?"
-  [] (some? (oc/oget js/cc.sys.capabilities "?touches")))
+  [] (some? (c/get-js js/cc.sys.capabilities :touches)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- accept-keys [node]
   (when (has-keys?)
-    (debug* "Accept key events")
+    (x/debug* "Accept key events")
     (subevent keys-listener-obj node)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- accept-mouse [node]
   (when (has-mouse?)
-    (debug* "Accept mouse events")
+    (x/debug* "Accept mouse events")
     (subevent mouse-listener-obj node)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- accept-touch [node multi-touch?]
   (when (has-touch?)
     (if multi-touch?
-      (do (debug* "Accept touch-all events")
+      (do (x/debug* "Accept touch-all events")
           (subevent touchall-listener-obj node))
-      (do (debug* "Accept touch-one events")
+      (do (x/debug* "Accept touch-one events")
           (subevent touchone-listener-obj node)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -536,34 +513,37 @@
     ANCHOR-BOTTOM-LEFT (js/cc.p 0 0)
     ANCHOR-LEFT (js/cc.p 0 0.5)
     ANCHOR-TOP-LEFT (js/cc.p 0 1)
-    (raise! "anchorValue - bad anchor enum")))
+    (c/raise! "anchorValue - bad anchor enum")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn add->
   "Add a child to the node."
-  [node child & [tag zOrder]]
-  (do-with [child]
-    (if (and (is? js/cc.SpriteBatchNode node)
-             (x/sprite? child)) (oc/ocall! child "setBatchNode" node))
-    (oc/ocall! node
-               "addChild"
-               child
-               (if (number? zOrder) zOrder js/undefined)
-               (if (or (string? tag)(number? tag)) tag js/undefined))))
+  ([node child] (add-> node child nil))
+  ([node child tag] (add-> node child tag nil))
+  ([node child tag zOrder]
+   (do-with [child]
+     (if (and (is? js/cc.SpriteBatchNode node)
+              (x/sprite? child)) (c/call-js! child :setBatchNode node))
+     (c/call-js! node
+                 :addChild
+                 child
+                 (if (number? zOrder) zOrder js/undefined)
+                 (if (number? tag) tag (if tag (name tag) js/undefined))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set!!
   "Set node attributes."
-  [node & [options]]
-  (let [{:keys [scale color
-                pos show? anchor]
-         :or {show? true}} options]
-    (do-with [node]
-      (if (some? color) (x/color! node color))
-      (if (some? pos) (x/pos! node pos))
-      (x/visible! node show?)
-      (if (number? scale) (x/scale! node scale))
-      (if (some? anchor) (x/anchor! node anchor)))))
+  ([node] (set!! node nil))
+  ([node options]
+   (let [{:keys [scale color
+                 pos show? anchor]
+          :or {show? true}} options]
+     (do-with [node]
+       (if (some? color) (x/color! node color))
+       (if (some? pos) (x/pos! node pos))
+       (x/visible! node show?)
+       (if (number? scale) (x/scale! node scale))
+       (if (some? anchor) (x/anchor! node anchor))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hide! "" [obj] (x/visible! obj false))
@@ -572,91 +552,92 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- peg-menu??
   "Place a menu by anchoring to its parent."
-  [R anchor menu tag total padding flat?]
+  [W anchor menu tag total padding flat?]
   (do-with [menu]
-    (let [{:keys [top bottom left right]}
-          (r->b4 R)
+    (let [{:keys [top low lhs rhs]}
+          (r->b4 W)
           [width height]
-          (r-> (bsize (gcbyt menu tag)))
+          (bsize* (x/gcbyt menu tag))
           t (+ (* padding (- total 1))
                (* total (if flat? width height)))
           [w h] (if flat? [t height] [width t])
-          [cx cy :as cp] (p-> (mid-rect R))
+          [cx cy :as cp] (mid-rect* W)
           [hw hh] (c/mapfv / 2 w h)
           [x y]
           (condp = anchor
-            ANCHOR-TOP-LEFT [(+ left hw) (- top hh)]
+            ANCHOR-TOP-LEFT [(+ lhs hw) (- top hh)]
             ANCHOR-TOP [cx (- top hh)]
-            ANCHOR-TOP-RIGHT [(- right hw) (- top hh)]
-            ANCHOR-LEFT  [(+ left hw) cy]
+            ANCHOR-TOP-RIGHT [(- rhs hw) (- top hh)]
+            ANCHOR-LEFT  [(+ lhs hw) cy]
             ANCHOR-CENTER cp
-            ANCHOR-RIGHT [(- right hw) cy]
-            ANCHOR-BOTTOM-LEFT [(+ left hw) (+ bottom hh)]
-            ANCHOR-BOTTOM [cx (+ bottom hh)]
-            ANCHOR-BOTTOM-RIGHT [(- right hw) (+ bottom hh)]
-            (raise! "pegMenu - bad anchor enum"))]
+            ANCHOR-RIGHT [(- rhs hw) cy]
+            ANCHOR-BOTTOM-LEFT [(+ lhs hw) (+ low hh)]
+            ANCHOR-BOTTOM [cx (+ low hh)]
+            ANCHOR-BOTTOM-RIGHT [(- rhs hw) (+ low hh)]
+            (c/raise! "pegMenu - bad anchor enum"))]
       (x/pos! menu x y))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tmenu
   "Create a text menu containing this set of items."
-  [items & [options]]
-  (let [items (if (map? items) [items] items)
-        tag 911
-        {:keys [scale region anchor
-                flat? align? color padding]
-         :or {align? true padding 10}} options]
-    (do-with [menu (x/menu*)]
-      (c/each* #(let [{:keys [text font cb ctx]} %1]
-                  (add-> menu
-                         (set!! (-> (x/bmf-text* text font)
-                                    (x/milabel* cb ctx))
-                                {:scale scale :color color})
-                         (+ %2 tag))) items)
-      (when align?
-        (if flat?
-          (x/halign-items menu padding)
-          (x/valign-items menu padding)))
-      (when anchor
-        (x/anchor! menu anchor)
-        (peg-menu?? (or region (vrect))
-                    anchor menu tag (n# items) padding flat?)))))
+  ([items] (tmenu items nil))
+  ([items options]
+   (let [items (if (map? items) [items] items)
+         tag 911
+         {:keys [scale region anchor
+                 flat? align? color padding]
+          :or {align? true padding 10}} options]
+     (do-with [menu (x/menu*)]
+       (c/each* #(let [{:keys [text font cb ctx]} %1]
+                   (add-> menu
+                          (set!! (-> (x/bmf-text* text font)
+                                     (x/milabel* cb ctx))
+                                 {:scale scale :color color})
+                          (+ %2 tag))) items)
+       (when align?
+         (if flat?
+           (x/halign-items menu padding)
+           (x/valign-items menu padding)))
+       (when anchor
+         (x/anchor! menu anchor)
+         (peg-menu?? (or region (vrect))
+                     anchor menu tag (n# items) padding flat?))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gmenu
   "Create a menu with graphic buttons."
-  [items & [options]]
-  (let [items (if (map? items) [items] items)
-        tag 911
-        {:keys [scale align? region
-                anchor padding flat?]
-         :or {align? true padding 10}} options]
-    (do-with [menu (x/menu*)]
-      (c/each* #(let [{:keys [cb ctx nnn sss ddd]} %1]
-                  (add-> menu
-                         (set!! (x/misprite* nnn cb
-                                             sss ddd ctx)
-                                {:scale scale}) (+ %2 tag))) items)
-      (when align?
-        (if flat?
-          (x/halign-items menu padding)
-          (x/valign-items menu padding)))
-      (when anchor
-        (x/anchor! menu anchor)
-        (peg-menu?? (or region (vrect))
-                    anchor
-                    menu tag (n# items) padding flat?)))))
+  ([items] (gmenu items nil))
+  ([items options]
+   (let [items (if (map? items) [items] items)
+         tag 911
+         {:keys [scale align? region
+                 anchor padding flat?]
+          :or {align? true padding 10}} options]
+     (do-with [menu (x/menu*)]
+       (c/each* #(let [{:keys [cb ctx nnn sss ddd]} %1]
+                   (add-> menu
+                          (set!! (x/misprite* nnn cb
+                                              sss ddd ctx)
+                                 {:scale scale}) (+ %2 tag))) items)
+       (when align?
+         (if flat?
+           (x/halign-items menu padding)
+           (x/valign-items menu padding)))
+       (when anchor
+         (x/anchor! menu anchor)
+         (peg-menu?? (or region (vrect))
+                     anchor
+                     menu tag (n# items) padding flat?))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bmf-label*
   "New bitmapfont label."
-  [text font & [options]]
-  (set!! (x/bmf-text* text font) options))
+  ([text font] (bmf-label* text font nil))
+  ([text font options]
+   (set!! (x/bmf-text* text font) options)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn gicfg
-  "Get value from config."
-  [& path] (get-in @xcfg path))
+(defn gicfg "Get value from config." [& path] (get-in @xcfg path))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn l10n
@@ -683,7 +664,7 @@
   "Publish a message on this topic."
   [topic & args]
   (if-some [b (-> (get-in @xcfg [:game :scene])
-                  (oc/oget "?ebus"))] (apply e/pub b (cc+1 topic args))))
+                  (c/get-js :ebus))] (apply e/pub b (cc+1 topic args))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn calc-xy
@@ -745,14 +726,13 @@
 (defn sfx!
   "Turn sound on or off."
   [s?]
-  (do->nil
-    (swap! xcfg #(assoc-in % [:audio :open?] s?))))
+  (do#nil (swap! xcfg #(assoc-in % [:audio :open?] s?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn toggle-sfx!
   "Toggle the sound."
   []
-  (do->nil
+  (do#nil
     (swap! xcfg
            (fn_1 (update-in ____1
                             [:audio :open?] #(not %))))))
@@ -764,15 +744,14 @@
 (defn sfx-music-vol!
   "Set music volume."
   [vol]
-  (do->nil (if (number? vol) (js/cc.audioEngine.setMusicVolume vol))))
+  (do#nil (if (number? vol) (js/cc.audioEngine.setMusicVolume vol))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sfx-play?? [what key & [options]]
   (let [{:keys [vol repeat?]} options
         p (gres+ :assets :sounds key)]
-    (do->nil
-      (when (and (sfx?)
-                 (some? p))
+    (do#nil
+      (when (and (sfx?) p)
         (sfx-music-vol! vol)
         (condp = what
           :music (js/cc.audioEngine.playMusic p repeat?)
@@ -786,14 +765,15 @@
 (defn sfx-cancel!
   "Stop all sound."
   []
-  (do->nil (js/cc.audioEngine.stopMusic)
-           (js/cc.audioEngine.stopAllEffects)))
+  (do#nil (js/cc.audioEngine.stopMusic)
+          (js/cc.audioEngine.stopAllEffects)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn xlive-icon
   "Create a live icon."
-  [img & [options]]
-  (set!! (x/sprite* img) options))
+  ([img] (xlive-icon nil))
+  ([img options]
+   (set!! (x/sprite* img) options)))
 ;create() { const dummy = new XLive(0,0,this.options); this.lifeSize = { width: ccsx.getScaledWidth(dummy), height: ccsx.getScaledHeight(dummy) } ; this.drawLives(); }
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -839,7 +819,7 @@
   [g]
   (let [{:keys [topLeft image
                 dir parent curLives]} @g
-        [width height] (r-> (bsize image))
+        [width height] (bsize* image)
         [hw hh] (c/mapfv / 2 width height)
         w (* width (if (pos? dir) 1 -1))]
     (do-with [g]
@@ -859,54 +839,57 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn audio-icon
   "Create the audio - sound control icon."
-  [yes no & [options]]
-  (x/menu* (-> (x/mitoggle* (x/misprite* yes nil)
-                            (x/misprite* no nil)
-                            #(sfx! (zero? (gsidx %))))
-               (set!! options)
-               (toggle-select! (if (sfx?) 0 1)))))
+  ([yes no] (audio-icon yes no nil))
+  ([yes no options]
+   (x/menu* (-> (x/mitoggle* (x/misprite* yes nil)
+                             (x/misprite* no nil)
+                             #(sfx! (zero? (x/gsidx %))))
+                (set!! options)
+                (toggle-select! (if (sfx?) 0 1))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn quit!
   "What happens when we quit."
   [ctor]
-  (do->nil
+  (do#nil
     (x/push-scene (ctor {:no #(x/pop-scene)
                          :yes (fn_1 (x/pop->root)
                                     (run-next-scene ____1))}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn center!!
-  "Add this to the center of R."
-  [R node obj & [tag zOrder]]
-  (add-> node (set!! obj
-                     {:pos (mid-rect R)}) tag zOrder))
+  "Add this to the center of W."
+  ([W node obj] (center!! W node obj nil))
+  ([W node obj tag] (center!! W node obj tag nil))
+  ([W node obj tag zOrder]
+   (add-> node (set!! obj {:pos (mid-rect W)}) tag zOrder)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn center-image
-  "Add this image to the center of R."
-  [R node frame & [tag zOrder]]
-  (center!! R node (x/sprite* frame) tag zOrder))
+  "Add this image to the center of W."
+  ([W node frame] (center-image W node frame nil))
+  ([W node frame tag] (center-image W node frame tag nil))
+  ([W node frame tag zOrder] (center!! W node (x/sprite* frame) tag zOrder)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn peg-to-anchor
   "Peg something to its parent based on the anchor-points."
   [R node where]
-  (let [[x y] (p-> (mid-rect R))
-        {:keys [top bottom left right]} (r->b4 R)]
+  (let [[x y] (mid-rect* R)
+        {:keys [top low lhs rhs]} (r->b4 R)]
     (do-with [node]
       (x/pos! node
               (condp = where
-                ANCHOR-TOP-LEFT (js/cc.p left top)
+                ANCHOR-TOP-LEFT (js/cc.p lhs top)
                 ANCHOR-TOP (js/cc.p x top)
-                ANCHOR-TOP-RIGHT (js/cc.p right top)
-                ANCHOR-LEFT (js/cc.p left y)
+                ANCHOR-TOP-RIGHT (js/cc.p rhs top)
+                ANCHOR-LEFT (js/cc.p lhs y)
                 ANCHOR-CENTER (js/cc.p x y)
-                ANCHOR-RIGHT (js/cc.p right y)
-                ANCHOR-BOTTOM-LEFT (js/cc.p left bottom)
-                ANCHOR-BOTTOM (js/cc.p x bottom)
-                ANCHOR-BOTTOM-RIGHT (js/cc.p right bottom)
-               (raise! "pegToAnchor bad where = " where))))))
+                ANCHOR-RIGHT (js/cc.p rhs y)
+                ANCHOR-BOTTOM-LEFT (js/cc.p lhs low)
+                ANCHOR-BOTTOM (js/cc.p x low)
+                ANCHOR-BOTTOM-RIGHT (js/cc.p rhs low)
+               (c/raise! "pegToAnchor bad where = " where))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- hgsort
@@ -985,31 +968,33 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn new-high-scores
   "Create a high-scores data object."
-  [key size & [duration]]
-  (atom {:size size :scores [] :ckey key
-         :duration (or duration (* 60 60 24 1000))}))
+  ([key size] (new-high-scores key size nil))
+  ([key size duration]
+   (atom {:size size :scores [] :ckey key
+          :duration (or duration (* 60 60 24 1000))})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn attr*
   "Set js-object properties."
   [node attrsObj]
   {:pre [(object? attrsObj)]}
-  (oc/ocall! node "attr" attrsObj) node)
+  (c/call-js! node :attr attrsObj) node)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn enable-events
   "Enable all possible event listeners."
-  [node & [multi-touch?]]
-  (do->nil
-    (if (native?)
-      (accept-touch node multi-touch?)
-      (doto node (accept-keys) (accept-mouse)))))
+  ([node] (enable-events node false))
+  ([node multi-touch?]
+   (do#nil
+     (if (native?)
+       (accept-touch node multi-touch?)
+       (doto node (accept-keys) (accept-mouse))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn disable-events
   "Disable all event listeners."
   []
-  (do->nil
+  (do#nil
     (swap! xcfg
            (fn [root]
              (doseq [v (:listeners root)]
@@ -1018,32 +1003,35 @@
              (assoc root :listeners [])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn draw-grid [region size drawer & [border?]]
-  (let->nil
-    [{:keys [lhs rhs top low]} (r->b4 region)
-     cw (/ (- rhs lhs) size)
-     rh (/ (- top low) size)]
-    (x/debug* "cw = " cw ", rh= " rh)
-    (dotimes [n size]
-      (cond
-        (= n 0)
-        (when border?
-          (drawer (x/ccp* lhs top) (x/ccp* rhs top))
-          (drawer (x/ccp* lhs top) (x/ccp* lhs low)))
-        (= n size)
-        (when border?
-          (drawer (x/ccp* lhs low) (x/ccp* rhs low))
-          (drawer (x/ccp* rhs top) (x/ccp* rhs low)))
-        :else
-        (let [x (+ lhs (* n cw))
-              y (- top (* n rh))]
-          (drawer (x/ccp* lhs y) (x/ccp* rhs y))
-          (drawer (x/ccp* x top) (x/ccp* x low)))))))
+(defn draw-grid
+  ""
+  ([region size drawer] (draw-grid region size drawer false))
+  ([region size drawer border?]
+   (let#nil
+     [{:keys [lhs rhs top low]} (r->b4 region)
+      cw (/ (- rhs lhs) size)
+      rh (/ (- top low) size)]
+     (x/debug* "cw = " cw ", rh= " rh)
+     (dotimes [n size]
+       (cond
+         (= n 0)
+         (when border?
+           (drawer (x/ccp* lhs top) (x/ccp* rhs top))
+           (drawer (x/ccp* lhs top) (x/ccp* lhs low)))
+         (= n size)
+         (when border?
+           (drawer (x/ccp* lhs low) (x/ccp* rhs low))
+           (drawer (x/ccp* rhs top) (x/ccp* rhs low)))
+         :else
+         (let [x (+ lhs (* n cw))
+               y (- top (* n rh))]
+           (drawer (x/ccp* lhs y) (x/ccp* rhs y))
+           (drawer (x/ccp* x top) (x/ccp* x low))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn on-scene [scene]
   (.call js/cc.Node.prototype.onEnter scene)
-  (enable-events (gcbyn scene :arena)))
+  (enable-events (x/gcbyn scene :arena)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn on-scene-enter [scene] (fn_0 (on-scene scene)))
@@ -1054,13 +1042,31 @@
         (.call js/cc.Node.prototype.onExit scene)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn hook-update [scene fstep]
-  (let->nil []
-    (attr* scene
-           #js{:update fstep
-               :onExit (on-scene-exit scene)
-               :onEnter (on-scene-enter scene)})
-    (c/call-js! scene "scheduleUpdate")))
+(defn reg-game-scene
+  "Register the game scene and add the arena layer."
+  ([scene] (reg-game-scene scene nil))
+  ([scene zOrder]
+   (swap! xcfg
+          (fn_1 (update-in ____1
+                           [:game]
+                           #(assoc % :scene scene))))
+   (add-> scene (x/layer*) :arena zOrder)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn set-game-status! "" [running?]
+  (swap! xcfg #(assoc-in % [:game :running?] running?)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hook-update
+  ([scene fstep] (hook-update scene fstep false))
+  ([scene fstep run?]
+   (let#nil []
+     (attr* scene
+            #js{:update fstep
+                :onExit (on-scene-exit scene)
+                :onEnter (on-scene-enter scene)})
+     (c/call-js! scene :scheduleUpdate)
+     (if run? (set-game-status! true)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bootstrap
@@ -1069,12 +1075,12 @@
   (let [lang (keyword js/cc.sys.language)
         f #(c/merge+ %
                      (js/cc.game.____configurator))]
-    (debug* "bootstrap(), lang= " (name lang))
+    (x/debug* "bootstrap(), lang= " (name lang))
     (swap! xcfg #(assoc (f %) :lang lang))
     (work)
     (sfx-music-vol! (get-in @xcfg [:audio :volume]))
     (let [[w h] (r-> (js/cc.view.getDesignResolutionSize))]
-      (debug* "design= [" w ", " h "], loaded & running.  OK"))))
+      (x/debug* "design= [" w ", " h "], loaded & running.  OK"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; patch the config object!!!
@@ -1103,7 +1109,6 @@
                 :scale 1
                 :sfx :mp3
                 :gravity 0
-                :landscape? true
                 :preload-levels? true}
          :l10n {:en {"%mobileStart" "Press Anywhere To Start!"
                      "%webStart" "Press Spacebar To Start!"

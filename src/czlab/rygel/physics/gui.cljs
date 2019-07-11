@@ -16,36 +16,29 @@
             [czlab.mcfud.afx.core :as c :refer [_1 _2 fn_0 fn_1 do-with]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn game-scene "" []
+(defn game-scene []
   (do-with [scene (x/scene*)]
-    (let [gl (x/add-> scene (x/layer*) "arena" 1)]
-      (swap! xcfg
-             (fn_1 (update-in ____1
-                              [:game]
-                              #(assoc %
-                                      :scene scene))))
-      (impl/init)
-      (x/hook-update scene #(impl/run-game %))
-      (swap! xcfg
-             #(assoc-in % [:game :running?] true)))))
+    (x/reg-game-scene scene 1)
+    (impl/init)
+    (x/hook-update scene
+                   #(impl/run-game %) true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn splash-scene "" []
+(defn splash-scene []
   (do-with [scene (x/scene*)]
-    (let [R (x/vrect)
-          [cx cy] (x/mid-rect* R)
-          {:keys [top]} (x/r->b4 R)
+    (let [W (x/vrect)
+          {t :top} (x/r->b4 W)
+          [cx cy] (x/mid-rect* W)
           layer (x/add-> scene (x/layer*))]
       (x/add-> layer
                (x/bmf-label* "Physics!"
                              (x/gfnt :title)
-                             {:pos (x/ccp* cx (* .8 top))
+                             {:pos (x/ccp* cx (* .8 t))
                               :color "#EDFF90"}))
       (x/add-> layer
                (x/gmenu {:nnn "#play.png"
                          :cb (fn_0 (x/run-scene (game-scene)))}
-                        {:pos (x/ccp* cx (* .1 top))})))))
-
+                        {:pos (x/ccp* cx (* .1 t))})))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
