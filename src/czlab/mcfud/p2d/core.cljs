@@ -297,7 +297,7 @@
    ;;Update only every Milliseconds per frame.
    ;;If lag larger then update frames, update until caught up.
    (let [{:keys [algo-runner frame-millis]} @gWorld
-         icnt (c/num?? algoIterCount 10)
+         icnt (c/num?? algoIterCount 15)
          cpos (c/num?? posCorrection .8)]
      (while (and (fn? algo-runner)
                  (>= lag-millis frame-millis))
